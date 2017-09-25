@@ -1,0 +1,25 @@
+{
+    "name": "dever-main/framework",
+    "type": "framework",
+    "description": "dever framework",
+    "keywords": ["framework","library"],
+    "homepage": "https://github.com/dever-main/framework",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Rabin",
+            "email": "2934170@qq.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.0.0"
+    },
+    "autoload": {
+        "files": [
+            "dever.php"
+        ],
+        "psr-4": {
+            "Dever\\": "src/Dever/"
+        }
+    }
+}

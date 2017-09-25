@@ -1,0 +1,36 @@
+{
+	"repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/dever-main/framework"
+        },
+        {   
+            "type": "composer", 
+            "url": "http://packagist.cn"
+        },
+        {
+            "packagist": false
+        }
+    ],
+    
+    "require": {
+        "dever-main/framework": "dev-master"
+        ,"sunra/php-simple-html-dom-parser": "v1.5.0"
+        ,"erusev/parsedown": "1.6.0"
+        ,"filp/whoops": "2.1.2"
+    },
+
+    "require_test": {
+        "username/project": "version"
+        ,"phpoffice/phpexcel": "1.8.1"
+        ,"kriswallsmith/assetic": "v1.3.2"
+        ,"fzaninotto/faker": "v1.6.0"
+        ,"illuminate/validation": "v5.2.31"
+        ,"mrrio/shellwrap": "0.4.1"
+        ,"symfony/var-dumper": "v3.1.6"
+    },
+
+	"config": {
+		"secure-http": false
+	}
+}

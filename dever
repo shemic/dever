@@ -1,0 +1,404 @@
+#!/usr/bin/env php
+<?php
+define('PATH', dirname(__FILE__) . DIRECTORY_SEPARATOR);
+class Dever
+{
+    protected static $package = 'http://dever.shemic.com/';
+    protected static $command = array();
+    protected static $check = false;
+
+    public static function handle()
+    {
+        global $argc, $argv;
+
+        if (isset($argv) && isset($argv[1])) {
+            self::out('loading...');
+            $method = 'method_' . $argv[1];
+            if (!method_exists(__CLASS__, $method)) {
+                self::error();
+            }
+            if (isset($argv[3])) {
+                unset($argv[0]);
+                unset($argv[1]);
+                $name = $argv[2];
+                unset($argv[2]);
+                self::$method($name, $argv);
+            } elseif (isset($argv[2])) {
+                self::$method($argv[2]);
+            } else {
+                self::$method();
+            }
+
+            self::exe();
+        } else {
+            self::error();
+        }
+    }
+
+    protected static function input($text, $default = '')
+    {
+        if (is_array($text)) {
+            $text = implode("\n", $text);
+        }
+
+        self::out($text);
+
+        $stdin = fopen('php://stdin', 'r');
+        $shell = trim(fgets($stdin, 100));
+
+        return $shell ? $shell : $default;
+    }
+
+    protected static function out($text)
+    {
+        echo $text . "\n";
+    }
+
+    protected static function error()
+    {
+        self::out('error');
+        die;
+    }
+
+    protected static function notice()
+    {
+        self::out('您的php不支持system，请联系空间商或管理员开启system。');
+        die;
+    }
+
+    public static function command($command)
+    {
+        array_push(self::$command, $command);
+    }
+
+    public static function exe()
+    {
+        if (!self::check()) {
+            self::notice();
+        }
+
+        if (self::$command) {
+            system(implode(' && ', self::$command));
+        }
+        echo "Finished!\n";
+    }
+
+    protected static function check()
+    {
+        if (self::$check) {
+            return true;
+        }
+        if (!function_exists('system')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected static function method_init($type = 'main')
+    {
+        self::command('sudo cp -R dever /usr/bin/dever');
+        self::command('sudo chmod +x /usr/bin/dever');
+        if ($type == 'composer') {
+            //$HOME
+            $composer = '/usr/bin/composer';
+            //$shell = 'sudo curl -sS http://packagist.cn/composer/installer | sudo php -d detect_unicode=Off';
+            self::command('sudo curl http://getcomposer.org/installer | sudo php -d detect_unicode=Off');
+            self::command('sudo mv composer.phar ' . $composer);
+            self::command('sudo chmod +x ' . $composer);
+            self::command('composer install --optimize-autoloader');
+        } else {
+            self::method_install('init');
+        }
+    }
+
+    protected static function method_up($type = 'main')
+    {
+        if ($type == 'composer') {
+            self::command('composer update --optimize-autoloader');
+        } else {
+            self::method_install('init');
+        }
+    }
+
+    protected static function method_opt()
+    {
+        self::command('composer dump-autoload --optimize');
+    }
+
+    protected static function method_git()
+    {
+        self::command('sudo apt-get install git-core');
+    }
+
+    protected static function method_pack($name, $path = '')
+    {
+        if ($name == 'init') {
+            $path = array
+                (
+                'build/',
+                'config/',
+                'boot.php',
+                'web/data/assets/index.html',
+                'web/data/cache/index.html',
+                'web/data/compile/index.html',
+                'web/data/database/index.html',
+                'web/data/manage/index.html',
+                'web/data/node/index.html',
+                'web/data/project/index.html',
+                'web/data/sql/index.html',
+                'web/data/upload/index.html',
+                'web/data/index.html',
+                'web/package/boot.php',
+                'web/package/index.html',
+                'web/application/boot.php',
+                'web/application/index.html',
+            );
+            $path = implode(' ', $path);
+        } else {
+            if (!$path) {
+                $path = $name;
+            }
+
+            if (is_array($path)) {
+                $method = 1;
+                if (isset($path[3]) && $path[3] == '-p') {
+                    unset($path[3]);
+                    $method = 2;
+                }
+
+                $temp = $path;
+                $path = '';
+                foreach ($temp as $k => $v) {
+                    if ($method == 2) {
+                        $n = explode('/', $v);
+                        $m = count($n) - 2;
+                        $n = $n[$m];
+
+                        if (!is_dir(PATH . 'web/data/assets/' . $n)) {
+                            $n = 'default';
+                        }
+
+                        $template = $v . 'template';
+
+                        if (!is_dir(PATH . $template)) {
+                            $template = $v . 'main/template';
+                        }
+
+                        $e = ' web/data/assets/' . $n . ' web/data/compile/' . $n . ' --exclude=' . $template;
+                    } else {
+                        $e = ' --exclude=' . $v . 'template';
+                    }
+
+                    $path .= ' ' . $v . $e;
+                }
+            }
+        }
+
+        self::command('tar -czf install/' . $name . '.tar.gz ' . $path . ' --exclude-vcs');
+    }
+
+    protected static function method_init_laravel()
+    {
+        self::command('composer create-project laravel/laravel --prefer-dist');
+    }
+
+    protected static function method_create()
+    {
+        self::method_install('create');
+    }
+
+    protected static function method_mysql()
+    {
+        $text = array
+            (
+            '请输入命令以执行相应操作：'
+            , 'backup:备份mysql'
+            , 'restore:恢复mysql'
+            , '请在输入命令之后按回车键',
+
+        );
+
+        $shell = self::input($text);
+
+        switch ($shell) {
+            case 'backup':
+                Mysql::backup();
+                break;
+            case 'restore':
+                Mysql::restore();
+                break;
+            default:
+                echo "未定义的方法";
+                break;
+        }
+    }
+
+    protected static function method_install($value)
+    {
+        $value .= '.tar.gz';
+        if (self::check()) {
+            self::command('wget -c ' . self::$package . $value);
+            self::command('tar -zxvf ' . $value);
+            self::command('rm -rf ' . $value);
+
+            if ($value == 'composer') {
+                self::method_init($value);
+            }
+        } elseif (class_exists('PharData')) {
+            self::$check = true;
+            $path = dirname(__FILE__) . '/';
+            file_put_contents($path . $value, file_get_contents(self::$package . $value));
+            $phar = new PharData($value);
+            $phar->extractTo($path, null, true);
+            unlink($path . $value);
+        } else {
+            self::notice();
+        }
+    }
+
+    private static function copy($src, $dst, $path)
+    {
+        if (function_exists('system')) {
+            system('cp -R ' . $src . ' ' . $dst);
+        } else {
+            $path = str_replace(array('/', '..'), '', $path);
+            $dst = $dst . $path;
+
+            if (!is_dir($dst)) {
+                mkdir($dst);
+            }
+
+            $dir = opendir($src);
+
+            while (false !== ($file = readdir($dir))) {
+                if (($file != '.') && ($file != '..')) {
+                    if (is_dir($src . '/' . $file)) {
+                        $this->copyDir($src . '/' . $file, $dst . '/' . $file);
+                    } else {
+                        copy($src . '/' . $file, $dst . '/' . $file);
+                    }
+                }
+            }
+            closedir($dir);
+        }
+    }
+
+    protected static function method_build($path = 'vendor')
+    {
+        //$exts = ['php','js','css','html'];
+        $exts = array('php', 'js', 'css', 'html');
+        $dir = dirname(__FILE__) . '/build/';
+
+        $path && system('cp -R ' . $path . ' ' . $dir);
+
+        $file = 'dever.phar';
+
+        $phar = new Phar($dir . $file, FilesystemIterator::CURRENT_AS_FILEINFO | FilesystemIterator::KEY_AS_FILENAME, $file);
+
+        $phar->startBuffering();
+
+        if ($path) {
+            foreach ($exts as $ext) {
+                $phar->buildFromDirectory($dir, '/\.' . $ext . '$/');
+            }
+        }
+
+        $index = 'boot.php';
+        $phar->buildFromIterator
+            (
+            new ArrayIterator
+            (
+                array
+                (
+                    $index => $dir . $index,
+                )
+            )
+        );
+        //$phar->delete('build.php');
+        $phar->setStub($phar->createDefaultStub($index, $index));
+        $phar->compressFiles(Phar::GZ);
+        $phar->stopBuffering();
+        //system('cp -R ' . $dir . $file . ' ' . $file);
+        $path && system('rm -rf ' . $dir . $path);
+    }
+}
+
+class Create extends Dever
+{
+
+}
+
+class Mysql extends Dever
+{
+    protected static function common()
+    {
+        $info['host'] = self::input('请输入mysql的主机地址：默认为localhost', 'localhost');
+        $info['username'] = self::input('请输入mysql的账号：默认为root', 'root');
+        $info['password'] = self::input('请输入mysql的密码：默认为空', '');
+        $info['database'] = self::input('请输入mysql的数据库名：');
+
+        if (!$info['host'] || !$info['username'] || !$info['password'] || !$info['database']) {
+            self::out('请输入正确的数据库信息！');die;
+        }
+
+        $info['file'] = PATH . 'web/data/sql/' . $info['database'];
+
+        $info['shell'] = ' -u' . $info['username'] . ' -p' . $info['password'] . ' -h' . $info['host'] . ' ';
+
+        return $info;
+    }
+
+    public static function backup()
+    {
+        $info = self::common();
+
+        $info['table'] = self::input('请输入mysql的表名（不输入则备份整个' . $info['database'] . '数据库）：');
+        $info['type'] = self::input('请输入备份类型：1为备份全部，2为备份结构，3为备份数据');
+
+        $info['shell'] = 'mysqldump ' . $info['shell'];
+
+        if ($info['type'] == 2) {
+            $info['shell'] .= ' -d ' . $info['database'];
+        } elseif ($info['type'] == 3) {
+            $info['shell'] .= ' -t ' . $info['database'];
+        } else {
+            $info['shell'] .= ' ' . $info['database'];
+        }
+
+        if ($info['table']) {
+            $info['shell'] .= ' ' . $info['table'];
+            $info['file'] .= '.' . $info['table'];
+        }
+
+        $info['file'] .= '.sql';
+
+        $info['shell'] .= ' > ' . $info['file'];
+
+        self::command($info['shell']);
+
+        self::out('操作成功，输出路径：' . $info['file']);
+    }
+
+    public static function restore()
+    {
+        $info = self::common();
+
+        $info['new'] = self::input('请输入要恢复的全新数据库：为空则使用上边填的数据库', $info['database']);
+
+        $create_table = 'mysqladmin ' . $info['shell'] . ' create ' . $info['new'];
+
+        $info['shell'] = 'mysql ' . $info['shell'] . ' ' . $info['new'];
+
+        $info['file'] .= '.sql';
+
+        $info['shell'] .= ' < ' . $info['file'];
+
+        self::exe($create_table);
+        self::command($info['shell']);
+
+        self::out('操作成功，您已成功恢复' . $info['file'] . '里的数据');
+    }
+}
+
+Dever::handle();

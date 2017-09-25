@@ -1,0 +1,199 @@
+[
+    {
+        "name": "sunra/php-simple-html-dom-parser",
+        "version": "v1.5.0",
+        "version_normalized": "1.5.0.0",
+        "source": {
+            "type": "git",
+            "url": "https://github.com/sunra/php-simple-html-dom-parser.git",
+            "reference": "a0b80ace086c7e09085669205e1b3c2c9c7a453c"
+        },
+        "dist": {
+            "type": "zip",
+            "url": "https://api.github.com/repos/sunra/php-simple-html-dom-parser/zipball/a0b80ace086c7e09085669205e1b3c2c9c7a453c",
+            "reference": "a0b80ace086c7e09085669205e1b3c2c9c7a453c",
+            "shasum": ""
+        },
+        "require": {
+            "php": ">=5.3.2"
+        },
+        "time": "2013-05-04T14:32:03+00:00",
+        "type": "library",
+        "installation-source": "dist",
+        "autoload": {
+            "psr-0": {
+                "Sunra\\PhpSimple\\HtmlDomParser": "Src/"
+            }
+        },
+        "notification-url": "http://packagist.cn/downloads/",
+        "license": [
+            "MIT"
+        ],
+        "authors": [
+            {
+                "name": "sunra",
+                "email": "sunra@yandex.ru",
+                "homepage": "http://github.com/sunra"
+            }
+        ],
+        "description": "Composer adaptation of: A HTML DOM parser written in PHP5+ let you manipulate HTML in a very easy way! Require PHP 5+. Supports invalid HTML. Find tags on an HTML page with selectors just like jQuery. Extract contents from HTML in a single line.",
+        "homepage": "https://github.com/sunra/php-simple-html-dom-parser",
+        "keywords": [
+            "dom",
+            "html",
+            "parser"
+        ]
+    },
+    {
+        "name": "erusev/parsedown",
+        "version": "1.6.0",
+        "version_normalized": "1.6.0.0",
+        "source": {
+            "type": "git",
+            "url": "https://github.com/erusev/parsedown.git",
+            "reference": "3ebbd730b5c2cf5ce78bc1bf64071407fc6674b7"
+        },
+        "dist": {
+            "type": "zip",
+            "url": "https://api.github.com/repos/erusev/parsedown/zipball/3ebbd730b5c2cf5ce78bc1bf64071407fc6674b7",
+            "reference": "3ebbd730b5c2cf5ce78bc1bf64071407fc6674b7",
+            "shasum": ""
+        },
+        "time": "2015-10-04T16:44:32+00:00",
+        "type": "library",
+        "installation-source": "dist",
+        "autoload": {
+            "psr-0": {
+                "Parsedown": ""
+            }
+        },
+        "notification-url": "http://packagist.cn/downloads/",
+        "license": [
+            "MIT"
+        ],
+        "authors": [
+            {
+                "name": "Emanuil Rusev",
+                "email": "hello@erusev.com",
+                "homepage": "http://erusev.com"
+            }
+        ],
+        "description": "Parser for Markdown.",
+        "homepage": "http://parsedown.org",
+        "keywords": [
+            "markdown",
+            "parser"
+        ]
+    },
+    {
+        "name": "filp/whoops",
+        "version": "2.1.2",
+        "version_normalized": "2.1.2.0",
+        "source": {
+            "type": "git",
+            "url": "https://github.com/filp/whoops.git",
+            "reference": "d13505b240a6f580bc75ba591da30299d6cb0eec"
+        },
+        "dist": {
+            "type": "zip",
+            "url": "https://api.github.com/repos/filp/whoops/zipball/d13505b240a6f580bc75ba591da30299d6cb0eec",
+            "reference": "d13505b240a6f580bc75ba591da30299d6cb0eec",
+            "shasum": ""
+        },
+        "require": {
+            "php": ">=5.5.9"
+        },
+        "require-dev": {
+            "mockery/mockery": "0.9.*",
+            "phpunit/phpunit": "^4.8 || ^5.0",
+            "symfony/var-dumper": "~3.0"
+        },
+        "suggest": {
+            "symfony/var-dumper": "Pretty print complex values better with var-dumper available",
+            "whoops/soap": "Formats errors as SOAP responses"
+        },
+        "time": "2016-04-07T06:16:25+00:00",
+        "type": "library",
+        "extra": {
+            "branch-alias": {
+                "dev-master": "2.0-dev"
+            }
+        },
+        "installation-source": "dist",
+        "autoload": {
+            "psr-4": {
+                "Whoops\\": "src/Whoops/"
+            }
+        },
+        "notification-url": "http://packagist.cn/downloads/",
+        "license": [
+            "MIT"
+        ],
+        "authors": [
+            {
+                "name": "Filipe Dobreira",
+                "homepage": "https://github.com/filp",
+                "role": "Developer"
+            }
+        ],
+        "description": "php error handling for cool kids",
+        "homepage": "https://github.com/filp/whoops",
+        "keywords": [
+            "error",
+            "exception",
+            "handling",
+            "library",
+            "whoops",
+            "zf2"
+        ]
+    },
+    {
+        "name": "dever-main/framework",
+        "version": "dev-master",
+        "version_normalized": "9999999-dev",
+        "source": {
+            "type": "git",
+            "url": "https://github.com/dever-main/framework.git",
+            "reference": "d5f2b5c9586d51b8001f78813baf54b620c20e81"
+        },
+        "dist": {
+            "type": "zip",
+            "url": "https://api.github.com/repos/dever-main/framework/zipball/d5f2b5c9586d51b8001f78813baf54b620c20e81",
+            "reference": "d5f2b5c9586d51b8001f78813baf54b620c20e81",
+            "shasum": ""
+        },
+        "require": {
+            "php": ">=5.0.0"
+        },
+        "time": "2016-05-05T03:02:00+00:00",
+        "type": "framework",
+        "installation-source": "source",
+        "autoload": {
+            "files": [
+                "dever.php"
+            ],
+            "psr-0": {
+                "Dever": "src/"
+            }
+        },
+        "license": [
+            "MIT"
+        ],
+        "authors": [
+            {
+                "name": "Rabin",
+                "email": "2934170@qq.com"
+            }
+        ],
+        "description": "dever framework",
+        "homepage": "https://github.com/dever-main/framework",
+        "keywords": [
+            "framework",
+            "library"
+        ],
+        "support": {
+            "source": "https://github.com/dever-main/framework/tree/master",
+            "issues": "https://github.com/dever-main/framework/issues"
+        }
+    }
+]
