@@ -128,13 +128,10 @@ class Request
      */
     protected function settingOrder($method, $key, $value)
     {
-        if (isset($this->config[$method]['order'][0]) && $this->config[$method]['order'][0] != $key) {
-            if ($this->config[$method]['order'][0] == 'id') {
-                $this->config[$method]['order'][0] = $key;
-                $this->config[$method]['order'][1] = is_string($value['order']) ? $value['order'] : 'desc';
-            } else {
-                $this->config[$method]['order'][0] = $key . '` ' . (is_string($value['order']) ? $value['order'] : 'desc') . ',`' . $this->config[$method]['order'][0];
-            }
+        if (isset($this->config[$method]['order']['id']) && $this->config[$method]['order']['id'] != $key) {
+            $this->config[$method]['order'][$key] = is_string($value['order']) ? $value['order'] : 'desc';
+
+            $this->config[$method]['order'] = array_reverse($this->config[$method]['order']);
         }
     }
 
