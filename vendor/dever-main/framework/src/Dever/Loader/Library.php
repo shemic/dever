@@ -98,7 +98,7 @@ class Library
         if (isset($class[0]) && isset($class[1])) {
             return $class;
         }
-        Export::alert('class_exists', $class);
+        return false;
     }
 
     /**
@@ -109,6 +109,9 @@ class Library
     public function getProject($class)
     {
         $class = $this->getClass($class);
+        if (!$class) {
+            return array(false, false);
+        }
         $project = Project::load($class[0]);
 
         if ($project) {
@@ -138,6 +141,14 @@ class Library
     public function import($source, $lower, $path)
     {
         $file = $path . $lower . '.php';
+        $common = 'common/';
+        if (substr($path, 0, strlen($common)) === $common) {
+            $include = get_include_path();
+            if (strpos($include, ':')) {
+                $temp = explode(':', $include);
+                $path = $temp[1] . '/' . $path;
+            }
+        }
         if (is_file($file)) {
             $this->includeFile($file);
             return false;
