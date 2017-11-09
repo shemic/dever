@@ -270,9 +270,9 @@ class Dever
     public static function proxy($method = false, $param = false)
     {
         if ($method) {
-            if (isset(Dever::config('host')['proxy']) && Dever::config('host')['proxy']) {
+            if (Dever::config('host')->proxy) {
                 $method = urlencode($method);
-                return Dever::url(Dever::config('host')['proxy'] . 'proxy_method=' . $method . '&' . $param);
+                return Dever::url(Dever::config('host')->proxy . 'proxy_method=' . $method . '&' . $param);
             }
             return self::url($method . '?' . $param);
         }
