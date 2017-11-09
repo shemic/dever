@@ -111,7 +111,7 @@ class Url
      */
     public static function uploadRes($content)
     {
-        if (Config::get('host')->uploadRes && $content) {
+        if (Config::get('host')->uploadRes && $content && strpos($content, '{uploadRes}') !== false) {
             $host = Config::get('host')->uploadRes;
             if (is_array(Config::get('host')->uploadRes)) {
                 $index = array_rand(Config::get('host')->uploadRes);

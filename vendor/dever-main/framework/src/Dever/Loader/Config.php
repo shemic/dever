@@ -132,7 +132,11 @@ class Config
 
             list($root, $app) = $this->app($app);
 
-            $config = array(DEVER_PATH, $root);
+            if (defined('DEVER_PROJECT_PATH')) {
+                $config = array(DEVER_PATH, DEVER_PROJECT_PATH, $root);
+            } else {
+                $config = array(DEVER_PATH, $root);
+            }
 
             $this->cData[$name] = array();
 

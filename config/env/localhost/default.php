@@ -11,10 +11,10 @@ $config['base'] = array
 	'assets' => DEVER_APP_PATH . 'assets' . DIRECTORY_SEPARATOR,
 
 	# 访问data目录的物理路径
-	'data' 	=> DEVER_PATH . '../data' . DIRECTORY_SEPARATOR,
+	'data' 	=> DEVER_APP_PATH . 'data' . DIRECTORY_SEPARATOR,
 
 	# 访问当前项目目录的物理路径，如果项目和dever类库在一个目录中，则为DEVER_PATH，如果不在，则为DEVER_APP_PATH，当然也可随意更改，这里目前只影响合并操作
-	'workspace' => DEVER_PATH,
+	'workspace' => DEVER_APP_PATH,
 	
 	# 定义api的token明文，如果和其他业务有合作，建议使用系统自带的接口api，自带加密解密程序。
 	'token' => 'dever_api_2016',

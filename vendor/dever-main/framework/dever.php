@@ -11,6 +11,7 @@ class Dever
         'url' => array('Http\\Url', 'get'),
         'location' => array('Http\\Url', 'location'),
         'upload' => array('Http\\Url', 'upload'),
+        'pic' => array('Http\\Url', 'upload'),
         'link' => array('Http\\Url', 'link'),
         'curl' => array('Http\\Curl', 'get'),
 
@@ -100,47 +101,6 @@ class Dever
 
             return call_user_func_array(array($class, $method), $param);
         }
-    }
-
-    /**
-     * pic
-     * @param string $file
-     * @param string $name
-     *
-     * @return array
-     */
-    static public function pic($file, $name = false)
-    {
-        if(strpos($file, ',') !== false)
-        {
-            $temp = explode(',', $file);
-            $file = array();
-            foreach($temp as $k => $v)
-            {
-                $file[$k] = self::pic($v, $name);
-            }
-            return implode(',', $file);
-        }
-
-        if($name && strpos($file, '_') !== false)
-        {
-            $temp = explode('_', $file);
-            $file = $temp[0] . '_' . $name;
-        }
-
-        # 替换host
-        if($file && strpos($file, 'http://') === false)
-        {
-            $host = Dever::$global['host']['image'];
-            if(is_array(Dever::$global['host']['image']))
-            {
-                $index = array_rand(Dever::$global['host']['image']);
-                $host = Dever::$global['host']['image'][$index];
-            }
-            $file = $host . $file;
-        }
-
-        return $file;
     }
 
     /**
@@ -310,9 +270,9 @@ class Dever
     public static function proxy($method = false, $param = false)
     {
         if ($method) {
-            if (isset(Dever::$global['host']['proxy']) && Dever::$global['host']['proxy']) {
+            if (isset(Dever::config('host')['proxy']) && Dever::config('host')['proxy']) {
                 $method = urlencode($method);
-                return Dever::url(Dever::$global['host']['proxy'] . 'proxy_method=' . $method . '&' . $param);
+                return Dever::url(Dever::config('host')['proxy'] . 'proxy_method=' . $method . '&' . $param);
             }
             return self::url($method . '?' . $param);
         }

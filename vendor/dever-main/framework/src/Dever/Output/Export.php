@@ -68,6 +68,9 @@ class Export
      */
     public static function diy($msg, $param = array())
     {
+        if (is_array($msg)) {
+            Input::set('json', Input::get('json', 1));
+        }
         $result = self::result($msg, $param, 1, false);
         if (!self::$state) {
             print_r($msg);
