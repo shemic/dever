@@ -135,7 +135,7 @@ class Condition
             $config[1] = $temp;
         }
 
-        if (isset($this->param['page']) && $this->param['page'] != $config) {
+        if (isset($this->param['page']) && $this->param['page'] && $this->param['page'] != $config) {
             $config[0] = $this->param['page'][0];
             unset($this->param['page'][0]);
             if (isset($this->param['page'][1])) {
