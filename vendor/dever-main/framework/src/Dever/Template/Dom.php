@@ -601,7 +601,9 @@ class Dom
                 }
 
                 $html = $this->dom->find('html');
-                $html[0]->outertext = $this->parsing->content('<{if(isset($_SERVER["HTTP_X_PJAX"])):}><{else:}>' . $html[0]->outertext . '<{endif;}>');
+                if (isset($html[0]) && $html[0]->outertext) {
+                    $html[0]->outertext = $this->parsing->content('<{if(isset($_SERVER["HTTP_X_PJAX"])):}><{else:}>' . $html[0]->outertext . '<{endif;}>');
+                }
             }
         }
     }
