@@ -334,7 +334,7 @@ class Compile
     {
         $content = preg_replace('/<!--(.*?)-->/s', '', $content);
 
-        if (Config::get('host')->merge && strpos($content, Config::get('host')->base) !== false) {
+        if (Config::get('host')->merge && strpos($content, Config::get('host')->assets) !== false) {
             $this->merge
                 (
                 array('<link(.*?)href=[\'|"](.*?)[\'|"](.*?)>', '<script([a-zA-Z\/"\'=\\s]+)src=[\'|"](.*?)[\'|"](.*?)<\/script>'),
