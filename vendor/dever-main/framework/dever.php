@@ -287,7 +287,7 @@ class Dever
 
     public static function script()
     {
-        $script = 'var config={};config.host="' . self::url('') . '";config.type="' . Dever\Routing\Uri::$type . '";config.current="' . self::url() . '";config.upload="' . self::config('host')->upload . '";config.assets="' . self::config('host')->assets . '";';
+        $script = 'var config={};config.init=false;config.host="' . self::url('') . '";config.type="' . Dever\Routing\Uri::$type . '";config.current="' . self::url() . '";config.upload="' . self::config('host')->upload . '";config.assets="' . self::config('host')->assets . '";';
 
         if (self::config('host')->css) {
             $script .= 'config.css="' . self::config('host')->css . '";';
@@ -310,9 +310,9 @@ class Dever
         if (self::config('template')->layout) {
             $script .= 'config.layout = "' . self::config('template')->layout . '";$(document).ready(function()
                         {
-                            $(document).pjax("a", "' . self::config('template')->layout . '");
+                            $(document).pjax("a", "' . self::config('template')->layout . '", {"timeout":8000});
 
-                            $(document).on("submit", "#form1", function (event) {event.preventDefault();$.pjax.submit(event, "' . self::config('template')->layout . '", {"push": true, "replace": false, timeout:6000, "scrollTo": 0, maxCacheLength: 0});});
+                            $(document).on("submit", "#form1", function (event) {event.preventDefault();$.pjax.submit(event, "' . self::config('template')->layout . '", {"push": true, "replace": false, timeout:8000, "scrollTo": 0, maxCacheLength: 0});});
 
                             $(document).on("pjax:start", function()
                             {
