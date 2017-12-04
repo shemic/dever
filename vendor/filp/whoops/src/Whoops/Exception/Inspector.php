@@ -130,8 +130,9 @@ class Inspector
             
             $firstFrame = $this->getFrameFromException($this->exception);
             // Modify by Dever
-            // array_unshift($frames, $firstFrame);
-            array_push($frames, $firstFrame);
+            array_unshift($frames, $firstFrame);
+            //array_push($frames, $firstFrame);
+            //$frames = array_reverse($frames);
             
             $this->frames = new FrameCollection($frames);
 

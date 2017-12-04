@@ -149,10 +149,20 @@ class Library
                 $path = $temp[1] . '/' . $path;
             }
         }
+        
         if (is_file($file)) {
             $this->includeFile($file);
             return false;
         }
+
+        if (strpos($lower, 'plugin') !== false && defined('DEVER_APP_SETUP')) {
+            $file = str_replace($path, DEVER_APP_SETUP, $file);
+            if (is_file($file)) {
+                $this->includeFile($file);
+                return false;
+            }
+        }
+
         return $this->includeSrc($source, $lower, $path);
     }
 

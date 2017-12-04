@@ -51,6 +51,7 @@ class Dever
         'assets' => array('Template\\Common', 'assets'),
         'table' => array('Template\\Common', 'table'),
         'tbody' => array('Template\\Common', 'tbody'),
+        'dom' => array('Template\\Common', 'dom'),
 
         'token' => array('Http\\Api', 'get'),
         'login' => array('Http\\Api', 'login'),
@@ -77,6 +78,9 @@ class Dever
         'cron' => array('Support\\Command', 'cron'),
         'run' => array('Support\\Command', 'run'),
         'kill' => array('Support\\Command', 'kill'),
+
+        'csv' => array('Support\\Csv', 'export'),
+        'csvRead' => array('Support\\Csv', 'read'),
     );
 
     public static $markdown;

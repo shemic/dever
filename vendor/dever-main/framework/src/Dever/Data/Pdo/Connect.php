@@ -59,7 +59,8 @@ class Connect
             $dsn[$key] = "$key=$val";
         }
 
-        $dsnList = 'mysql:' . implode(';', $dsn);
+        $type = isset($config['pdo_type']) ? $config['pdo_type'] : 'mysql';
+        $dsnList = $type . ':' . implode(';', $dsn);
 
         try {
             $this->handle = new \PDO($dsnList, $config['username'], $config['password']);

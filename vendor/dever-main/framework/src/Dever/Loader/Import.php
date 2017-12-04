@@ -291,21 +291,19 @@ class Import
         if ($this->data) {
             return;
         }
-        if($project && strpos($project['path'], 'http://') === 0) {
+        if ($project && strpos($project['path'], 'http://') === 0) {
             $this->loadServer(strtolower($key) . '.' . $method, $project['path']);
             return;
         }
 
         $this->class = Library::get()->loadClass($class);
-        
         $method = $this->api($class, $method);
-
         $commit = $this->commit($method);
         if ($commit) {
             $db = Model::load(DEVER_APP_NAME . '/commit');
             try {
                 $db->begin();
-                $this->call($method);
+                $this->call($method, $project);
                 $db->commit();
             } catch (\Exception $e) {
                 $db->rollBack();
@@ -314,7 +312,7 @@ class Import
                 Export::alert(implode(' ', $data[1]['args']));
             }
         } else {
-            $this->call($method);
+            $this->call($method, $project);
         }
     }
 
@@ -350,20 +348,33 @@ class Import
      *
      * @return mixed
      */
-    protected function call($method)
+    protected function call($method, $project)
     {
         if (is_array($method)) {
             foreach ($method as $one) {
-                $this->call($one);
+                $this->call($one, $project);
                 $this->setCall();
             }
         } else {
+            $plugin = Config::get('plugin')->{$this->key};
             //$this->step($method, $this->class);
             $param = $this->getParam($method);
-            if (is_array($param)) {
-                $this->data = call_user_func_array(array($this->class, $method), $param);
+            if ($plugin && isset($plugin['start'])) {
+                $param = Import::load($project['name'] . '/plugin/' . $plugin['start'], $param);
+            }
+
+            if ($plugin && isset($plugin['cover'])) {
+                $this->data = Import::load($project['name'] . '/plugin/' . $plugin['cover'], $param);
             } else {
-                $this->data = call_user_func(array($this->class, $method), $param);
+                if (is_array($param) && $param) {
+                    $this->data = call_user_func_array(array($this->class, $method), $param);
+                } else {
+                    $this->data = call_user_func(array($this->class, $method), $param);
+                }
+            }
+
+            if ($plugin && isset($plugin['end'])) {
+                Import::load($project['name'] . '/plugin/' . $plugin['end'], $this->data);
             }
             
             Debug::reflection($this->class, $method);

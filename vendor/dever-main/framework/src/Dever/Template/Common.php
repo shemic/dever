@@ -6,6 +6,24 @@ use Dever\Loader\Config;
 class Common
 {
     /**
+     * 读取dom
+     * @param string $value
+     * @param string $index
+     *
+     * @return array
+     */
+    public static function dom($value)
+    {
+        return \Sunra\PhpSimple\HtmlDomParser::str_get_html($value,
+            $lowercase          = true, 
+            $forceTagsClosed    = true, 
+            $target_charset     = DEFAULT_TARGET_CHARSET, 
+            $stripRN            = false, 
+            $defaultBRText      = DEFAULT_BR_TEXT, 
+            $defaultSpanText    = DEFAULT_SPAN_TEXT);
+    }
+
+    /**
      * 设置循环里每行不同的值
      * @param string $value
      * @param string $index

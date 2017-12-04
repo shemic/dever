@@ -72,6 +72,7 @@ $config['database'] = array
 	'default' => array
 	(
 		'type' => 'pdo',
+		'pdo_type' => 'mysql',//pgsql
 		'host' => array
 		(
 			'read' => 'web-mysql:3306',
