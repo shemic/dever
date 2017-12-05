@@ -167,6 +167,17 @@ class Curl
     }
 
     /**
+     * setVerbose
+     *
+     * @return \Dever\Http\Curl
+     */
+    public function setVerbose($verbose)
+    {
+        curl_setopt($this->handle, CURLOPT_VERBOSE, $verbose);
+        return $this;
+    }
+
+    /**
      * setAgent
      *
      * @return \Dever\Http\Curl

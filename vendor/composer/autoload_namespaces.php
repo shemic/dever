@@ -8,5 +8,4 @@ $baseDir = dirname($vendorDir);
 return array(
     'Sunra\\PhpSimple\\HtmlDomParser' => array($vendorDir . '/sunra/php-simple-html-dom-parser/Src'),
     'Parsedown' => array($vendorDir . '/erusev/parsedown'),
-    'Dever' => array($vendorDir . '/dever-main/framework/src'),
 );

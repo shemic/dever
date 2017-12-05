@@ -15,12 +15,20 @@ class ComposerStaticInit250b3766e5468b010f1c776855455762
         array (
             'Whoops\\' => 7,
         ),
+        'D' => 
+        array (
+            'Dever\\' => 6,
+        ),
     );
 
     public static $prefixDirsPsr4 = array (
         'Whoops\\' => 
         array (
             0 => __DIR__ . '/..' . '/filp/whoops/src/Whoops',
+        ),
+        'Dever\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/dever-main/framework/src/Dever',
         ),
     );
 
@@ -37,13 +45,6 @@ class ComposerStaticInit250b3766e5468b010f1c776855455762
             'Parsedown' => 
             array (
                 0 => __DIR__ . '/..' . '/erusev/parsedown',
-            ),
-        ),
-        'D' => 
-        array (
-            'Dever' => 
-            array (
-                0 => __DIR__ . '/..' . '/dever-main/framework/src',
             ),
         ),
     );
@@ -99,6 +100,7 @@ class ComposerStaticInit250b3766e5468b010f1c776855455762
         'Dever\\String\\Encrypt' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/String/Encrypt.php',
         'Dever\\String\\Helper' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/String/Helper.php',
         'Dever\\Support\\Command' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Support/Command.php',
+        'Dever\\Support\\Csv' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Support/Csv.php',
         'Dever\\Support\\Env' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Support/Env.php',
         'Dever\\Support\\Path' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Support/Path.php',
         'Dever\\Template\\Common' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Template/Common.php',

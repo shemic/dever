@@ -154,26 +154,26 @@
         "source": {
             "type": "git",
             "url": "https://github.com/dever-main/framework.git",
-            "reference": "d5f2b5c9586d51b8001f78813baf54b620c20e81"
+            "reference": "b6270fbf2a0cd1e9f847322215cb29ee7eb6ebcc"
         },
         "dist": {
             "type": "zip",
-            "url": "https://api.github.com/repos/dever-main/framework/zipball/d5f2b5c9586d51b8001f78813baf54b620c20e81",
-            "reference": "d5f2b5c9586d51b8001f78813baf54b620c20e81",
+            "url": "https://api.github.com/repos/dever-main/framework/zipball/b6270fbf2a0cd1e9f847322215cb29ee7eb6ebcc",
+            "reference": "b6270fbf2a0cd1e9f847322215cb29ee7eb6ebcc",
             "shasum": ""
         },
         "require": {
             "php": ">=5.0.0"
         },
-        "time": "2016-05-05T03:02:00+00:00",
+        "time": "2017-12-05T08:40:10+00:00",
         "type": "framework",
-        "installation-source": "source",
+        "installation-source": "dist",
         "autoload": {
             "files": [
                 "dever.php"
             ],
-            "psr-0": {
-                "Dever": "src/"
+            "psr-4": {
+                "Dever\\": "src/Dever/"
             }
         },
         "license": [

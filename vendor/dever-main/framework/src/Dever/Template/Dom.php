@@ -258,6 +258,17 @@ class Dom
     }
 
     /**
+     * jq
+     * @param array $param
+     *
+     * @return mixed
+     */
+    public function jq($param)
+    {
+        echo 'error';die;
+    }
+
+    /**
      * data
      *
      * @return string

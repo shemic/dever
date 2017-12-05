@@ -29,6 +29,7 @@
         ,"illuminate/validation": "v5.2.31"
         ,"mrrio/shellwrap": "0.4.1"
         ,"symfony/var-dumper": "v3.1.6"
+        ,"jaeger/phpquery-single": "^0.9"
     },
 
 	"config": {

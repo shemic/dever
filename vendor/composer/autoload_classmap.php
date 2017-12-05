@@ -56,6 +56,7 @@ return array(
     'Dever\\String\\Encrypt' => $vendorDir . '/dever-main/framework/src/Dever/String/Encrypt.php',
     'Dever\\String\\Helper' => $vendorDir . '/dever-main/framework/src/Dever/String/Helper.php',
     'Dever\\Support\\Command' => $vendorDir . '/dever-main/framework/src/Dever/Support/Command.php',
+    'Dever\\Support\\Csv' => $vendorDir . '/dever-main/framework/src/Dever/Support/Csv.php',
     'Dever\\Support\\Env' => $vendorDir . '/dever-main/framework/src/Dever/Support/Env.php',
     'Dever\\Support\\Path' => $vendorDir . '/dever-main/framework/src/Dever/Support/Path.php',
     'Dever\\Template\\Common' => $vendorDir . '/dever-main/framework/src/Dever/Template/Common.php',
