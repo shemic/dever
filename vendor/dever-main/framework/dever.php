@@ -253,6 +253,14 @@ class Dever
             $s = array(0, 0, 0);
         }
 
+        if (!isset($s[1])) {
+            $s[1] = 0;
+        }
+
+        if (!isset($s[2])) {
+            $s[2] = 0;
+        }
+
         if (strstr($v, '-')) {
             $t = explode('-', $v);
         } elseif (strstr($v, '/')) {
@@ -264,6 +272,14 @@ class Dever
 
         if (!isset($t)) {
             $t = array(0, 0, 0);
+        }
+
+        if (!isset($t[1])) {
+            $t[1] = 0;
+        }
+
+        if (!isset($t[2])) {
+            $t[2] = 0;
         }
 
         $v = mktime($s[0], $s[1], $s[2], $t[1], $t[2], $t[0]);

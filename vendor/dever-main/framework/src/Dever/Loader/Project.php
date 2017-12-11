@@ -229,7 +229,7 @@ class Project
 
             if (isset(Config::get('host')->project[$project])) {
                 if ($config) {
-                    array_merge($config, Config::get('host')->project[$project]);
+                    $config = array_merge($config, Config::get('host')->project[$project]);
                 } else {
                     $config = Config::get('host')->project[$project];
                     $config['name'] = $project;

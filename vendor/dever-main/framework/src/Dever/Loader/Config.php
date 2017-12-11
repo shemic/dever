@@ -24,6 +24,13 @@ class Config
     private $cKey;
 
     /**
+     * setting
+     *
+     * @var array
+     */
+    private $setting = array('host', 'database', 'debug', 'cache', 'template');
+
+    /**
      * instance
      *
      * @var object
@@ -156,8 +163,7 @@ class Config
      */
     protected function base($name)
     {
-        $base = array('host', 'database', 'debug', 'cache', 'template');
-        if (in_array($name, $base)) {
+        if (in_array($name, $this->setting)) {
             $name = 'base';
         }
 
@@ -283,14 +289,31 @@ class Config
     protected function merge($config, $key)
     {
         if ($key) {
-            if (isset($config['template']) && isset($this->cData['template'])) {
+            if (isset($config[$key])) {
                 $this->cData[$key] = array_merge($this->cData[$key], $config[$key]);
-                $this->cData['template'] = array_merge($this->cData['template'], $config['template']);
+                $this->setting($config);
             } else {
                 $this->cData[$key] = array_merge($this->cData[$key], $config);
             }
         } else {
-            $this->cData = array_merge($this->cData, $config);
+            $this->cData = array_merge_recursive($this->cData, $config);
+        }
+    }
+
+    /**
+     * setting
+     */
+    private function setting($config)
+    {
+        if ($this->cKey == 'base') {
+            foreach ($this->setting as $k) {
+                if (isset($config[$k])) {
+                    if (empty($this->cData[$k])) {
+                        $this->cData[$k] = array();
+                    }
+                    $this->cData[$k] = array_merge($this->cData[$k], $config[$k]);
+                }
+            }
         }
     }
 
