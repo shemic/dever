@@ -38,14 +38,12 @@ class Csv
      */
     public static function export($data = [], $header_data = [], $file_name = '')
     {
-        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Type: application/vnd.ms-excel;charset=UTF-8');
         header('Content-Disposition: attachment;filename='.$file_name);
         header('Cache-Control: max-age=0');
+        header('Content-Transfer-Encoding: binary'); 
         $fp = fopen('php://output', 'a');
         if (!empty($header_data)) {
-            foreach ($header_data as $key => $value) {
-                $header_data[$key] = iconv('utf-8', 'gbk', $value);
-            }
             fputcsv($fp, $header_data);
         }
         $num = 0;
@@ -63,9 +61,6 @@ class Csv
                     $num = 0;
                 }
                 $row = $data[$i];
-                foreach ($row as $key => $value) {
-                    $row[$key] = iconv('utf-8', 'gbk', $value);
-                }
                 fputcsv($fp, $row);
             }
         }

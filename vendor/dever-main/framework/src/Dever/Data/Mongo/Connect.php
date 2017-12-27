@@ -1,6 +1,7 @@
 <?php namespace Dever\Data\Mongo;
 
 use Dever\Output\Debug;
+use MongoDB\Driver\Manager as Mongo;
 
 class Connect
 {
@@ -50,9 +51,9 @@ class Connect
             if (!isset($config['timeout'])) {
                 $config['timeout'] = 1000;
             }
-            $mongo = new \Mongo('mongodb://' . $config['host'] . ':' . $config['port'], array("connectTimeoutMS" => $config['timeout']));
+            $this->handle = new Mongo('mongodb://' . $config['host'] . ':' . $config['port'], array("connectTimeoutMS" => $config['timeout']));
 
-            $this->handle = $mongo->selectDB($config['database']);
+            $this->db = $config['database'];
 
             Debug::log('mongodb ' . $config['host'] . ' connected', $config['type']);
         } catch (\PDOException $e) {
@@ -77,7 +78,8 @@ class Connect
      */
     public function table($table)
     {
-        return $this->handle->selectCollection($table);
+        return $this->handle;
+        //return $this->handle->selectCollection($table);
     }
 
     /**

@@ -25,7 +25,14 @@ class Curl
      *
      * @var array
      */
-    private $param;
+    private $param = array();
+
+    /**
+     * header
+     *
+     * @var array
+     */
+    private $header = array();
 
     /**
      * instance
@@ -140,6 +147,12 @@ class Curl
     {
         if ($setting && $config = Config::get('base')->curl) {
             $this->setting($config);
+        }
+        if ($this->header) {
+            curl_setopt($this->handle, CURLOPT_HTTPHEADER, $this->header);
+            curl_setopt($this->handle, CURLOPT_HEADER, false);
+        } else {
+            curl_setopt($this->handle, CURLOPT_HEADER, false);
         }
         $result = curl_exec($this->handle);
         //curl_close($this->handle);
@@ -290,7 +303,6 @@ class Curl
     public function setRefer($refer)
     {
         curl_setopt($this->handle, CURLOPT_REFERER, $refer);
-        curl_setopt($this->handle, CURLOPT_HEADER, true);
         return $this;
     }
 
@@ -321,9 +333,7 @@ class Curl
     {
         $config['CLIENT-IP'] = $ip;
         $config['X-FORWARDED-FOR'] = $ip;
-
         $this->setHeader($config);
-        curl_setopt($this->handle, CURLOPT_HEADER, true);
         return $this;
     }
 
@@ -334,11 +344,14 @@ class Curl
      */
     public function setHeader($config)
     {
-        $header = array();
-        foreach ($config as $k => $v) {
-            $header[] = $k . ':' . $v;
+        if (is_array($config)) {
+            foreach ($config as $k => $v) {
+                $this->header[] = $k . ':' . $v;
+            }
+        } else {
+            $this->header = explode("\n", $config);
         }
-        curl_setopt($this->handle, CURLOPT_HTTPHEADER, $header);
+        
         return $this;
     }
 
@@ -351,7 +364,6 @@ class Curl
     {
         if (!$this->handle) {
             $this->handle = curl_init();
-            curl_setopt($this->handle, CURLOPT_HEADER, false);
         }
     }
 }

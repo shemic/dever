@@ -541,4 +541,55 @@ class Store
     {
         return $this;
     }
+
+    /**
+     * fetchAll
+     *
+     * @return array
+     */
+    protected function fetchAll($handle, $config = false)
+    {
+        $rows = function() use ($handle) {
+            while ($row = $handle->fetch()) {
+                yield $row;
+            }
+        };
+        $result = array();
+        $data = $rows();
+        if ($data) {
+            if ($config) {
+                $result = $this->fetchSet($data, $config);
+            } else {
+                foreach ($data as $row) {
+                    $result[] = $row;
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * fetchSet
+     *
+     * @return array
+     */
+    protected function fetchSet($data, $config)
+    {
+        $result = array();
+        $key = $config[1];
+        foreach ($data as $row) {
+            if (isset($row[$key])) {
+                if (isset($config[3]) && isset($row[$config[2]])) {
+                    $result[$row[$key]][$row[$config[2]]] = $row;
+                } elseif (isset($config[2]) && isset($row[$config[2]])) {
+                    $result[$row[$key]] = $row[$config[2]];
+                } elseif (isset($config[2])) {
+                    $result[$row[$key]][] = $row;
+                } else {
+                    $result[$row[$key]] = $row;
+                }
+            }
+        }
+        return $result;
+    }
 }

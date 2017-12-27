@@ -37,6 +37,19 @@ class Project
     }
 
     /**
+     * import
+     * @param string $name
+     *
+     * @return string
+     */
+    public static function import($name)
+    {
+        if (isset(self::$content[$name])) {
+            Library::get()->loadFunction(self::$content[$name]);
+        }
+    }
+
+    /**
      * register
      *
      * @return string

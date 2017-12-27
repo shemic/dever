@@ -2,14 +2,14 @@
 
 use Dever\Cache\Store;
 
-class Ris implements Store
+class Redis implements Store
 {
-    private $class;
+    private $redis;
     private $expire;
 
     public function __construct()
     {
-        $this->class = new \Redis;
+        $this->redis = new \Redis;
     }
 
     public function connect($config)
@@ -17,26 +17,31 @@ class Ris implements Store
         if (isset($config["host"])) {
             $this->expire = $config['expire'];
 
-            $this->class->addServer($config["host"], $config["port"], $config["weight"]);
+            $this->redis->connect($config["host"], $config["port"]);
         }
+    }
+
+    public function getRedis()
+    {
+        return $this->redis;
     }
 
     public function get($key)
     {
-        if (!$this->class) {
+        if (!$this->redis) {
             return false;
         }
 
         $key = $this->key($key);
 
-        $result = $this->class->get($key);
+        $result = $this->redis->get($key);
 
         return $result;
     }
 
     public function set($key, $value, $expire = 0)
     {
-        if (!$this->class) {
+        if (!$this->redis) {
             return false;
         }
 
@@ -48,20 +53,20 @@ class Ris implements Store
 
         $expire = $expire > 0 ? $expire : $this->expire;
 
-        $result = $this->class->set($key, $value, $expire);
+        $result = $this->redis->set($key, $value, $expire);
 
         return $result;
     }
 
     public function delete($key)
     {
-        if (!$this->class) {
+        if (!$this->redis) {
             return false;
         }
 
         $key = $this->key($key);
 
-        if ($this->class->delete($key, 0)) {
+        if ($this->redis->delete($key, 0)) {
             return true;
         }
         return false;
@@ -69,11 +74,11 @@ class Ris implements Store
 
     public function close()
     {
-        if (!$this->class) {
+        if (!$this->redis) {
             return false;
         }
 
-        if ($this->class->close()) {
+        if ($this->redis->close()) {
             return true;
         }
         return false;

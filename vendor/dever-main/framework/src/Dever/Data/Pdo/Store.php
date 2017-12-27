@@ -48,14 +48,7 @@ class Store extends Base
 
         $info = $handle->fetchAll();
 
-        if ($info) {
-            foreach ($info as $k => $v) {
-                if ($v['Key_name'] != 'PRIMARY') {
-                    $sql = $this->sql->dropIndex($this->table, $v['Key_name']);
-                    $this->update->query($sql);
-                }
-            }
-        }
+        $this->dropIndex($info);
 
         $sql = $this->sql->index($this->table, $index[$version]);
 
@@ -68,6 +61,18 @@ class Store extends Base
         $data['order'] = array_flip(explode(',', array_shift($index[$version])));
 
         return $data;
+    }
+
+    private function dropIndex($info)
+    {
+        if ($info) {
+            foreach ($info as $k => $v) {
+                if ($v['Key_name'] != 'PRIMARY') {
+                    $sql = $this->sql->dropIndex($this->table, $v['Key_name']);
+                    $this->update->query($sql);
+                }
+            }
+        }
     }
 
     public function exe($sql, $value = array(), $method = '')
@@ -163,35 +168,12 @@ class Store extends Base
      */
     public function all($col)
     {
-        $key = false;
+        $config = false;
         if (strpos($col, '|') !== false) {
-            $array = explode('|', $col);
-            $key = $array[1];
-            $col = $array[0];
+            $config = explode('|', $col);
+            $col = $config[0];
         }
-        $data = $this->select($col, 'fetchAll');
-
-        if ($data && $key) {
-            $result = array();
-
-            foreach ($data as $k => $v) {
-                if (isset($v[$key])) {
-                    if (isset($array[3]) && isset($v[$array[2]])) {
-                        $result[$v[$key]][$v[$array[2]]] = $v;
-                    } elseif (isset($array[2]) && isset($v[$array[2]])) {
-                        $result[$v[$key]] = $v[$array[2]];
-                    } elseif (isset($array[2])) {
-                        $result[$v[$key]][] = $v;
-                    } else {
-                        $result[$v[$key]] = $v;
-                    }
-                }
-            }
-
-            return $result;
-        }
-
-        return $data;
+        return $this->select($col, 'fetchAll', 'select', $config);
     }
 
     /**
@@ -314,7 +296,7 @@ class Store extends Base
      *
      * @return array
      */
-    private function select($col = '', $method = 'fetch', $type = 'select')
+    private function select($col = '', $method = 'fetch', $type = 'select', $config = false)
     {
         $sql = $this->sql->{$type}($this->table, $col);
 
@@ -337,9 +319,7 @@ class Store extends Base
         try {
             if ($this->value) {
                 $handle = $this->read->prepare($sql);
-
                 //print_r($this->value);
-
                 $handle->execute($this->value);
             } else {
                 $handle = $this->read->query($sql);
@@ -348,18 +328,17 @@ class Store extends Base
             $this->error($exception->getMessage(), $sql);
         }
 
-        $data = $handle->$method();
-
-        //print_r($data);
-
+        if ($method == 'fetchAll') {
+            $data = $this->fetchAll($handle, $config);
+            
+        } else {
+            $data = $handle->$method();
+        }
         $this->cache($key, $data);
-
         $this->log($sql, $this->value, $data);
-
         if ($col != 'clear') {
             $this->value = array();
         }
-
         return $data;
     }
 

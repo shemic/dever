@@ -1,6 +1,11 @@
 <?php namespace Dever\Data\Mongo;
 
 use Dever\Data\Store as Base;
+use MongoDB\Driver\Command;
+use MongoDB\Driver\BulkWrite;
+use MongoDB\Driver\Query;
+use MongoDB\BSON\Regex;
+use MongoDB\BSON\ObjectId;
 
 class Store extends Base
 {
@@ -31,7 +36,7 @@ class Store extends Base
      */
     public function setTable($table)
     {
-        $this->table = $table;
+        $this->table = $this->read->db . '.' . $table;
         $this->connect = $this->read->table($table);
     }
 
@@ -124,8 +129,10 @@ class Store extends Base
 
         if ($data) {
             foreach ($data as $k => $v) {
+                $v = (array)$v;
                 $v['id'] = (array) $v['_id'];
-                $v['id'] = $v['id']['$id'];
+                $v['id'] = $v['id']['oid'];
+                unset($v['_id']);
                 if (isset($v[$key])) {
                     if (isset($array[3]) && isset($v[$array[2]])) {
                         $result[$v[$key]][$v[$array[2]]] = $v;
@@ -153,11 +160,19 @@ class Store extends Base
     public function one($col = '')
     {
         $data = $this->select($col, 'findOne');
+        $result = array();
+
         if ($data) {
-            $data['id'] = (array) $data['_id'];
-            $data['id'] = $data['id']['$id'];
+            foreach ($data as $k => $v) {
+                $v = (array)$v;
+                $v['id'] = (array) $v['_id'];
+                $v['id'] = $v['id']['oid'];
+                unset($v['_id']);
+                $result = $v;
+            }
         }
-        return $data;
+
+        return $result;
     }
 
     /**
@@ -177,15 +192,22 @@ class Store extends Base
      */
     public function insert()
     {
-        $insert = $this->value['add'];
-
-        $return = $this->connect->insert($insert);
-
+        $insert = array();
+        foreach ($this->value['add'] as $k => $v) {
+            if (is_numeric($v)) {
+                $v = (float) $v;
+            }
+            $insert[$k] = $v;
+        }
+        $bulk = new BulkWrite;
+        $id = $bulk->insert($this->value['add']);
+        $result = $this->connect->executeBulkWrite($this->table, $bulk);
         $this->log($this->value, 'insert');
-
         $this->value = array();
-
-        return isset($insert['_id']) ? $insert['_id'] : 0;
+        if ($result->getInsertedCount() >= 1) {
+            return (string) $id;
+        }
+        return false;
     }
 
     /**
@@ -195,14 +217,21 @@ class Store extends Base
      */
     public function update()
     {
-        $method = '$set';
-        $return = $this->connect->update($this->value['where'], array($method => $this->value['set']));
-
+        $update = array();
+        foreach ($this->value['set'] as $k => $v) {
+            if (is_numeric($v)) {
+                $v = (float) $v;
+            }
+            $update[$k] = $v;
+        }
+        $update = array('$set' => $update);
+        $param = array('multi' => true, 'upsert' => false);
+        $bulk = new BulkWrite;
+        $bulk->update($this->value['where'], $update, $param);
+        $result = $this->connect->executeBulkWrite($this->table, $bulk);
         $this->log($this->value, 'update');
-
         $this->value = array();
-
-        return $return;
+        return $result->getModifiedCount();
     }
 
     /**
@@ -212,9 +241,21 @@ class Store extends Base
      */
     public function delete()
     {
-        $this->update('$unset');
+        $bulk = new BulkWrite;
+        $bulk->delete($this->value['where']);
+        $result = $this->connect->executeBulkWrite($this->table, $bulk);
+        $this->log($this->value, 'delete');
+        $this->value = array();
+        return $result->getDeletedCount();
+    }
 
-        return $result;
+    /**
+     * command
+     *
+     * @return mixd
+     */
+    public function command(array $param) {
+        return $this->connect->executeCommand($this->table, new Command($param));
     }
 
     /**
@@ -224,35 +265,41 @@ class Store extends Base
      */
     private function select($col = '', $method = 'find')
     {
+        $filter = array();
+        $options = array();
         if (isset($this->value['where'])) {
-            $return = $this->connect->$method($this->value['where']);
-        } else {
-            $return = $this->connect->$method();
+            $filter = $this->value['where'];
         }
-
-        if ($method != 'count') {
-            
+        if (isset($filter['state'])) {
+            $filter['state'] = (string) $filter['state'];
+        }
+        
+        if ($method == 'count') {
+            $query = new Query($filter, $options);
+            $cursor = $this->connect->executeQuery($this->table, $query);
+            $result = count($cursor->toArray());
+        } else {
             if (isset($this->value['order'])) {
-                $return->sort($this->value['order']);
+                $options['sort'] = $this->value['order'];
             }
-
             if (isset($this->value['limit'])) {
                 foreach ($this->value['limit'] as $k => $v) {
-                    $limit = explode(',', $v);
-                    $return->limit($limit[1])->skip($limit[0]);
+                    $options['skip'] = $k;
+                    $options['limit'] = $v;
                 }
             }
-
             if ($col && $col != '*' && $col != 'clear') {
                 if (is_string($col)) {
                     $temp = explode(',', $col);
                     $col = array();
                     foreach ($temp as $k => $v) {
-                        $col[$v] = true;
+                        $options['projection'][$v] = true;
                     }
                 }
-                $return->fields($col);
             }
+
+            $query = new Query($filter, $options);
+            $result = $this->connect->executeQuery($this->table, $query);
         }
 
         $this->log($this->value, 'select');
@@ -261,7 +308,7 @@ class Store extends Base
             $this->value = array();
         }
 
-        return $return;
+        return $result;
     }
 
     /**
@@ -312,7 +359,7 @@ class Store extends Base
             if (method_exists($this, $func)) {
                 $this->$func($param);
             }
-            if (isset($param[1])) {
+            if (is_array($param) && isset($param[1])) {
                 $this->value[$method][$param[0]] = $param[1];
             } else {
                 $this->value[$method] = $param;
@@ -340,6 +387,16 @@ class Store extends Base
     }
 
     /**
+     * convert_limit
+     *
+     * @return mixed
+     */
+    private function convert_limit(&$param)
+    {
+        $param = explode(',', $param[0]);
+    }
+
+    /**
      * convert_group
      *
      * @return mixed
@@ -356,17 +413,21 @@ class Store extends Base
      */
     private function convert_where(&$param)
     {
+        if (is_numeric($param[1])) {
+            $param[1] = (int) $param[1];
+            return;
+        }
         if (isset($param[2])) {
             $state = true;
             switch ($param[2]) {
                 case 'like':
                     # 模糊查询
+                    $param[1] = (string) $param[1];
                     if (strpos($param[1], '%') !== false) {
                         $param[1] = str_replace('%', '(.*?)', $param[1]);
-                        $param[1] = new \MongoRegex('/' . $param[1] . '/i');
+                        $param[1] = new Regex($param[1], 'i');
                     } else {
-                        $param[1] = new \MongoRegex("/" . $param[1] . "(.*?)/i");
-                        //print_r($param[1]);
+                        $param[1] = new Regex($param[1] . '(.*?)', 'i');
                     }
                     $state = false;
                     break;
@@ -377,7 +438,7 @@ class Store extends Base
                     $param[1] = explode(',', $param[1]);
                     if ($param[0] == '_id') {
                         foreach ($param[1] as $k => $v) {
-                            $param[1][$k] = new \MongoId($v);
+                            $param[1][$k] = new ObjectId($v);
                         }
                     }
                     $param[2] = '$' . $param[2];
@@ -419,7 +480,7 @@ class Store extends Base
         }
 
         if ($param[0] == '_id' && is_string($param[1])) {
-            $param[1] = new \MongoId($param[1]);
+            $param[1] = new ObjectId($param[1]);
         }
     }
 }

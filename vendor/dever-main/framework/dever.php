@@ -29,6 +29,7 @@ class Dever
         'error' => array('Output\\Debug', 'error'),
 
         'load' => array('Loader\\Import', 'load'),
+        'import' => array('Loader\\Project', 'import'),
         'db' => array('Data\\Model', 'load'),
 
         'setStep' => array('Routing\\Step', 'set'),
@@ -83,6 +84,8 @@ class Dever
         'csvRead' => array('Support\\Csv', 'read'),
     );
 
+    private static $define = array();
+
     public static $markdown;
 
     public static $save;
@@ -100,11 +103,31 @@ class Dever
     {
         if (isset(self::$register[$name])) {
             $class = 'Dever\\' . self::$register[$name][0];
-
             $method = self::$register[$name][1];
-
+            return call_user_func_array(array($class, $method), $param);
+        } elseif (isset(self::$define[$name])) {
+            if (is_array(self::$define[$name])) {
+                $class = self::$define[$name][0];
+                $method = self::$define[$name][1];
+            } else {
+                 $class = self::$define[$name];
+                 $method = $name;
+            }
+            
             return call_user_func_array(array($class, $method), $param);
         }
+    }
+
+    /**
+     * 注册方法
+     * @param string $method
+     * @param array $function
+     *
+     * @return array
+     */
+    public static function reg($method, $function)
+    {
+        self::$define[$method] = $function;
     }
 
     /**
