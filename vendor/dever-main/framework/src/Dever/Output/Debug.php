@@ -325,6 +325,9 @@ class Debug
                     $handler[0]->addDataTable(ucwords($k), $v);
                 }
             }
+            if (is_array($msg) && isset($msg['sql']) && isset($msg['error'])) {
+                $notice = $msg['error'];
+            }
             if (is_array($msg)) {
                 $msg = array('array' => Export::format($msg));
             } else {
@@ -332,6 +335,7 @@ class Debug
             }
             $handler[0]->addDataTable('Data', $msg);
             $handler[0]->addDataTable('Env', array('time' => self::time(), 'memory' => self::memory(), 'trace' => self::trace()));
+
             $handler[0]->setPageTitle($notice);
             throw new Exceptions($notice);
         } else {
