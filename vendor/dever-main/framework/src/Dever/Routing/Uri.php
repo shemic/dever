@@ -129,8 +129,10 @@ class Uri
                 if (strpos($_SERVER['REQUEST_URI'], '/' . $entry) !== false) {
                     self::$value = str_replace($_SERVER['SCRIPT_NAME'] . '?', '', $_SERVER['REQUEST_URI']);
                 } elseif ($script != $_SERVER['REQUEST_URI']) {
-                    self::$value = str_replace($script . '?', '', $_SERVER['REQUEST_URI']);
+                    self::$value = str_replace($script, '', $_SERVER['REQUEST_URI']);
+                    self::$value = ltrim(self::$value, '?');
                 }
+
             } else {
                 self::$value = '';
             }
