@@ -154,6 +154,6 @@ class Command
 
         //self::daemon($api . '?dever_server=' . $server . '&type='.$type.'&param=' . base64_encode(json_encode($param)), $project);
 
-        Import::load($project . '/' . $api, $param);
+        //Import::load($project . '/' . $api, $param);
     }
 }
