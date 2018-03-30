@@ -279,6 +279,7 @@ class Request
         (
             'type' => 'count',
             'col' => 'count(1) as total',
+            'option' => array(),
         );
     }
 
