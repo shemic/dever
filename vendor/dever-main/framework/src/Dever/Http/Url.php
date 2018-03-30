@@ -29,7 +29,7 @@ class Url
 
         self::defaultValue($value);
 
-        if (strpos($value, 'http://') !== false) {
+        if (strpos($value, 'http://') !== false || strpos($value, 'https://') !== false) {
             return $value;
         }
 
