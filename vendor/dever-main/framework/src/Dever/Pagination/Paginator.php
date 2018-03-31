@@ -137,7 +137,7 @@ class Paginator
      *
      * @return Dever\Pagination\Paginator;
      */
-    public static function getPage($key, $total = false, $template = '')
+    public static function getPage($key = 'current', $total = false, $template = '')
     {
         if (is_numeric($total) && $total > 0) {
             self::getInstance($key)->total($total);
@@ -163,7 +163,7 @@ class Paginator
      *
      * @return Dever\Pagination\Paginator;
      */
-    public static function getTotal($key)
+    public static function getTotal($key = 'current')
     {
         return self::getInstance($key)->total();
     }
@@ -173,7 +173,7 @@ class Paginator
      *
      * @return Dever\Pagination\Paginator;
      */
-    public static function getHtml($key, $template = '')
+    public static function getHtml($key = 'current', $template = '')
     {
         return self::getPage($key, false, $template);
     }
