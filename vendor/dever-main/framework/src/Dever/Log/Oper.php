@@ -6,7 +6,6 @@ class Oper
 {
     public static function add($msg)
     {
-        return;
         $log = '';
         if (is_array($msg)) {
             foreach($msg as $k => $v)
@@ -32,6 +31,7 @@ class Oper
         } else {
             openlog(DEVER_APP_NAME,LOG_PID,LOG_LOCAL3);
             syslog(LOG_DEBUG,$log);
+            closelog();
         }
     }
 

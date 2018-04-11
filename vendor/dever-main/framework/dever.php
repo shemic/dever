@@ -82,6 +82,8 @@ class Dever
 
         'csv' => array('Support\\Csv', 'export'),
         'csvRead' => array('Support\\Csv', 'read'),
+
+        'log' => array('Log\\Oper', 'add'),
     );
 
     private static $define = array();
