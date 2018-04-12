@@ -83,7 +83,7 @@ class Handle
 
             $data = $this->db()->$type($this->request['col']);
 
-            if ($data && $type == 'update' && isset($this->param['where_id'])) {
+            if ($type == 'update' && isset($this->param['where_id'])) {
                 $data = $this->param['where_id'];
             }
 
