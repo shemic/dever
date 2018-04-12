@@ -188,21 +188,19 @@ class Dever
 
     /**
      * 获取_param
-     * @param string $value
-     * @param string $index
+     * @param string $name
+     * @param string $param
      *
      * @return array
      */
-    public static function param($name)
+    public static function param($name, $param)
     {
-        if (isset(Dever::$global['base']['_param'])) {
-            if (isset(Dever::$global['base']['_param']['add_' . $name])) {
-                return Dever::$global['base']['_param']['add_' . $name];
-            }
+        if (isset($param['add_' . $name])) {
+            return $param['add_' . $name];
+        }
 
-            if (isset(Dever::$global['base']['_param']['set_' . $name])) {
-                return Dever::$global['base']['_param']['set_' . $name];
-            }
+        if (isset($param['set_' . $name])) {
+            return $param['set_' . $name];
         }
 
         return false;

@@ -189,13 +189,13 @@ class Handle
             }
             if (is_array($this->config[$method][$this->method])) {
                 foreach ($this->config[$method][$this->method] as $k => $v) {
-                    $data = Import::load($v, $this->param);
+                    $data = Import::load($v, $data, $this->param);
                     if ($data && is_array($data)) {
                         $this->param[$v] = $data;
                     }
                 }
             } else {
-                $data = Import::load($this->config[$method][$this->method], $this->param);
+                $data = Import::load($this->config[$method][$this->method], $data, $this->param);
 
                 if ($data && is_array($data)) {
                     $this->param[$this->config[$method][$this->method]] = $data;
