@@ -187,15 +187,18 @@ class Handle
             if (isset($this->config['auth']) && is_array($this->config['auth'])) {
                 $this->param = array($data, $this->config['auth']);
             }
+
+            $name = $this->config['db'] . '/' . $this->config['name'];
+
             if (is_array($this->config[$method][$this->method])) {
                 foreach ($this->config[$method][$this->method] as $k => $v) {
-                    $data = Import::load($v, $data, $this->param);
+                    $data = Import::load($v, $data, $name, $this->param);
                     if ($data && is_array($data)) {
                         $this->param[$v] = $data;
                     }
                 }
             } else {
-                $data = Import::load($this->config[$method][$this->method], $data, $this->param);
+                $data = Import::load($this->config[$method][$this->method], $data, $name, $this->param);
 
                 if ($data && is_array($data)) {
                     $this->param[$this->config[$method][$this->method]] = $data;
