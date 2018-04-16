@@ -423,7 +423,11 @@ class Condition
                 if (strpos($callback, '.')) {
                     $temp = explode('.', $callback);
                     $callback = $temp[0];
-                    $request = $callback($temp[1], $request);
+                    if ($request != 'null') {
+                        $request = $callback($temp[1], $request);
+                    } else {
+                        $request = '';
+                    }
                 } else {
                     $request = $callback($request);
                 }
