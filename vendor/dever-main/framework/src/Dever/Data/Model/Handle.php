@@ -182,19 +182,19 @@ class Handle
         } elseif (isset($this->config[$method][$this->method])) {
             Config::get('base')->hook = true;
             if (isset($this->config['top']) && is_array($this->config['top'])) {
-                $this->param = array($data, $this->config['top']);
+               $this->param['top'] = $this->config['top'];
             }
             if (isset($this->config['auth']) && is_array($this->config['auth'])) {
-                $this->param = array($data, $this->config['auth']);
+                $this->param['auth'] = $this->config['auth'];
             }
 
             $name = $this->config['db'] . '/' . $this->config['name'];
 
             if (is_array($this->config[$method][$this->method])) {
                 foreach ($this->config[$method][$this->method] as $k => $v) {
-                    $data = Import::load($v, $data, $name, $this->param);
-                    if ($data && is_array($data)) {
-                        $this->param[$v] = $data;
+                    $result = Import::load($v, $data, $name, $this->param);
+                    if ($result && is_array($result)) {
+                        $this->param[$v] = $result;
                     }
                 }
             } else {

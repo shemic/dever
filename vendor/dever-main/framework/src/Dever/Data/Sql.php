@@ -81,7 +81,7 @@ class Sql
                     $com[1] = '{default}';
                     $primary[$k] .= 'not null default \'' . $com[1] . '\'';
                 } else {
-                    $primary[$k] .= 'not null';
+                    $primary[$k] .= 'not null default \'\'';
                 }
 
                 if (!empty($com[2])) {
