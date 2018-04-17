@@ -66,8 +66,10 @@ class Sql
                     $primary[$k] .= 'not null default \'' . $com['default'] . '\'';
                 } elseif ($k != 'id' && strpos($com['type'], 'int') !== false) {
                     $primary[$k] .= 'not null default 0';
-                } else {
+                } elseif ($k == 'id') {
                     $primary[$k] .= 'not null';
+                } else {
+                    $primary[$k] .= 'not null default \'\'';
                 }
 
                 if (!empty($com['name'])) {
