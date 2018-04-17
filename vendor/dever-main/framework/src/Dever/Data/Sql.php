@@ -59,7 +59,7 @@ class Sql
                 if (strpos($com['type'], 'text') !== false) {
                     $primary[$k] .= '';
                 } elseif (strpos($com['type'], 'int') === false) {
-                    $primary[$k] .= 'not null default \'\'';
+                    $primary[$k] .= 'null';
                 } elseif (!empty($com['default'])) {
                     $default = $com['default'];
                     $com['default'] = '{default}';
@@ -69,7 +69,7 @@ class Sql
                 } elseif ($k == 'id') {
                     $primary[$k] .= 'not null';
                 } else {
-                    $primary[$k] .= 'not null default \'\'';
+                    $primary[$k] .= 'null';
                 }
 
                 if (!empty($com['name'])) {
@@ -83,7 +83,7 @@ class Sql
                     $com[1] = '{default}';
                     $primary[$k] .= 'not null default \'' . $com[1] . '\'';
                 } else {
-                    $primary[$k] .= 'not null default \'\'';
+                    $primary[$k] .= 'null';
                 }
 
                 if (!empty($com[2])) {
