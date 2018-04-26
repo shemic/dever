@@ -5,6 +5,7 @@ use Dever\Loader\Project;
 use Dever\Routing\Uri;
 use Dever\Routing\Input;
 use Dever\String\Helper;
+use Dever\Loader\Import;
 
 class Url
 {
@@ -92,12 +93,38 @@ class Url
             return implode(',', $file);
         }
 
-        if ($name && strpos($file, '_') !== false) {
-            $temp = explode('_', $file);
-            $file = $temp[0] . '_' . $name;
+        $file = self::uploadRes($file);
+
+        if ($name) {
+
+            if (strstr($file, '<img')) {
+                return self::html($file, $name);
+            }
+
+            if (strpos($file, '_') !== false) {
+                $temp = explode('_', $file);
+                $temp1 = explode('.', $temp[1]);
+                $file = $temp[0] . '_' . $name . '.' . $temp1[1];
+            } else {
+                $ext = pathinfo($file, PATHINFO_EXTENSION);
+                $file = str_replace('.' . $ext, '_' . $name . '.' . $ext, $file);
+            }
+            
+            $file = Import::load('upload/view.get', $file);
         }
 
-        $file = self::uploadRes($file);
+        return $file;
+    }
+
+    private static function html($file, $name)
+    {
+        preg_match_all('/src="(.*?)"/i', $file, $matches);
+        if (isset($matches[1])) {
+            foreach ($matches[1] as $v) {
+                $t = self::upload($v, $name);
+                $file = str_replace($v, $t, $file);
+            }
+        }
 
         return $file;
     }
