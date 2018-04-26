@@ -95,7 +95,7 @@ class Url
 
         $file = self::uploadRes($file);
 
-        if ($name && strstr($file, 'http://') && strstr($file, Dever::config('host')->uploadRes)) {
+        if ($name && strstr($file, 'http://')) {
 
             if (strstr($file, '<img')) {
                 return self::html($file, $name);
