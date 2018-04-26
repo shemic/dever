@@ -101,10 +101,10 @@ class Url
                 return self::html($file, $name);
             }
 
-            if (strpos($file, '_') !== false) {
-                $temp = explode('_', $file);
+            if (strpos($file, '_t') !== false) {
+                $temp = explode('_t', $file);
                 $temp1 = explode('.', $temp[1]);
-                $file = $temp[0] . '_' . $name . '.' . $temp1[1];
+                $file = $temp[0] . '_t' . $name . '.' . $temp1[1];
             } else {
                 $ext = pathinfo($file, PATHINFO_EXTENSION);
                 $file = str_replace('.' . $ext, '_' . $name . '.' . $ext, $file);
