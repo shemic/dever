@@ -403,6 +403,9 @@ class Store
 
     public function cache($key = false, $data = array())
     {
+        if (DEVER_APP_NAME == 'manage') {
+            return;
+        }
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
 
         if (empty($cache['mysql'])) {
