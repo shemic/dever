@@ -251,6 +251,16 @@ class Request
     }
 
     /**
+     * _state
+     *
+     * @return mixd
+     */
+    protected function _stateTotal()
+    {
+        return array_merge($this->_total(), array('where' => array('state' => 1)));
+    }
+
+    /**
      * _all
      *
      * @return mixd
