@@ -216,9 +216,10 @@ class Handle
     {
         if (isset($this->config['top']) && is_string($this->config['top'])) {
             $value = isset($this->param[$this->config['top']]) ? $this->param[$this->config['top']] : Input::get($this->config['top']);
+            $top = array();
             if ($value) {
                 $top['value'] = $value;
-            } else {
+            } elseif (DEVER_APP_NAME == 'manage') {
                 $top = Import::load('manage/auth.getTop', $this->config['top']);
             }
             if ($top) {
