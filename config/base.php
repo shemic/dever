@@ -33,6 +33,13 @@ $config['base'] = array
 	# 是否启用自动过滤功能，必须加载manage包，目前可选的值为：manage（自带的过滤功能，非常简单，小型站点可以开启），bao10jie（必须申请账号）
 	//'filter' => array('manage' => 1,'bao10jie' => '账号'),
 	//'filter' => array('manage' => 1),
+
+	# 基本数据类型
+	'state' => array
+	(
+		1 => '恢复',
+		2 => '删除',
+	),
 );
 
 $config['template'] = array
