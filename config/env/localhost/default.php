@@ -205,8 +205,8 @@ $config['debug'] = array
 	# 开启错误提示 生产环境建议禁止
 	'error' => true,
 	
-	# 错误日志记录，为空则不开启，为数组则为socket等服务
-	'log' => true,//array('type' => 'udp', 'host' => 'host', 'port' => 'port')
+	# 错误日志记录，为空则不开启，type可选值为file、syslog、udp、http，默认为syslog
+	'log' => array('type' => 'syslog','host' => 'host', 'port' => 'port'),
 	# 是否开启记录超时时间，单位为秒
 	'overtime' => 3,
 

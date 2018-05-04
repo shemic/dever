@@ -187,6 +187,25 @@ class Dever
     }
 
     /**
+     * 过滤emoji
+     * @param string $str
+     *
+     * @return array
+     */
+    public static function emoji($str)
+    {
+        $str = preg_replace_callback(
+            '/./u',
+            function (array $match) {
+                return strlen($match[0]) >= 4 ? '' : $match[0];
+            },
+            $str
+        );
+
+        return $str;
+    }
+
+    /**
      * 获取_param
      * @param string $name
      * @param string $param
@@ -308,6 +327,16 @@ class Dever
         $v = mktime($s[0], $s[1], $s[2], $t[1], $t[2], $t[0]);
 
         return $v;
+    }
+
+    public static function udate($format = 'u', $utimestamp = null)
+    {
+        if (is_null($utimestamp)) {
+            $utimestamp = microtime(true);
+        }
+        $timestamp = floor($utimestamp);
+        $milliseconds = round(($utimestamp - $timestamp) * 1000000);
+        return date(preg_replace('`(?<!\\\\)u`', $milliseconds, $format), $timestamp);
     }
 
     public static function proxy($method = false, $param = false)
