@@ -125,8 +125,10 @@ class Uri
             self::$type = $entry == 'index.php' ? '?' : $entry . '?';
             if ($_SERVER['REQUEST_URI'] != $_SERVER['SCRIPT_NAME']) {
                 $script = substr($_SERVER['SCRIPT_NAME'], 0, strpos($_SERVER['SCRIPT_NAME'], $entry));
-                //$uri = $_SERVER['REQUEST_URI'];
-                $uri = $_SERVER['PHP_SELF'] . '?' . $_SERVER['QUERY_STRING'];
+                $uri = $_SERVER['REQUEST_URI'];
+                if (strpos($_SERVER['QUERY_STRING'], '?') !== false) {
+                    $uri = $_SERVER['PHP_SELF'] . '?' . $_SERVER['QUERY_STRING'];
+                }
 
                 if (strpos($uri, '/' . $entry) !== false) {
                     self::$value = str_replace($_SERVER['SCRIPT_NAME'] . '?', '', $uri);
@@ -135,10 +137,10 @@ class Uri
                     self::$value = ltrim(self::$value, '?');
                 }
 
-                self::$value = ltrim(self::$value, '&');
                 if (strpos(self::$value, '?') === false) {
                     self::$value = preg_replace('/&/', '?', self::$value, 1);
                 }
+                self::$value = ltrim(self::$value, '&');
             } else {
                 self::$value = '';
             }
