@@ -31,6 +31,7 @@ class Dever
         'load' => array('Loader\\Import', 'load'),
         'import' => array('Loader\\Project', 'import'),
         'db' => array('Data\\Model', 'load'),
+        'upinto' => array('Data\\Model', 'upinto'),
 
         'setStep' => array('Routing\\Step', 'set'),
         'getStep' => array('Routing\\Step', 'get'),

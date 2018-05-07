@@ -59,9 +59,9 @@ class Curl
      *
      * @return mixed
      */
-    public static function get($url, $param = false, $type = 'get')
+    public static function get($url, $param = false, $type = 'get', $json = false)
     {
-        return self::getInstance($url, $param, $type)->result();
+        return self::getInstance($url, $param, $type, $json)->result();
     }
 
     /**
@@ -278,7 +278,7 @@ class Curl
     public function setJson($param)
     {
         $string = str_replace("\\/", "/", json_encode($param));
-        $search = "#\\\u([0-9a-f]+)#ie";
+        $search = "/\\\u([0-9a-f]+)/i";
 
         if (strpos(strtoupper(PHP_OS), 'WIN') === false) {
             $replace = "iconv('UCS-2BE', 'UTF-8', pack('H4', '\\1'))";

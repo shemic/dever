@@ -373,6 +373,20 @@ class Sql
     }
 
     /**
+     * replace
+     *
+     * @return string
+     */
+    public function replace($table)
+    {
+        $sql = 'REPLACE INTO `' . $table . '` (' . implode(',', $this->col) . ') VALUES (' . implode(',', $this->value) . ')';
+
+        $this->init();
+
+        return $sql;
+    }
+
+    /**
      * inserts
      *
      * @return string

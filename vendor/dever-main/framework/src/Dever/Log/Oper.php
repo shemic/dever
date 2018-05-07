@@ -14,9 +14,14 @@ class Oper
         }
         $log = '';
         if (is_array($msg)) {
-            foreach($msg as $k => $v)
-            {
-                $log .= "&".$k."=" . self::filter($v);
+            foreach ($msg as $k => $v) {
+                if (is_array($v)) {
+                    foreach ($v as $k1 => $v1) {
+                        $log .= "&".$k . "_" . $k1 ."=" . self::filter($v1);
+                    }
+                } else {
+                    $log .= "&".$k."=" . self::filter($v);
+                }
             }
         } else {
             $log = $msg;

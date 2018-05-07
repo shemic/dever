@@ -60,12 +60,35 @@ class Model
     protected static $key;
 
     /**
+     * upinto
+     *
+     * @return mixed
+     */
+    public static function upinto($table = '', $where = array(), $param = array())
+    {
+        $db = self::load($table);
+        $info = $db->one($where);
+        if ($info) {
+            $param['where_id'] = $info['id'];
+            $db->up($param);
+            $id = $info['id'];
+        } else {
+            $id = $db->insert($param);
+        }
+
+        return $id;
+    }
+
+    /**
      * load
      *
      * @return mixed
      */
     public static function load($table = '', $param = '')
     {
+        if (is_array($table)) {
+            print_r($table);die;
+        }
         list($table, $index, $method) = self::table($table);
         $key = $table . '_' . $index;
         if (empty(static::$instance[$key])) {
@@ -89,6 +112,9 @@ class Model
     public static function table($table)
     {
         $index = $method = '';
+        if (is_array($table)) {
+            print_r($table);die;
+        }
         if (!$table) {
             $table = self::$key;
         } elseif (strpos($table, '/') === false) {

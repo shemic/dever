@@ -214,7 +214,23 @@ class Handle
      */
     private function top()
     {
-        if (isset($this->config['top']) && is_string($this->config['top'])) {
+        if (isset($this->config['top']) && is_array($this->config['top'])) {
+            $top = 'manage/top.sync';
+            if (isset($this->config['end']['insert']) && $this->config['end']['insert']) {
+                if (!in_array($top, $this->config['end']['insert'])) {
+                    array_push($this->config['end']['insert'], $top);
+                }
+            } else {
+                $this->config['end']['insert'][] = $top;
+            }
+            if (isset($this->config['end']['update']) && $this->config['end']['update']) {
+                if (!in_array($top, $this->config['end']['update'])) {
+                    array_push($this->config['end']['update'], $top);
+                }
+            } else {
+                $this->config['end']['update'][] = $top;
+            }
+        } elseif (isset($this->config['top']) && is_string($this->config['top'])) {
             $value = isset($this->param[$this->config['top']]) ? $this->param[$this->config['top']] : Input::get($this->config['top']);
             $top = array();
             if ($value) {
