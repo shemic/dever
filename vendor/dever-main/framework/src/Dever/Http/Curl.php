@@ -277,7 +277,7 @@ class Curl
      */
     public function setJson($param)
     {
-        $string = str_replace("\\/", "/", json_encode($param));
+        $param = str_replace("\\/", "/", json_encode($param, JSON_UNESCAPED_UNICODE));
         $search = "/\\\u([0-9a-f]+)/i";
 
         if (strpos(strtoupper(PHP_OS), 'WIN') === false) {
@@ -286,7 +286,7 @@ class Curl
             $replace = "iconv('UCS-2', 'UTF-8', pack('H4', '\\1'))";
         }
 
-        $param = preg_replace($search, $replace, $string);
+        //$param = preg_replace($search, $replace, $param);
         //$param = json_encode($param, JSON_UNESCAPED_UNICODE);
         $header['Content-Type'] = 'application/json';
         $header['Content-Length'] = strlen($param);

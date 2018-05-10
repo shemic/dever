@@ -70,7 +70,7 @@ class Model
         $info = $db->one($where);
         if ($info) {
             $param['where_id'] = $info['id'];
-            $db->up($param);
+            $db->update($param);
             $id = $info['id'];
         } else {
             $id = $db->insert($param);

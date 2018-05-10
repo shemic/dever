@@ -96,6 +96,7 @@ class Command
         }
 
         //$shell = self::shell($shell);
+        //echo $shell . $state;die;
         $method($shell . $state, $result);
         if (is_file($shell)) {
             unlink($shell);

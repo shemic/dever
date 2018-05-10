@@ -101,6 +101,9 @@ class Oper
 
     public static function filter($string)
     {
+        if (is_array($string)) {
+            $string = json_encode($string);
+        }
         return str_replace(array("\t","\n","\r"),array(",",",",","),$string);
     }
 }
