@@ -87,7 +87,7 @@ class Curl
 
         $this->setRequest($type);
 
-        if ($json && $param) {
+        if ($json) {
             $this->setJson($param);
         } elseif ($type == 'post' || $type == 'put') {
             $this->setParam($param);
@@ -277,7 +277,7 @@ class Curl
      */
     public function setJson($param)
     {
-        $param = str_replace("\\/", "/", json_encode($param, JSON_UNESCAPED_UNICODE));
+        $param = str_replace("\\/", "/", json_encode((object) $param, JSON_UNESCAPED_UNICODE));
         $search = "/\\\u([0-9a-f]+)/i";
 
         if (strpos(strtoupper(PHP_OS), 'WIN') === false) {
