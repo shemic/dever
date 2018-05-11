@@ -235,7 +235,7 @@ class Import
      */
     protected function manage()
     {
-        if (strpos($this->key, 'manage/') !== false && strpos($this->key, 'manage/auth') === false) {
+        if (strpos($this->key, 'manage/') !== false && strpos($this->key, 'manage/auth') === false && strpos($this->key, 'manage/project') === false) {
             self::load('manage/auth.init');
         }
     }
