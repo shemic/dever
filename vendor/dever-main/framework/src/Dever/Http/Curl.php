@@ -95,6 +95,10 @@ class Curl
             $url .= '?' . http_build_query($param);
         }
 
+        if (strpos($url, '??')) {
+            $url = str_replace('??', '?', $url);
+        }
+
         $this->setUrl($url);
 
         return $this;
