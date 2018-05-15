@@ -241,6 +241,10 @@ class Handle
             if ($top) {
                 $temp = explode('/', $this->config['top']);
                 $this->config['top'] = $temp[1];
+                if (strpos($this->config['top'], '-')) {
+                    $temp = explode('-', $this->config['top']);
+                    $this->config['top'] = $temp[0];
+                }
                 if ($this->update) {
                     $this->setParam($this->config['top'], $top['value']);
                 } else {
