@@ -188,7 +188,7 @@ class Condition
                         }
                         $input = $vt;
                     } elseif (isset($input[0]) && is_array($input[0])) {
-                        $input = base64_encode(json_encode($input));
+                        $input = base64_encode(json_encode($input, JSON_UNESCAPED_UNICODE));
                     } else {
                         $input = str_replace(',0', '', implode(',', $input));
                     }
