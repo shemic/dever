@@ -401,6 +401,50 @@ class Dever
     }
 
     /**
+     * json_encode编码
+     * @param string $value
+     *
+     * @return string
+     */
+    public static function json_encode($value)
+    {
+        return json_encode($value, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * json_decode解码
+     * @param string $value
+     *
+     * @return string
+     */
+    public static function json_decode($value)
+    {
+        return json_decode($value, true);
+    }
+
+    /**
+     * 数据库数组编码
+     * @param string $value
+     *
+     * @return string
+     */
+    public static function array_encode($value)
+    {
+        return base64_encode(self::json_encode($value, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * 数据库数组解码
+     * @param string $value
+     *
+     * @return string
+     */
+    public static function array_decode($value)
+    {
+        return self::json_decode(base64_decode($value));
+    }
+
+    /**
      * 获取文件后缀
      * @param string $file
      *
