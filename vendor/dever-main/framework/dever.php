@@ -401,6 +401,25 @@ class Dever
     }
 
     /**
+     * queue队列，需要队列组件 dever package queue
+     * @param string $key
+     *
+     * @return string
+     */
+    public static function queue($key = 'default', $value = false)
+    {
+        $key = DEVER_PROJECT . '_' . DEVER_APP_NAME . '_' . $key;
+        self::import('queue');
+        if ($value) {
+            $result = self::push($value, $key);
+        } else {
+            $result = self::pop($key);
+        }
+        
+        return $result;
+    }
+
+    /**
      * json_encode编码
      * @param string $value
      *
