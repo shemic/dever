@@ -408,7 +408,6 @@ class Dever
      */
     public static function queue($key = 'default', $value = false)
     {
-        $key = DEVER_PROJECT . '_' . DEVER_APP_NAME . '_' . $key;
         self::import('queue');
         if ($value) {
             if ($value == 'len') {
@@ -421,6 +420,36 @@ class Dever
         }
         
         return $result;
+    }
+
+    /**
+     * 通过Redis队列来实现的锁操作
+     * @param string $key
+     *
+     * @return string
+     */
+    public static function lock($key = 'default', $total = false)
+    {
+        self::import('queue');
+        if ($total && $total > 0) {
+            # 写入
+            $len = self::len($key);
+            if ($len < $total) {
+                $count = $total - $len;
+                for($i=0; $i < $count; $i++) {
+                    self::push($i, $key);
+                }
+            } else {
+                return false;
+            }
+        } else {
+            $state = self::pop($key);
+            if (!$state) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     /**
