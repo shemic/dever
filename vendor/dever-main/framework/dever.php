@@ -436,7 +436,7 @@ class Dever
             $len = self::len($key);
             if ($len < $total) {
                 $count = $total - $len;
-                for($i=0; $i < $count; $i++) {
+                for($i=1; $i <= $count; $i++) {
                     self::push($i, $key);
                 }
             } else {
