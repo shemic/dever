@@ -411,7 +411,11 @@ class Dever
         $key = DEVER_PROJECT . '_' . DEVER_APP_NAME . '_' . $key;
         self::import('queue');
         if ($value) {
-            $result = self::push($value, $key);
+            if ($value == 'len') {
+                $result = self::len($key);
+            } else {
+                $result = self::push($value, $key);
+            }
         } else {
             $result = self::pop($key);
         }
