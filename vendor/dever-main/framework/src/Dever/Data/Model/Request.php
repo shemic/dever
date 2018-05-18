@@ -61,7 +61,7 @@ class Request
     protected function setting($method, $struct, $search)
     {
         $state = $this->state($method);
-        if ($state) {
+        if ($state && $struct) {
             foreach ($struct as $key => $value) {
                 if (isset($value['match'])) {
                     $this->settingValue($state, $method, $key, $value, $search);

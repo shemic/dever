@@ -169,14 +169,23 @@ class Model
     {
         list($projectName, $tableName) = explode('/', $this->table);
         $projectInfo = Project::load($projectName);
+        if (!$projectInfo) {
+            $projectInfo = array (
+                'name' => $projectName,
+            );
+            $path = '';
+            $this->config['link'] = true;
+        } else {
+            $path = $projectInfo['path'] . self::DATABASE;
+            $this->config['link'] = false;
+        }
 
-        $path = $projectInfo['path'] . self::DATABASE;
         if ($tableName == 'col') {
-                //print_r($this->table);die;
-            }
+            //print_r($this->table);die;
+        }
         if ($this->index) {
             $path .= $this->index . '/';
-            $this->config['db'] = $this->index;
+            $this->config['db_prefix'] = $this->config['db'] = $this->index;
         } else {
             $this->config['db'] = $projectInfo['name'];
         }
@@ -423,6 +432,9 @@ class Model
      */
     protected function request($method, $param)
     {
+        if (!isset($this->config['struct'])) {
+            $this->config['struct'] = array();
+        }
         if (empty($this->config['request'][$method]) && isset($this->config['struct'])) {
             $search = '';
             if (isset($param['search_type'])) {

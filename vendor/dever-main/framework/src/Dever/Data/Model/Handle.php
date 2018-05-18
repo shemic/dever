@@ -358,7 +358,14 @@ class Handle
             if (!isset($this->config['table'])) {
                 $this->config['table'] = '';
             }
-            $this->db()->table($this->config['project']['name'] . '_' . $this->config['name'], $this->index, true, $this->config['table']);
+            if (!isset($this->config['db_prefix'])) {
+                $this->config['db_prefix'] = '';
+            }
+            if (!isset($this->config['link'])) {
+                $this->config['link'] = false;
+            }
+
+            $this->db()->table($this->config['project']['name'] . '_' . $this->config['name'], $this->index, true, $this->config['table'], $this->config['db_prefix'], $this->config['link']);
 
             $this->create();
         } else {

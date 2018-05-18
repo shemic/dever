@@ -158,6 +158,9 @@ class Condition
     protected function handle($config, $method)
     {
         $send = array();
+        if (!$config && isset($this->param)) {
+            $config = $this->param;
+        }
         foreach ($config as $key => $value) {
             $temp = array();
             if (is_array($value)) {

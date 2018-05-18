@@ -108,7 +108,7 @@ class Store
         } else {
             $this->read = $this->update = $this->connect($config);
         }
-
+        $config['link'] = false;
         $this->config = $config;
         unset($config);
     }
@@ -118,10 +118,13 @@ class Store
      *
      * @return object
      */
-    public function table($table, $name = '', $state = true, $alias = '')
+    public function table($table, $name = '', $state = true, $alias = '', $prefix = false, $link = false)
     {
+        $this->config['link'] = $link;
         $this->alias = $alias ? $alias : $table;
-        if (defined('DEVER_DB_PREFIX')) {
+        if ($prefix) {
+            $table = $prefix . '_' . $table;
+        } elseif (defined('DEVER_DB_PREFIX')) {
             $table = DEVER_DB_PREFIX . '_' . $table;
         } elseif ($state == true && defined('DEVER_PROJECT') && DEVER_PROJECT != 'default') {
             $table = DEVER_PROJECT . '_' . $table;
@@ -129,7 +132,7 @@ class Store
 
         $this->setTable($table);
 
-        if ($state == true && isset($this->sql) && Config::get('database')->sql) {
+        if (!$link && $state == true && isset($this->sql) && Config::get('database')->sql) {
             $file = $this->file($name);
 
             if (is_file($file)) {
@@ -148,6 +151,10 @@ class Store
      */
     public function index($index, $name = '')
     {
+        if ($this->config['link']) {
+            return false;
+        }
+
         if (empty($index)) {
             return false;
         }
@@ -182,6 +189,10 @@ class Store
      */
     public function alter($alter, $struct = array(), $name = '')
     {
+        if ($this->config['link']) {
+            return false;
+        }
+
         if (empty($this->sql)) {
             return false;
         }
@@ -280,6 +291,10 @@ class Store
      */
     public function create($struct, $name = '', $type = 'innodb', $partition = '')
     {
+        if ($this->config['link']) {
+            return false;
+        }
+
         if (isset($this->sql) && Config::get('database')->create) {
             return false;
         }

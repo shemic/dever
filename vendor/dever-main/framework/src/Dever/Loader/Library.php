@@ -211,7 +211,7 @@ class Library
      */
     public function loadFunction($project)
     {
-        if (empty($this->function[$project['name']])) {
+        if (empty($this->function[$project['name']]) && isset($project['name']) && isset($project['path'])) {
             $this->function[$project['name']] = true;
             $file  = $project['path'] . 'common.php';
             if (is_file($file)) {
