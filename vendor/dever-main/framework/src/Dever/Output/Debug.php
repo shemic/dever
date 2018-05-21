@@ -319,6 +319,11 @@ class Debug
         if ($msg && self::tool()) {
             self::runtime();
             self::error($msg);
+
+            $function = Input::get('function');
+            if ($function) {
+                Export::alert(json_encode($msg, JSON_UNESCAPED_UNICODE));
+            }
             $handler = self::$tool->getHandlers();
             if (self::$data && is_array(self::$data)) {
                 foreach (self::$data as $k => $v) {
