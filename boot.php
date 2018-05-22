@@ -66,6 +66,10 @@ if (is_file(DEVER_PATH . 'build/dever.phar1')) {
 } else {
 	require DEVER_PATH . 'vendor/autoload.php';
 }
+
+if (is_file(DEVER_PROJECT_PATH . 'vendor/autoload.php')) {
+	require DEVER_PROJECT_PATH . 'vendor/autoload.php';
+}
 /*
 |--------------------------------------------------------------------------
 | init config

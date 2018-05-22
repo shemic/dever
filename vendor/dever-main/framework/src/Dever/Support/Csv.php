@@ -53,15 +53,17 @@ class Csv
         $count = count($data);
         if ($count > 0) {
             for ($i = 0; $i < $count; $i++) {
-                $num++;
-                //刷新一下输出buffer，防止由于数据过多造成问题
-                if ($limit == $num) {
-                    ob_flush();
-                    flush();
-                    $num = 0;
+                if (isset($data[$i]) && $data[$i]) {
+                    $num++;
+                    //刷新一下输出buffer，防止由于数据过多造成问题
+                    if ($limit == $num) {
+                        ob_flush();
+                        flush();
+                        $num = 0;
+                    }
+                    $row = $data[$i];
+                    fputcsv($fp, $row);
                 }
-                $row = $data[$i];
-                fputcsv($fp, $row);
             }
         }
         fclose($fp);

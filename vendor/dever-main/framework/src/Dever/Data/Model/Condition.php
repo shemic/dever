@@ -159,7 +159,14 @@ class Condition
     {
         $send = array();
         if (!$config && isset($this->param)) {
-            $config = $this->param;
+            foreach ($this->param as $k => $v) {
+                $k = str_replace(array('option_', 'where_'), '', $k);
+                $config[$k] = $v;
+            }
+        }
+
+        if (isset($config['option'])) {
+            unset($config['option']);
         }
         foreach ($config as $key => $value) {
             $temp = array();
@@ -171,10 +178,13 @@ class Condition
                 }
             }
 
-            $input = $this->input($method . '_' . $key, $value, '', $key, $method);
+            $index = $key;
 
-            if ($this->update && !$input) {
-                $input = $this->input($key, $value, '', $key, $method);
+            $input = $this->input($method . '_' . $index, $value, '', $key, $method);
+
+            //if ($this->update && !$input) {
+            if (!$input) {
+                $input = $this->input($index, $value, '', $key, $method);
                 if ($method == 'add' && !$input && isset($this->struct[$key]['default']) && $this->struct[$key]['default']) {
                     $input = $this->struct[$key]['default'];
                 }

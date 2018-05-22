@@ -443,7 +443,7 @@ class Model
 
             $this->config['request'][$method] = Model\Request::get($this->table, $method, $this->config['struct'], $search);
 
-            if ($method == 'all' && isset($param['option'])) {
+            if (in_array($method, array('all', 'state', 'total')) && isset($param['option'])) {
                 foreach ($param['option'] as $k => $v) {
                     $this->config['request'][$method]['option'][$k] = $v;
                 }
@@ -507,7 +507,11 @@ class Model
     private function initParam($param, $method)
     {
         if ($param && !is_array($param)) {
-            $param = array('where_id' => $param, 'option_id' => $param);
+            if ($this->config['link']) {
+                $param = array('id' => $param);
+            } else {
+                $param = array('where_id' => $param, 'option_id' => $param);
+            }
         }
         return $param;
     }
