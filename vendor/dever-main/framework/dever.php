@@ -81,8 +81,8 @@ class Dever
         'run' => array('Support\\Command', 'run'),
         'kill' => array('Support\\Command', 'kill'),
 
-        'csv' => array('Support\\Csv', 'export'),
-        'csvRead' => array('Support\\Csv', 'read'),
+        'excelExport' => array('Support\\Excel', 'export'),
+        'excelImport' => array('Support\\Excel', 'import'),
 
         'log' => array('Log\\Oper', 'add'),
     );
