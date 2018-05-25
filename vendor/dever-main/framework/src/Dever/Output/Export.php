@@ -185,7 +185,7 @@ class Export
             if (!$msg) {
                 $msg = (object) $msg;
             }
-            $msg = json_encode($msg);
+            $msg = Dever::json_encode($msg, JSON_UNESCAPED_UNICODE);
             self::$state = true;
         }
     }

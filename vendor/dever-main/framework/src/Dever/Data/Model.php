@@ -443,7 +443,7 @@ class Model
 
             $this->config['request'][$method] = Model\Request::get($this->table, $method, $this->config['struct'], $search);
 
-            if (in_array($method, array('all', 'state', 'total')) && isset($param['option'])) {
+            if (in_array($method, array('all', 'state', 'total', 'list')) && isset($param['option'])) {
                 foreach ($param['option'] as $k => $v) {
                     $this->config['request'][$method]['option'][$k] = $v;
                 }

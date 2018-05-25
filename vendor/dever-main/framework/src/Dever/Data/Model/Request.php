@@ -87,7 +87,7 @@ class Request
         }
         if ($state == 'option') {
             $this->settingOption($method, $key, $value);
-            if (isset($value['search']) && strpos($value['search'], 'fulltext') !== false && $search) {
+            if (isset($value['search']) && is_string($value['search']) && $search && (strpos($value['search'], 'fulltext') !== false || strpos($value['search'], 'exp') !== false)) {
                 $this->config[$method][$state][$key] = array($value['match'], $this->searchType($search));
             }
         }
@@ -142,11 +142,13 @@ class Request
      */
     protected function settingSearch($method, $key, $value)
     {
-        if (strpos($value['search'], 'time') !== false || strpos($value['search'], 'date') !== false) {
-            $this->config[$method]['option']['start_' . $key] = array('yes-' . $key, '>=');
-            $this->config[$method]['option']['end_' . $key] = array('yes-' . $key, '<=');
-        } elseif (strpos($value['search'], 'mul') !== false) {
-            $this->config[$method]['option'][$k] = array('option', 'like');
+        if (is_string($value['search'])) {
+            if (strpos($value['search'], 'time') !== false || strpos($value['search'], 'date') !== false) {
+                $this->config[$method]['option']['start_' . $key] = array('yes-' . $key, '>=');
+                $this->config[$method]['option']['end_' . $key] = array('yes-' . $key, '<=');
+            } elseif (strpos($value['search'], 'mul') !== false) {
+                $this->config[$method]['option'][$k] = array('option', 'like');
+            }
         }
     }
 

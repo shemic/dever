@@ -460,7 +460,7 @@ class Dever
      */
     public static function json_encode($value)
     {
-        return json_encode($value, JSON_UNESCAPED_UNICODE);
+        return self::pic(json_encode($value, JSON_UNESCAPED_UNICODE));
     }
 
     /**
