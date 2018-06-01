@@ -345,6 +345,9 @@ class Paginator
 
         if ($search) {
             foreach ($search as $k => $v) {
+                if (is_array($v)) {
+                    $v = implode(',', $v);
+                }
                 if ($v && strpos($link, $k) === false) {
                     $link .= '&' . $k . '=' . $v;
                 }
