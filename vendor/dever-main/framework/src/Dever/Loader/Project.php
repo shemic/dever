@@ -82,6 +82,7 @@ class Project
         if (defined('DEVER_APP_SETUP')) {
             //self::update(DEVER_APP_NAME, 'setup', DEVER_APP_SETUP);
         }
+
         self::content(true);
     }
 
@@ -186,6 +187,10 @@ class Project
 
         if (defined('DEVER_APP_SETUP')) {
             $config['setup'] = DEVER_APP_SETUP;
+        }
+
+        if (defined('DEVER_APP_LIB')) {
+            $config['lib'] = DEVER_APP_LIB;
         }
     }
 

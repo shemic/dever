@@ -357,7 +357,7 @@ class Import
             }
         } else {
             $plugin = Config::get('plugin')->{$this->key};
-            //$this->step($method, $this->class);
+            $this->step($method, $this->class);
             $param = $this->getParam($method);
             if ($plugin && isset($plugin['start'])) {
                 $param = Import::load($project['name'] . '/plugin/' . $plugin['start'], $param);
@@ -462,13 +462,11 @@ class Import
         }
 
         if (!method_exists($this->class, $method)) {
-            if (Config::get('base')->apiOpenPath) {
+            if (strpos($method, self::API) !== false && Config::get('base')->apiOpenPath) {
                 $className = get_class($this->class);
                 if (stripos($className, '\\' . Config::get('base')->apiOpenPath)) {
-                    if (strpos($method, self::API) !== false) {
-                        $temp = explode(self::API, $method);
-                        $method = $temp[0];
-                    }
+                    $temp = explode(self::API, $method);
+                    $method = $temp[0];
                     return $method;
                 }
             }

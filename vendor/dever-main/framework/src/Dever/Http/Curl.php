@@ -92,7 +92,12 @@ class Curl
         } elseif ($type == 'post' || $type == 'put') {
             $this->setParam($param);
         } elseif ($param) {
-            $url .= '?' . http_build_query($param);
+            if (strpos($url, '?')) {
+                $url .= '&';
+            } else {
+                $url .= '?';
+            }
+            $url .= http_build_query($param);
         }
 
         if (strpos($url, '??')) {

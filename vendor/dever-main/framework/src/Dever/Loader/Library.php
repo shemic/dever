@@ -75,7 +75,14 @@ class Library
             if ($file && $project) {
                 $state = $this->import($class, $file, $project['path']);
 
-                $project = ucfirst($project['name']);
+                if (isset($project['lib'])) {
+                    $class = str_ireplace($project['name'], '{project}', $class);
+                    $project = str_replace(' ', '\\', ucwords(str_replace('/', ' ', $project['lib'])));
+                    $class = str_replace('{project}', $project, $class);
+                } else {
+                    $project = ucfirst($project['name']);
+                }
+
                 if ($state) {
                     return Helper::replace($project . '\\', $project . '\\'.ucfirst(self::DEFAULT_SRC).'\\', $class);
                 } else {
