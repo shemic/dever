@@ -133,7 +133,8 @@ class Uri
     {
         $request = $_REQUEST;
         if (isset($request['l'])) {
-            self::$url = self::$value = $request['l'];
+            self::$value = $request['l'];
+            self::$url = $_SERVER['QUERY_STRING'];
         } else {
             self::request_uri();
         }

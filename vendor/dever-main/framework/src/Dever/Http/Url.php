@@ -37,7 +37,9 @@ class Url
         $host = '';
         self::host($host, $value, $project);
 
-        $value = Uri::LOAD . '=' . $value;
+        if (strpos($value, Uri::LOAD . '=') === false) {
+            $value = Uri::LOAD . '=' . $value;
+        }
         
         $key = $value;
 
