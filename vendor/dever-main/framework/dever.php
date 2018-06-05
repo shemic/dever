@@ -360,7 +360,7 @@ class Dever
 
     public static function script()
     {
-        $script = 'var config={};config.init=false;config.host="' . self::url('') . '";config.type="' . Dever\Routing\Uri::$type . '";config.current="' . self::url() . '";config.upload="' . self::config('host')->upload . '";config.assets="' . self::config('host')->assets . '";';
+        $script = 'var config={};config.init=false;config.host="' . self::url('') . '";config.type="' . Dever\Routing\Uri::$type . '";config.current="' . self::url() . '";config.upload="' . self::config('host')->upload . '";config.assets="' . self::config('host')->assets . '";config.script="' . self::config('host')->script . '";';
 
         if (self::config('host')->css) {
             $script .= 'config.css="' . self::config('host')->css . '";';
@@ -398,6 +398,50 @@ class Dever
                         });';
         }
         return $script;
+    }
+
+    /**
+     * 加载分享前端组件
+     * @param string $key
+     *
+     * @return string
+     */
+    public static function share($project, $uid, $share_url, $title, $img, $desc, $link = false, $button = false)
+    {
+        if (!$uid) {
+            $uid = -1;
+        }
+
+        $host = self::config('host')->script;
+        $html = '<script src="'.$host.'lib/share/weixin.js" ></script><script src="'.$host.'dever/share.js" ></script>';
+
+        $html .= '<script type="text/javascript">';
+        $html .= '$(function()';
+        $html .= '{';
+        $html .= 'var uid = ' . $uid . ';';
+        $html .= 'var project = ' . $project . ';';
+        $html .= 'var url = "' . $share_url . '?api.";';
+        $html .= 'var param = {};';
+        $html .= 'param.title = "' . $title . '";';
+        $html .= 'param.img = "' . $img . '";';
+        $html .= 'param.desc = "' . $desc . '";';
+
+        if ($link) {
+            $html .= 'param.url = "' . $link . '";';
+        } else {
+            $html .= 'param.url = location.href;';
+        }
+
+        if ($button) {
+            $html .= 'var button = "' . $link . '";';
+        } else {
+            $html .= 'var button = false;';
+        }
+
+        $html .= 'Dever_Share.Init(uid, project, url, param, button);';
+        $html .= '})';
+        $html .= '</script>';
+        return $html;
     }
 
     /**

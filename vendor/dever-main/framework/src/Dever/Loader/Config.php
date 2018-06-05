@@ -28,7 +28,7 @@ class Config
      *
      * @var array
      */
-    private $setting = array('host', 'database', 'debug', 'cache', 'template');
+    private $setting = array('base', 'host', 'database', 'debug', 'cache', 'template');
 
     /**
      * instance
@@ -217,6 +217,9 @@ class Config
      */
     protected function env($name, $base, $path, $key, $index)
     {
+        if (DEVER_PROJECT != 'default') {
+            $config[] = 'default';
+        }
         $config[] = DEVER_PROJECT;
         if ($name != 'base') {
             $config[] = $name;
@@ -275,45 +278,39 @@ class Config
         $config = include $file;
 
         if (is_array($config)) {
-            $this->merge($config, $key);
+            if ($this->cKey == 'base') {
+                $this->merge($config, $key);
+            } else {
+                $this->cData[$this->cKey] = $config;
+            }
         }
     }
 
     /**
      * merge
      * @param array $config
-     * @param string $key
      *
      * @var array
      */
-    protected function merge($config, $key)
+    protected function merge($config, $key = '')
     {
-        if ($key) {
-            if (isset($config[$key])) {
-                $this->cData[$key] = array_merge($this->cData[$key], $config[$key]);
-                $this->setting($config);
-            } else {
-                $this->cData[$key] = array_merge($this->cData[$key], $config);
-            }
-        } else {
-            $this->cData = array_merge_recursive($this->cData, $config);
+        foreach ($config as $k => $v) {
+            $this->mergeOne($config, $k);
         }
     }
 
     /**
-     * setting
+     * merge
+     * @param array $config
+     *
+     * @var array
      */
-    private function setting($config)
+    protected function mergeOne($config, $key)
     {
-        if ($this->cKey == 'base') {
-            foreach ($this->setting as $k) {
-                if (isset($config[$k])) {
-                    if (empty($this->cData[$k])) {
-                        $this->cData[$k] = array();
-                    }
-                    $this->cData[$k] = array_merge($this->cData[$k], $config[$k]);
-                }
-            }
+        if (isset($this->cData[$key])) {
+            $this->cData[$key] = array_merge($this->cData[$key], $config[$key]);
+        } else {
+            $this->cData[$key] = $config[$key];
         }
     }
 

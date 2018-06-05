@@ -415,7 +415,7 @@ class View
             }
         }
 
-        if ($k != 'manage' && Config::get('host', $this->project)->$k) {
+        if ($k != 'manage' && $k != 'script' && Config::get('host', $this->project)->$k) {
             Config::get('host', $this->project)->$k = str_replace($key, $key . $this->path, Config::get('host', $this->project)->$k);
         }
     }

@@ -11,7 +11,7 @@ $config['base'] = array
 	'assets' => DEVER_APP_PATH . 'assets' . DIRECTORY_SEPARATOR,
 
 	# 访问data目录的物理路径
-	'data' 	=> DEVER_APP_PATH . 'data' . DIRECTORY_SEPARATOR,
+	'data' 	=> DEVER_PROJECT_PATH . 'data' . DIRECTORY_SEPARATOR,
 
 	# 访问当前项目目录的物理路径，如果项目和dever类库在一个目录中，则为DEVER_PATH，如果不在，则为DEVER_APP_PATH，当然也可随意更改，这里目前只影响合并操作
 	'workspace' => DEVER_APP_PATH,
@@ -103,7 +103,7 @@ $config['database'] = array
 	(
 		'type' => 'pdo',
 		'host' => '192.168.1.205:3307',
-		'database' => 'voguecms',
+		'database' => 'old',
 		'username' => 'root',
 		'password' => '123456',
 		'charset' => 'utf8',
@@ -133,19 +133,9 @@ $config['database'] = array
 	(
 		'type' => 'mongo',
 		'host' => '192.168.1.203:27017',
-		'database' => 'condenast',
+		'database' => 'dever',
 		'timeout' => 1000,
 	)
-	/*
-	# 换成mongodb
-	array
-	(
-		'type' => 'mongo',
-		'host' => '127.0.0.1:27017',
-		'database' => 'farm',
-		'timeout' => 1000,
-	),
-	*/
 );
 
 # 缓存配置
@@ -222,11 +212,18 @@ $config['debug'] = array
 
 );
 $local = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+
 # 本地可用这个
 $host = 'http://'.$local . '/';
 
 # 定义assets的域名
 $assets = DEVER_APP_HOST . 'assets/';
+
+# 定义data域名
+$data_host = $host . '' . DEVER_PROJECT . '/data/';
+if (DEVER_APP_NAME == 'manage') {
+	$assets = $host . 'dever_package/manage/assets/';
+}
 
 # host 设置
 $config['host'] = array
@@ -239,24 +236,24 @@ $config['host'] = array
 	
 	# assets网络路径，会自动将assets替换为assets/模板
 	'assets' => $assets,
-	# public
-	'public' => $assets . 'public/',
+
+	# 当前的assets路径
 	'css' => $assets . 'css/',
 	'js' => $assets . 'js/',
 	'img' => $assets . 'img/',
 	'images' => $assets . 'images/',
 	'lib' => $assets . 'lib/',
 
-	# 后台管理系统的assets路径
-	'manage' => $host . 'dever/package/manage/assets/default/',
+	# script组件路径
+	'script' => $host . 'dever_package/script/assets/',
 	
 	# 合并之后的网络路径，填写之后自动合并资源，不填写则不合并，适合把资源放到云端
-	'merge' => $host . 'dever/data/assets/' . DEVER_PROJECT . '/',
+	//'merge' => $data_host . 'assets/' . DEVER_PROJECT . '/',
 	
 	# 上传系统的上传路径的域名(不带action)
-	'upload'=> $host . 'dever/package/upload/?save',
+	'upload'=> $host . 'dever_package/upload/?save',
 	# 上传系统的资源访问地址
-	'uploadRes'	=> $host . 'dever/data/upload/',
+	'uploadRes'	=> $data_host . 'upload/',
 
 	# 域名替换，支持*通配符
 	/*
@@ -297,5 +294,9 @@ $config['host'] = array
 
 	),
 );
+
+if (DEVER_APP_NAME == 'manage') {
+	$config['host']['merge'] = false;
+}
 
 return $config;

@@ -52,8 +52,8 @@ $config['template'] = array
 		'img' => array('../image/', '../img/'),
 		'images' => '../images/',
 		'lib' => '../lib/',
-		'public' => '../public/',
 		'font' => '../fonts/',
+		'script' => '../script/',
 	),
 
 	# 模板html文件的所在目录，默认为html
