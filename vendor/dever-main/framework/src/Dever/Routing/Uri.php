@@ -227,13 +227,18 @@ class Uri
      */
     private static function input()
     {
-        if (strpos(self::$value, '&') !== false) {
-            parse_str(self::$value, $input);
-            self::$value = $input[self::LOAD];
-        } elseif (strpos(self::$value, '?') !== false) {
+        if (strpos(self::$value, '?') !== false) {
             $temp = explode('?', self::$value);
             self::$value = $temp[0];
             parse_str($temp[1], $input);
+        } elseif (strpos(self::$value, '&') !== false) {
+            parse_str(self::$value, $input);
+            if (isset($input[self::LOAD])) {
+                self::$value = $input[self::LOAD];
+            } else {
+                $temp = explode('&', self::$value);
+                self::$value = $temp[0];
+            }
         }
 
         if (isset($input)) {
