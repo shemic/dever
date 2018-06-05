@@ -12,6 +12,13 @@ class Uri
     const EXPLODE = '/';
 
     /**
+     * load
+     *
+     * @var string
+     */
+    const LOAD = 'l';
+
+    /**
      * uri value
      *
      * @var string
@@ -84,7 +91,7 @@ class Uri
     {
         self::$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
 
-        if (isset($_SERVER['DEVER_URITYPE'])) {
+        if (isset($_SERVER['DEVER_URITYPE']) && $_SERVER['DEVER_URITYPE']) {
             self::$type = $_SERVER['DEVER_URITYPE'];
         }
     }
@@ -123,6 +130,21 @@ class Uri
      * @return mixed
      */
     private static function request()
+    {
+        $request = $_REQUEST;
+        if (isset($request['l'])) {
+            self::$url = self::$value = $request['l'];
+        } else {
+            self::request_uri();
+        }
+    }
+
+    /**
+     * request_uri
+     *
+     * @return mixed
+     */
+    private static function request_uri()
     {
         if (!isset($_SERVER['PATH_INFO']) && isset($_SERVER['REQUEST_URI']) && $_SERVER['REQUEST_URI'] && $_SERVER['REQUEST_URI'] != '/') {
             $entry = defined('DEVER_ENTRY') ? DEVER_ENTRY : 'index.php';
@@ -170,6 +192,8 @@ class Uri
             } else {
                 self::grep();
             }
+
+            self::$value = str_replace(self::LOAD . '=', '', self::$value);
         }
     }
 
@@ -188,7 +212,7 @@ class Uri
                     $v = preg_replace('#^' . $k . '$#', $v, self::$value);
                 }
 
-                self::$value = $v;
+                self::$value = self::LOAD . '=' . $v;
 
                 self::$url = self::$value;
             }
@@ -203,10 +227,16 @@ class Uri
      */
     private static function input()
     {
-        if (strpos(self::$value, '?') !== false) {
+        if (strpos(self::$value, '&') !== false) {
+            parse_str(self::$value, $input);
+            self::$value = $input[self::LOAD];
+        } elseif (strpos(self::$value, '?') !== false) {
             $temp = explode('?', self::$value);
             self::$value = $temp[0];
             parse_str($temp[1], $input);
+        }
+
+        if (isset($input)) {
             Input::set('all', $input);
             self::setServer($input);
         }

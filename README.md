@@ -4,11 +4,6 @@ dever是一个php框架，与众不同。
 
 你只需要开发你的业务，写好你的业务逻辑即可，你可以专心研究你的算法、你的架构。你甚至可以把你的业务打包，上传给dever，共享给其他dever开发者。
 
-
-文档手册在此：https://www.kancloud.cn/rabin/dever-c/254006
-
-这个手册是为condenast写的，但完全可以独立使用。后续会整理一份出来的。
-
 新版本将使用dm工具进行安装：
 <pre>
 dm use dever //使用dever工具包

@@ -37,6 +37,8 @@ class Url
         $host = '';
         self::host($host, $value, $project);
 
+        $value = Uri::LOAD . '=' . $value;
+        
         $key = $value;
 
         if (isset(self::$config['url']) && isset(self::$config['url'][$key])) {
@@ -230,7 +232,7 @@ class Url
                 $result = self::callback($value, $str, $route);
 
                 if (!$result || $result == $value) {
-                    $value = $value . '?' . $arg[1];
+                    $value = $value . '&' . $arg[1];
                 } else {
                     $value = $result;
                 }
@@ -240,12 +242,16 @@ class Url
                     $value = preg_replace('/&/', '?', $value, 1);
                 }
             }
+        } elseif (strpos($value, '?')) {
+            $value = str_replace('?', '&', $value);
         }
     }
 
     private static function callback($value, $str, $route)
     {
         $result = '';
+
+        $value = str_replace(Uri::LOAD . '=', '', $value);
 
         if ($key = array_search($value . '?' . $str, $route)) {
             $result = preg_replace_callback('/\(.*?\)/', 'self::getLink', $key);
