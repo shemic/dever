@@ -51,10 +51,6 @@ class Url
 
         self::workspace($value);
 
-        if ($value == Uri::LOAD . '=') {
-            $value = '';
-        }
-
         return self::$config['url'][$key] = $host . Uri::$type . $value;
     }
 
