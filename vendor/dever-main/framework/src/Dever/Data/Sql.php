@@ -213,7 +213,7 @@ class Sql
         }
 
         if (isset($this->score) && $this->score) {
-            $result .= ',(' . implode('+', $this->score) . ') as score';
+            $result .= ',(' . implode('+', $this->score) . ') as col_score';
         }
 
         if (isset($this->as) && $this->as) {
@@ -556,7 +556,7 @@ class Sql
         if ($param[2] == 'like') {
             $instr = 'instr(' . $param[0] . ', ' . $param[1] . ')';
             $where = $param[3] . ' ' . $instr . ' > 0' . $where;
-            $this->orderBy = 'order by score desc';
+            $this->orderBy = 'order by col_score desc';
             $this->score[] = 'IF('.$instr.', IF(' . $param[0] . '=' . $param[1] . ', 1000*'.$value.', (100-'.$instr.')*'.$value.'), 0)';
             //$this->as[] = ' CONCAT("<em class=\"dever_highlight\">",' . $param[0] . ',"</em>") as ' . $col;
         } else {

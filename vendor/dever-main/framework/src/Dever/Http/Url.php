@@ -41,7 +41,11 @@ class Url
             $value = Uri::LOAD . '=' . $value;
         }
         
-        $key = $value;
+        if ($project) {
+            $key = $project . $value;
+        } else {
+            $key = $value;
+        }
 
         if (isset(self::$config['url']) && isset(self::$config['url'][$key])) {
             return self::$config['url'][$key];

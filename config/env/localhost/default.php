@@ -219,8 +219,10 @@ $host = 'http://'.$local . '/';
 # 定义assets的域名
 $assets = DEVER_APP_HOST . 'assets/';
 
+$project_host = $host . '' . DEVER_PROJECT . '/';
+
 # 定义data域名
-$data_host = $host . '' . DEVER_PROJECT . '/data/';
+$data_host = $project_host . 'data/';
 if (DEVER_APP_NAME == 'manage') {
 	$assets = $host . 'dever_package/manage/assets/';
 }
@@ -251,7 +253,7 @@ $config['host'] = array
 	//'merge' => $data_host . 'assets/' . DEVER_PROJECT . '/',
 	
 	# 上传系统的上传路径的域名(不带action)
-	'upload'=> $host . 'dever_package/upload/?save',
+	'upload'=> $project_host . 'upload/?save',
 	# 上传系统的资源访问地址
 	'uploadRes'	=> $data_host . 'upload/',
 
