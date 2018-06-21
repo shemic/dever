@@ -507,6 +507,9 @@ class Handle
                 if ($value) {
                     $value = explode(',', $value);
                     foreach ($value as $a => $b) {
+                        if ($b < 0) {
+                            continue;
+                        }
                         $method = 'insert';
                         $type = 'add';
                         $param = array();
