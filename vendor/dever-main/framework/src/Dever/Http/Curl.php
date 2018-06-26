@@ -164,7 +164,7 @@ class Curl
             curl_setopt($this->handle, CURLOPT_HEADER, false);
         }
         $result = curl_exec($this->handle);
-        //curl_close($this->handle);
+        curl_close($this->handle);
         $data = $result;
         if (!Input::shell('all')) {
             $data = count($data) . ' records';
