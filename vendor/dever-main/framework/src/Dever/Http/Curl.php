@@ -48,10 +48,8 @@ class Curl
      */
     public static function getInstance($url, $param = false, $type = 'get', $json = false)
     {
-        if (empty(self::$instance[$url])) {
-            self::$instance[$url] = new self();
-        }
-        return self::$instance[$url]->load($url, $param, $type, $json);
+        self::$instance = new self();
+        return self::$instance->load($url, $param, $type, $json);
     }
 
     /**
