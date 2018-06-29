@@ -50,7 +50,7 @@ class Api
         $index = str_replace(DEVER_APP_NAME . '/', '', $class . '.' . $key);
         if (isset($config[$index]) && $config[$index]) {
             if (isset($config[$index]['secure'])) {
-                self::check($index, $param);
+                self::check($index, $param, $config[$index]);
             }
             return array(true, $key);
         }
@@ -121,7 +121,7 @@ class Api
      *
      * @return string
      */
-    public static function check($key, $request)
+    public static function check($key, $request, $param = array())
     {
         if (empty($request['signature']) || empty($request['nonce'])) {
             Export::alert('api_signature_exists');
@@ -134,9 +134,24 @@ class Api
             Export::alert('api_signature_exists');
         }
 
+        $signature_check = $request['signature'];
+
+        if ($param && isset($param['request'])) {
+            foreach ($param['request'] as $k => $v) {
+                if (isset($request[$k])) {
+                    $param['request'][$k] = $request[$k];
+                }
+            }
+            $temp = $param['request'];
+            $temp['token'] = self::token();
+            $temp['time'] = $request['time'];
+            $temp['nonce'] = $request['nonce'];
+            $request = $temp;
+        }
+
         $signature = self::signature($request['time'], $request['nonce'], $request);
 
-        if ($request['signature'] != $signature) {
+        if ($signature_check != $signature) {
             Export::alert('api_signature_exists');
         }
 
@@ -193,7 +208,7 @@ class Api
     public static function token()
     {
         self::$token = Config::get('base')->token ? Config::get('base')->token : self::$token;
-        return md5(self::$token);
+        return sha1(self::$token);
     }
 
     /**
@@ -203,7 +218,7 @@ class Api
      */
     public static function nonce()
     {
-        return substr(md5(microtime()), rand(10, 15));
+        return substr(sha1(microtime()), rand(10, 15));
     }
 
     /**

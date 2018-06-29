@@ -140,7 +140,10 @@ class Config
             list($root, $app) = $this->app($app);
 
             if (defined('DEVER_PROJECT_PATH')) {
-                $config = array(DEVER_PATH, DEVER_PROJECT_PATH, $root);
+                $config = array(DEVER_PATH, DEVER_PROJECT_PATH);
+                if ($root != DEVER_PROJECT_PATH) {
+                    $config[] = $root;
+                }
             } else {
                 $config = array(DEVER_PATH, $root);
             }
@@ -180,9 +183,12 @@ class Config
     {
         $root = DEVER_APP_PATH;
         $name = DEVER_APP_NAME;
-        if ($app != $name) {
+        if ($app == 'project') {
+            $root = DEVER_PROJECT_PATH;
+            $name = DEVER_PROJECT;
+        } elseif ($app != $name) {
             $app = Project::load($app);
-            $root = $app['path'];
+            $root = isset($app['setup']) ? $app['setup'] : $app['path'];
             $name = $app['name'];
         }
         return array($root, $name);

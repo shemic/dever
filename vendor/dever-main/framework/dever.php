@@ -76,6 +76,8 @@ class Dever
         'weixin' => array('Support\\Env', 'weixin'),
         'ua' => array('Support\\Env', 'ua'),
         'ip' => array('Support\\Env', 'ip'),
+        'os' => array('Support\\Env', 'os'),
+        'browser' => array('Support\\Env', 'browser'),
         
         'daemon' => array('Support\\Command', 'daemon'),
         'cron' => array('Support\\Command', 'cron'),
