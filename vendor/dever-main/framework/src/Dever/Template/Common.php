@@ -5,6 +5,21 @@ use Dever\Loader\Config;
 
 class Common
 {
+    static $version = 0;
+
+    /**
+     * 获取文件版本号
+     *
+     * @return int
+     */
+    private static function version()
+    {
+        if (!self::$version) {
+            self::$version = time();
+        }
+        return self::$version;
+    }
+
     /**
      * 读取dom
      * @param string $value
@@ -96,7 +111,7 @@ class Common
      *
      * @return array
      */
-    private function sort($array, $field, $desc = false)
+    public function sort($array, $field, $desc = false)
     {
         $fieldArr = array();
         foreach ($array as $k => $v) {
@@ -114,7 +129,7 @@ class Common
      *
      * @return array
      */
-    private function a($name, $link, $target = '_self')
+    public function a($name, $link, $target = '_self')
     {
         return '<a href="' . Url::get($link) . '" target="' . $target . '">' . $name . '</a>';
     }
@@ -126,7 +141,7 @@ class Common
      *
      * @return array
      */
-    private function img($link, $target = '_self')
+    public function img($link, $target = '_self')
     {
         return self::a('<img src="' . $link . '" />', $link, $target);
     }
@@ -138,9 +153,12 @@ class Common
      *
      * @return array
      */
-    public static function assets($value, $type = 'css')
+    public static function assets($value, $type = false)
     {
-        return Config::get('host')->$type . $value;
+        if (!$type) {
+            $type = pathinfo($value, PATHINFO_EXTENSION);
+        }
+        return Config::get('host')->$type . $value . '?v=' . self::version();
     }
 
     /**

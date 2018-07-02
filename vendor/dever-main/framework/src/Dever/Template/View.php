@@ -40,6 +40,13 @@ class View
     protected $name;
 
     /**
+     * import
+     *
+     * @var string
+     */
+    protected $import;
+
+    /**
      * template
      *
      * @var string
@@ -80,6 +87,13 @@ class View
      * @var string
      */
     protected $file;
+
+    /**
+     * compiler
+     *
+     * @var string
+     */
+    protected $compiler;
 
     /**
      * data
@@ -139,7 +153,12 @@ class View
      */
     public static function getInstance($file, $path = '', $project = false)
     {
-        $key = $path . DIRECTORY_SEPARATOR . $file;
+        if (is_array($file)) {
+            $key = $path . DIRECTORY_SEPARATOR . $file[0];
+        } else {
+            $key = $path . DIRECTORY_SEPARATOR . $file;
+        }
+        
         if (empty(self::$instance[$key])) {
             self::$instance[$key] = new self($file, $path);
 
@@ -215,8 +234,13 @@ class View
      */
     public function __construct($file, $path = '')
     {
-        $this->file = $file;
-
+        if (is_array($file)) {
+            $this->compiler = $file[0];
+            $this->file = $file[1];
+        } else {
+            $this->file = $this->compiler = $file;
+        }
+        
         $this->path($path);
 
         $this->content = '';
@@ -235,7 +259,7 @@ class View
     public function project($project, $data = array())
     {
         $this->root = Config::get('base')->assets;
-        $this->template = DEVER_APP_PATH;
+        $this->import = DEVER_APP_PATH;
         if ($data) {
             $this->data = $data;
         }
@@ -245,10 +269,10 @@ class View
         if ($this->project) {
             $project = Project::load($this->project);
             $this->root = str_replace(DEVER_APP_PATH, $project['path'], $this->root);
-            $this->template = $project['path'];
+            $this->import = $project['path'];
         }
 
-        $this->template .= self::TEMPLATE . DIRECTORY_SEPARATOR;
+        $this->import .= self::TEMPLATE . DIRECTORY_SEPARATOR;
     }
 
     /**
@@ -349,7 +373,7 @@ class View
             $this->path = '';
         }
 
-        $html = Config::get('template')->path ? Config::get('template')->path . DIRECTORY_SEPARATOR : self::ASSETS . DIRECTORY_SEPARATOR;
+        $html = Config::get('template')->path ? Config::get('template')->path . DIRECTORY_SEPARATOR : '';
 
         $this->assets = $this->root . $this->path . $html;
 
@@ -370,7 +394,9 @@ class View
             $this->name = $this->path;
         }
 
-        $this->template = $this->template . $this->name . $this->file . '.php';
+        $this->import .= $this->name;
+
+        $this->template = $this->import . $this->compiler . '.php';
 
         $this->replace();
 
@@ -647,7 +673,7 @@ class View
             return;
         }
         $path = $this->nodePath($this->project);
-        $file = Path::get($path, $this->name . $this->file . '.php');
+        $file = Path::get($path, $this->name . $this->compiler . '.php');
         file_put_contents($file, '<?php return ' . var_export($this->node, true) . ';');
     }
 
@@ -663,6 +689,27 @@ class View
         }
         
         return false;
+    }
+
+    /**
+     * import
+     *
+     * @return array
+     */
+    public function import($name)
+    {
+        $view = $this;
+        if (strpos($name, ',')) {
+            $name = explode(',', $name);
+        }
+        if (is_array($name)) {
+            foreach ($name as $v) {
+                include $this->import . $v . '.php';
+            }
+        } else {
+            include $this->import . $name . '.php';
+        }
+        return $this;
     }
 
     /**

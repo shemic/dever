@@ -311,6 +311,21 @@ class Request
     }
 
     /**
+     * _updates 慎用！
+     *
+     * @return mixd
+     */
+    protected function _updates()
+    {
+        return array
+        (
+            'type' => 'update',
+            'set' => array(),
+            'option' => array(),
+        );
+    }
+
+    /**
      * _updatemul
      *
      * @return mixd

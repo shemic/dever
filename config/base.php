@@ -70,6 +70,14 @@ $config['template'] = array
 
 	# 是否启用layout 如启用，填写要替换的class或者id即可，具体效果可参考youtube，只加载部分内容，前端请加载pjax.js
 	//'layout' => '.content',
+
+	# 编译器与模板对应关系目录，可以为空，为空则一一对应，参考manage
+	/*
+	'relation' => array
+	(
+		'task/list' => 'tasks',
+	),
+	*/
 );
 
 return $config;

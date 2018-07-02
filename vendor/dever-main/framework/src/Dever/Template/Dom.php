@@ -149,7 +149,7 @@ class Dom
      *
      * @return mixed
      */
-    public function fetch($param)
+    public function fetch($param, $append = false)
     {
         $this->data($param[1]);
 
@@ -161,7 +161,11 @@ class Dom
             $this->fetchAttr($param[2]);
         }
 
-        $this->handle();
+        if (isset($param[3]) && $param[3] == 'append') {
+            $append = true;
+        }
+
+        $this->handle($append);
     }
 
     /**
@@ -237,12 +241,23 @@ class Dom
     }
 
     /**
+     * append
+     * @param array $param
+     *
+     * @return mixed
+     */
+    public function append($param)
+    {
+        $this->fetch($param, true);
+    }
+
+    /**
      * loop
      * @param array $param
      *
      * @return mixed
      */
-    public function loop($param)
+    public function loop($param, $append = false)
     {
         $this->data($param[1]);
 
@@ -252,6 +267,10 @@ class Dom
 
         if (isset($param[2]) && $param[2]) {
             $this->child($param[2]);
+        }
+
+        if (isset($param[3]) && $param[3] == 'append') {
+            $append = true;
         }
 
         $this->handle();
@@ -787,10 +806,16 @@ class Dom
      *
      * @return array
      */
-    private function handle()
+    private function handle($append = false)
     {
         if ($this->current) {
-            $this->current->{$this->attr} = $this->parsing->handle($this->data, $this->current->{$this->attr}, $this->expression, $this->loop, $this->col, $this->child, $this->for);
+            $html = $this->parsing->handle($this->data, $this->current->{$this->attr}, $this->expression, $this->loop, $this->col, $this->child, $this->for);
+
+            if ($append == true) {
+                $this->current->{$this->attr} .= $html;
+            } else {
+                $this->current->{$this->attr} = $html;
+            }
         }
     }
 }

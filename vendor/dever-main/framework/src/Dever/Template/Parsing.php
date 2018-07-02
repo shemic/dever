@@ -431,13 +431,15 @@ class Parsing
         }
 
         if (is_string($value)) {
-            if (strpos($value, 'Dever::') === false) {
+            if (strpos($value, '/') !== false && strpos($value, 'Dever::') === false) {
                 $data = Import::load($value);
                 if ($data) {
                     $value = 'Dever::load(\'' . $value . '\')';
                 } else {
                     $value = var_export($value, true);
                 }
+            } elseif (strpos($value, '$') === false) {
+                $value = '\''.$value.'\'';
             }
 
             $value = $this->rule($value);

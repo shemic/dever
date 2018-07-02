@@ -41,7 +41,11 @@ class Route
         $state = self::def($uri);
 
         if (!$state && !self::api($uri)) {
-            $this->content = View::getInstance(Uri::file())->runing();
+            $file = Uri::file();
+            if (isset(Config::get('template')->relation[$file])) {
+                $file = array($file, Config::get('template')->relation[$file]);
+            }
+            $this->content = View::getInstance($file)->runing();
             $this->html = true;
         }
 
