@@ -565,7 +565,9 @@ class Sql
 
         if ($param[2] == 'in') {
             $param[1] = str_replace(array('(',')'), '', $param[1]);
-            $this->orderBy = 'order by field(' . $param[0] . ', ' . $param[1] . ')';
+            if ($param[0] == `id`) {
+                $this->orderBy = 'order by field(' . $param[0] . ', ' . $param[1] . ')';
+            }
         }
 
         if (isset($this->colOrder)) {

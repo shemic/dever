@@ -6,7 +6,7 @@ use Dever\Support\Path;
 
 class Oper
 {
-    # 1为debug 2为notice 3为info
+    # 1为debug 2为notice 3为info 其他是自定义，只有当配置不为syslog时自定义才生效
     public static function add($msg, $type = 1)
     {
         if (!Config::get('debug')->log) {
@@ -77,7 +77,7 @@ class Oper
     {
         $size = isset(Config::get('debug')->log['size']) ? Config::get('debug')->log['size'] : 5242880;//默认5M
         $date = explode('-', date("Y-m-d"));
-        $path = Path::get(Config::data() . 'logs' . DIRECTORY_SEPARATOR , DEVER_PROJECT . DIRECTORY_SEPARATOR . $date[0] . DIRECTORY_SEPARATOR . $date[1] . DIRECTORY_SEPARATOR);
+        $path = Path::month('logs');
         $now = Dever::udate('Y-m-d'.'\T'.'H:i:s.u+08:00');
         $project = DEVER_PROJECT;
         $app = DEVER_APP_NAME;
@@ -89,6 +89,8 @@ class Oper
             $file = 'notice_' . $file . '.log';
         } elseif ($type == 3) {
             $file = 'info_' . $file . '.log';
+        } else {
+            $file = $type . '_' . $file . '.log';
         }
         $file = $path . $file;
 

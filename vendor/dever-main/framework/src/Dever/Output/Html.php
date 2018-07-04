@@ -29,13 +29,21 @@ class Html
      */
     private function import($name, $html, $host)
     {
-        header("HTTP/1.1 404 Not Found");
-        header("Status: 404 Not Found");
+        if ($name == 404) {
+            header("HTTP/1.1 404 Not Found");
+            header("Status: 404 Not Found");
+        }
+        
         $file = DEVER_APP_PATH . 'config/html/' . $name . '.html';
         if (is_file($file)) {
             include $file;
         } else {
-            include DEVER_PATH . 'config/html/index.html';
+            $file = DEVER_PROJECT_PATH . 'config/html/' . $name . '.html';
+            if (is_file($file)) {
+                include $file;
+            } else {
+                include DEVER_PATH . 'config/html/default.html';
+            }
         }
     }
 }

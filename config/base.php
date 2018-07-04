@@ -23,7 +23,7 @@ $config['base'] = array
 	# url默认参数，所有Dever::url生成的链接都会加上这个参数
 	//'url' => 'loading=content',
 	
-	# 开启url中某个字段加密
+	# 开启url中某个字段加密 必须使用route.php先定义url
     //'urlEncode' => array('id'),
     # url的原始路径里包含什么字符，则不加密
     'urlEncodeFilter' => array('tag'),

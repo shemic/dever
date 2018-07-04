@@ -5,6 +5,9 @@ use Dever\Output\Export;
 use Dever\String\Encrypt;
 use Dever\Support\Command;
 use Dever\Output\Debug;
+use Dever\Loader\Project;
+use Dever\Support\Path;
+use Dever\Data\Model;
 
 class Api
 {
@@ -126,6 +129,8 @@ class Api
         if (empty($request['signature']) || empty($request['nonce'])) {
             Export::alert('api_signature_exists');
         }
+
+        self::checkSignatureExits($request['signature']);
 
         if (empty($request['time'])) {
             return self::loginResult($request['signature']);
@@ -254,5 +259,44 @@ class Api
         $data['request'] = $request;
         $data['response'] = $response;
         Debug::error($data);
+    }
+
+    /**
+     * checkSignatureExits
+     * @param  string  $api
+     * @param  array  $request
+     * @param  array  $response
+     * 
+     * @return mixed
+     */
+    static public function checkSignatureExits($signature)
+    {
+        $type = Config::get('base')->apiSignature;
+        if (!$type) {
+            return;
+        }
+        $type = 'file';
+        if (Project::load('manage') && $type == 'db') {
+            $where['signature'] = $signature;
+            $info = Model::load('manage/signature')->one($where);
+            if ($info) {
+                Export::alert('api_signature_repeat');
+            } else {
+                Model::load('manage/signature')->insert($where);
+            }
+        } else {
+            $path = Path::month('signature');
+            $file = $path . 'signature_' . date('Y_m_d');
+            $config = array();
+            if (is_file($file)) {
+                $config = include($file);
+                if (isset($config[$signature])) {
+                    Export::alert('api_signature_repeat');
+                }
+            }
+            $config[$signature] = 1;
+            $content = '<?php return ' . var_export($config, true) . ';';
+            file_put_contents($file, $content);
+        }
     }
 }

@@ -27,6 +27,8 @@ return array
 	'api_param_exists' => '参数{0}不存在',
 	# api参数signature校验错误
 	'api_signature_exists' => 'signature校验错误',
+	# api参数signature校验错误
+	'api_signature_repeat' => '请不要重复提交',
 	# 错误的页面
 	'error_page' => '无法打开页面',
 	# xss请求

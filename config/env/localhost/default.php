@@ -32,6 +32,9 @@ $config['base'] = array
 
 	# 启用后，将会根据api目录下的配置文件自动定位api
 	//'apiConfig' => true,
+
+	# 启用apiConfig后，生成的signature保存的位置：file和db，默认为db
+	//'apiSignature' => 'file',
 	
 	# 开启用户触发cron，主要用于无法加到系统计划任务的虚拟主机，必须安装manage组件，谨慎开启，会稍微影响程序执行效率
 	//'cron' => true,

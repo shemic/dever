@@ -244,7 +244,7 @@ class Export
         }
 
         if ($param) {
-            $result['param'] = $param;
+            $result['data'] = $param;
         }
     }
 

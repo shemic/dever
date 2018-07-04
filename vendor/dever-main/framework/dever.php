@@ -65,6 +65,8 @@ class Dever
         'cut' => array('String\\Helper', 'cut'),
         'code' => array('String\\Helper', 'code'),
         'rand' => array('String\\Helper', 'rand'),
+        'encode' => array('String\\Encrypt', 'encode'),
+        'decode' => array('String\\Encrypt', 'decode'),
 
         'cache' => array('Cache\\Handle', 'load'),
         'clearHeaderCache' => array('Routing\\Route', 'clearHeaderCache'),
@@ -72,6 +74,7 @@ class Dever
         'tcp' => array('Server\\Swoole', 'getInstance'),
 
         'path' => array('Support\\Path', 'get'),
+        'pathDay' => array('Support\\Path', 'day'),
         'mobile' => array('Support\\Env', 'mobile'),
         'weixin' => array('Support\\Env', 'weixin'),
         'ua' => array('Support\\Env', 'ua'),

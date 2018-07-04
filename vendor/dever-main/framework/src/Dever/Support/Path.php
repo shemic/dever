@@ -1,7 +1,37 @@
 <?php namespace Dever\Support;
 
+use Dever\Loader\Config;
+
 class Path
 {
+    /**
+     * get
+     * @param string $path
+     *
+     * @return array
+     */
+    public static function month($path)
+    {
+        $date = explode('-', date("Y-m-d"));
+        $path = self::get(Config::data() . $path . DIRECTORY_SEPARATOR , DEVER_PROJECT . DIRECTORY_SEPARATOR . $date[0] . DIRECTORY_SEPARATOR . $date[1] . DIRECTORY_SEPARATOR);
+
+        return $path;
+    }
+
+    /**
+     * get
+     * @param string $path
+     *
+     * @return array
+     */
+    public static function day($path)
+    {
+        $date = explode('-', date("Y-m-d"));
+        $path = self::get(Config::data() . $path . DIRECTORY_SEPARATOR , DEVER_PROJECT . DIRECTORY_SEPARATOR . $date[0] . DIRECTORY_SEPARATOR . $date[1] . DIRECTORY_SEPARATOR . $date[2] . DIRECTORY_SEPARATOR);
+
+        return $path;
+    }
+
     /**
      * get
      * @param string $path

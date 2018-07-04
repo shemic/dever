@@ -1,5 +1,7 @@
 <?php namespace Dever\String;
 
+use Dever\Loader\Config;
+
 class Encrypt
 {
     /**
@@ -21,7 +23,12 @@ class Encrypt
         $ckey_length = 5;
 
         if (!$key) {
-            $key = md5(self::$key);
+            $key = Config::get('base')->token;
+            if ($key) {
+                $key = sha1($key);
+            } else {
+                $key = sha1(self::$key);
+            }
         }
 
         $keya = md5(substr($key, 0, 16));
@@ -75,7 +82,12 @@ class Encrypt
         $ckey_length = 5;
 
         if (!$key) {
-            $key = md5(self::$key);
+            $key = Config::get('base')->token;
+            if ($key) {
+                $key = sha1($key);
+            } else {
+                $key = sha1(self::$key);
+            }
         }
 
         $keya = md5(substr($key, 0, 16));
