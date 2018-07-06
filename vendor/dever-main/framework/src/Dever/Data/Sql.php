@@ -93,15 +93,18 @@ class Sql
             if ($k == 'id') {
                 $primary[$k] = 'unsigned auto_increment primary key ' . $primary[$k];
             }
-
-            $v = '`' . $k . '` ' . strtoupper(str_replace('-', '(', $v) . ') ' . $primary[$k] . ''); // not null
+            if (strpos($v, '-')) {
+                $v = '`' . $k . '` ' . strtoupper(str_replace('-', '(', $v) . ') ' . $primary[$k] . '');
+            } else {
+                $v = '`' . $k . '` ' . strtoupper(str_replace('-', '(', $v) . ' ' . $primary[$k] . '');
+            }
+            
             if (strpos($v, '{DEFAULT}') && isset($default)) {
                 $v = str_replace('{DEFAULT}', $default, $v);
             }
             $create[] = $v;
         }
         $sql = 'DROP TABLE IF EXISTS `' . $table . '`;CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
-
         //$sql    = 'CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
 
         if ($type) {
