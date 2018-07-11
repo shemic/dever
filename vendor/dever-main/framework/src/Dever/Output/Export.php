@@ -276,6 +276,6 @@ class Export
         if (isset(Dever::$global['page'][$method])) {
             return Dever::$global['page'][$method];
         }
-        return Paginator::getInstance($method)->toArray();
+        return Dever::$global['page'][$method] = Paginator::getInstance($method)->toArray();
     }
 }

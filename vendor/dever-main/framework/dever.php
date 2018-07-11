@@ -30,6 +30,7 @@ class Dever
 
         'load' => array('Loader\\Import', 'load'),
         'import' => array('Loader\\Project', 'import'),
+        'apply' => array('Loader\\Import', 'apply'),
         'db' => array('Data\\Model', 'load'),
         'upinto' => array('Data\\Model', 'upinto'),
 
@@ -685,4 +686,16 @@ class Dever
             self::$save->add('submit', $value);
         }
     }
+
+    /**
+     * hide 将字符串中的某几个字符隐藏
+     * @param string $string
+     *
+     * @return mixed
+     */
+    public static function hide($string, $start = 3, $len = 4, $hide = '****')
+    {
+        return substr_replace($string, $hide, $start, $len);
+    }
+    
 }

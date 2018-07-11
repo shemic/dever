@@ -105,22 +105,39 @@ class Url
 
         if ($name && strstr($file, 'http://') && strstr($file, Config::get('host')->uploadRes)) {
 
-            if (strstr($file, '<img')) {
-                return self::html($file, $name);
-            }
-
-            if (strpos($file, '_t') !== false) {
-                $temp = explode('_t', $file);
-                $temp1 = explode('.', $temp[1]);
-                $file = $temp[0] . '_t' . $name . '.' . $temp1[1];
+            if (strstr($name, ',')) {
+                $temp = explode(',', $name);
+                foreach ($temp as $k => $v) {
+                    $file = self::uploadHandle($file, $v);
+                }
             } else {
-                $ext = pathinfo($file, PATHINFO_EXTENSION);
-                $file = str_replace('.' . $ext, '_' . $name . '.' . $ext, $file);
+                $file = self::uploadHandle($file, $name);
             }
-            
-            $file = Import::load('upload/view.get', $file);
         }
 
+        return $file;
+    }
+
+    private function uploadHandle($file, $name)
+    {
+        if (strstr($file, '<img')) {
+            return self::html($file, $name);
+        }
+
+        if (strstr($name, 't') && strpos($file, '_t') !== false) {
+            $temp = explode('_t', $file);
+            $temp1 = explode('.', $temp[1]);
+            $file = $temp[0] . '_t' . $name . '.' . $temp1[1];
+        } elseif (strstr($name, 'c') && strpos($file, '_c') !== false) {
+            $temp = explode('_c', $file);
+            $temp1 = explode('.', $temp[1]);
+            $file = $temp[0] . '_c' . $name . '.' . $temp1[1];
+        } else {
+            $ext = pathinfo($file, PATHINFO_EXTENSION);
+            $file = str_replace('.' . $ext, '_' . $name . '.' . $ext, $file);
+        }
+        
+        $file = Import::load('upload/view.get', $file);
         return $file;
     }
 

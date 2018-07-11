@@ -367,7 +367,13 @@ class Compile
             foreach (Config::get('template')->replace as $k => $v) {
                 if (Config::get('host')->$k) {
                     if (!Config::get('host')->merge && Config::get('template')->domain) {
-                        $content = $this->parsing->replace($v, $this->parsing->script('echo Dever::config("host")->' . $k . ''), $content);
+                        $script = $this->parsing->script('echo Dever::config("host")->' . $k . '');
+                        if ($k . '/' == $v) {
+                            $content = $this->parsing->replace('"' . $v, '"' . $script , $content);
+                        } else {
+                            $content = $this->parsing->replace($v, $script, $content);
+                        }
+                        
                     } else {
                         $content = $this->parsing->replace($v, Config::get('host')->$k, $content);
                     }

@@ -208,15 +208,21 @@ class Paginator
         if ($current >= $totalPage) {
             $status = 0;
         }
+        $next = $this->next();
+        $link = '';
+        if ($status == 1) {
+            $link = $this->href($next);
+        }
         $this->array = array
         (
             'total' => $total,
             'current_page' => $current,
             'total_page' => $totalPage,
-            'next_page' => $this->next(),
+            'next_page' => $next,
             'prev_page' => $this->prev(),
             'html' => $this->handle(),
             'status' => $status,
+            'link' => $link,
         );
     }
 

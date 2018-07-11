@@ -151,6 +151,16 @@ class Import
     }
 
     /**
+     * apply
+     *
+     * @return mixed
+     */
+    public static function apply($file, $project = false)
+    {
+        Library::get()->apply($file, $project);
+    }
+
+    /**
      * __construct
      *
      * @return mixed

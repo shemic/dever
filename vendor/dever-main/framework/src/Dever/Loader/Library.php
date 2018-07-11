@@ -212,12 +212,29 @@ class Library
     }
 
     /**
+     * apply
+     *
+     * @return mixed
+     */
+    public function apply($file, $project = false)
+    {
+        if (!$project) {
+            $project = $this->project;
+        } else {
+            $project = Project::load($project);
+        }
+        $file = $project['path'] . $file . '.php';
+        $this->includeFile($file);
+    }
+
+    /**
      * loadFunction
      *
      * @return mixed
      */
     public function loadFunction($project)
     {
+        $this->project = $project;
         if (empty($this->function[$project['name']]) && isset($project['name']) && isset($project['path'])) {
             $this->function[$project['name']] = true;
             $file  = $project['path'] . 'common.php';
