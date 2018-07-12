@@ -592,10 +592,11 @@ class Dever
         foreach ($dir as $k => $v) {
             if ($v != '.' && $v != '..' && is_dir($path . $v)) {
                 $url = str_replace(array('www', 'main'), $v, $host);
+                if (is_file($path . $v . '/index.php')) {
+                    Dever::curl($url);
 
-                Dever::curl($url);
-
-                echo $url . ' 安装成功！<br />' . "\r\n";
+                    echo $url . ' 安装成功！<br />' . "\r\n";
+                }
             }
         }
 

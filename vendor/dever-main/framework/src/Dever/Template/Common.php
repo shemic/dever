@@ -173,10 +173,10 @@ class Common
         if ($class) {
             $style = 'class=' . $class . '';
         } else {
-            $style = 'border=1 width=100% height=100%';
+            $style = 'class="dever-img" border=1 width=100% height=100%';
         }
 
-        $html = '<table ' . $style . '>';
+        $html = '<table ' . $style . '  id="dever-img">';
 
         foreach ($data as $k => $v) {
             if (is_array($v) && $num == 2) {

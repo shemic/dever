@@ -1,5 +1,6 @@
 <?php namespace Dever\Routing;
 
+use Dever;
 use Dever\Data\Model\Opt;
 use Dever\Loader\Config;
 use Dever\Loader\Import;
@@ -37,6 +38,11 @@ class Route
     public function runing()
     {
         $uri = Uri::get();
+
+        if ($uri == 'setup') {
+            Export::out(Dever::setup());
+            die;
+        }
 
         $state = self::def($uri);
 
