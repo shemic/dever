@@ -80,8 +80,14 @@ class Route
     public function api($uri)
     {
         if (strpos($uri, '.') !== false) {
-            $this->content = Import::load(DEVER_APP_NAME . '/' . $uri . '_api');
 
+            $uri = DEVER_APP_NAME . '/' . $uri;
+            if (!Input::$command) {
+                $uri .= '_api';
+            }
+
+            $this->content = Import::load($uri);
+            
             $this->html = false;
 
             return true;
