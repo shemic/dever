@@ -46,10 +46,10 @@ class Curl
      *
      * @return \Dever\Http\Curl
      */
-    public static function getInstance($url, $param = false, $type = 'get', $json = false)
+    public static function getInstance($url, $param = false, $type = 'get', $json = false, $header = false)
     {
         self::$instance = new self();
-        return self::$instance->load($url, $param, $type, $json);
+        return self::$instance->load($url, $param, $type, $json, $header);
     }
 
     /**
@@ -57,9 +57,9 @@ class Curl
      *
      * @return mixed
      */
-    public static function get($url, $param = false, $type = 'get', $json = false)
+    public static function get($url, $param = false, $type = 'get', $json = false, $header = false)
     {
-        return self::getInstance($url, $param, $type, $json)->result();
+        return self::getInstance($url, $param, $type, $json, $header)->result();
     }
 
     /**
@@ -67,9 +67,9 @@ class Curl
      *
      * @return mixed
      */
-    public static function post($url, $param = false, $json = false)
+    public static function post($url, $param = false, $json = false, $header = false)
     {
-        return self::getInstance($url, $param, $type = 'post', $json)->result();
+        return self::getInstance($url, $param, $type = 'post', $json, $header)->result();
     }
 
     /**
@@ -77,13 +77,17 @@ class Curl
      *
      * @return mixed
      */
-    public function load($url, $param = false, $type = '', $json = false)
+    public function load($url, $param = false, $type = '', $json = false, $header = false)
     {
         $this->init();
 
         $this->param($param);
 
         $this->setRequest($type);
+
+        if ($header) {
+            $this->setHeader($header);
+        }
 
         if ($json) {
             $this->setJson($param);

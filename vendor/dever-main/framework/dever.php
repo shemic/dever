@@ -533,7 +533,7 @@ class Dever
      */
     public static function array_encode($value)
     {
-        return base64_encode(self::json_encode($value, JSON_UNESCAPED_UNICODE));
+        return base64_encode(self::json_encode($value));
     }
 
     /**

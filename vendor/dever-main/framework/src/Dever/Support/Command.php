@@ -92,7 +92,7 @@ class Command
     public static function run($shell, $state = false, $method = 'system')
     {
         if ($state === false) {
-            $state = ' > /data &';
+            $state = ' > /dev/null &';
         }
 
         //$shell = self::shell($shell);
