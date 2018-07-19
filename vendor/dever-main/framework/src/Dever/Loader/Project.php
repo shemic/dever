@@ -80,7 +80,8 @@ class Project
         }
 
         if (defined('DEVER_APP_SETUP')) {
-            //self::update(DEVER_APP_NAME, 'setup', DEVER_APP_SETUP);
+            self::update(DEVER_APP_NAME, 'setup', DEVER_APP_SETUP);
+            self::update(DEVER_APP_NAME, 'path', DEVER_APP_PATH);
         }
 
         self::content(true);

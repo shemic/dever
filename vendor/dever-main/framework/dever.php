@@ -63,6 +63,8 @@ class Dever
         'rule' => array('String\\Helper', 'rule'),
         'idtostr' => array('String\\Helper', 'idtostr'),
         'strtoid' => array('String\\Helper', 'strtoid'),
+        'uuid' => array('String\\Helper', 'uuid'),
+        'order' => array('String\\Helper', 'order'),
         'cut' => array('String\\Helper', 'cut'),
         'code' => array('String\\Helper', 'code'),
         'rand' => array('String\\Helper', 'rand'),
