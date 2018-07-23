@@ -55,6 +55,7 @@ return array(
     'Dever\\Session\\Oper' => $vendorDir . '/dever-main/framework/src/Dever/Session/Oper.php',
     'Dever\\String\\Encrypt' => $vendorDir . '/dever-main/framework/src/Dever/String/Encrypt.php',
     'Dever\\String\\Helper' => $vendorDir . '/dever-main/framework/src/Dever/String/Helper.php',
+    'Dever\\String\\Regular' => $vendorDir . '/dever-main/framework/src/Dever/String/Regular.php',
     'Dever\\Support\\Command' => $vendorDir . '/dever-main/framework/src/Dever/Support/Command.php',
     'Dever\\Support\\Export' => $vendorDir . '/dever-main/framework/src/Dever/Support/Export.php',
     'Dever\\Support\\Env' => $vendorDir . '/dever-main/framework/src/Dever/Support/Env.php',

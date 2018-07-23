@@ -2,10 +2,15 @@
 
 class Helper
 {
+    /**
+     * order 生成uuid
+     *
+     * @return mixed
+     */
     public static function uuid()
     {
         mt_srand((double)microtime() * 10000);
-        $charid = strtoupper(md5(uniqid(rand(), true))); 
+        $charid = strtoupper(self::id()); 
         $hyphen = chr(45);        
         $uuid   = chr(123)            
                  .substr($charid, 0, 8).$hyphen               
@@ -17,6 +22,12 @@ class Helper
         return $uuid;
     }
 
+    /**
+     * order 生成订单号
+     * @param string $prefix 前缀
+     *
+     * @return mixed
+     */
     public static function order($prefix = '')
     {
         mt_srand((double) microtime() * 1000000);
@@ -26,22 +37,23 @@ class Helper
         return date('Ymd') . str_pad(mt_rand(1, 99999), 5, '0', STR_PAD_LEFT);
     }
 
-    public static function rule($method, $fix = '/')
+    /**
+     * hide 将字符串中的某几个字符隐藏
+     * @param string $string
+     *
+     * @return mixed
+     */
+    public static function hide($string, $start = 3, $len = 4, $hide = '****')
     {
-        $method = 'rule_' . $method;
-        return $fix . self::$method() . $fix;
+        return substr_replace($string, $hide, $start, $len);
     }
 
-    public static function rule_mobile()
-    {
-        return '^(1(([358][0-9])|(45)|(47)))\d{8}$';
-    }
-
-    public static function rule_email()
-    {
-        return '^([a-zA-Z0-9]+[_|\_|\.]?)*[a-zA-Z0-9]+@([a-zA-Z0-9]+[_|\_|\.]?)*[a-zA-Z0-9]+\.[a-zA-Z]{2,3}$';
-    }
-
+    /**
+     * code 一般用于生成验证码
+     * @param int $num
+     *
+     * @return mixed
+     */
     public static function code($num = 4)
     {
         $codes = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -52,11 +64,24 @@ class Helper
         return $code;
     }
 
+    /**
+     * code 一般用于生成验证码
+     * @param int $num
+     *
+     * @return mixed
+     */
     public static function id()
     {
         return md5(uniqid(mt_rand(), true));
     }
 
+    /**
+     * 生成随机数
+     * @param int $len 长度
+     * @param int $type 类型
+     *
+     * @return mixed
+     */
     public static function rand($len, $type = 4)
     {
         $source = array("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z");

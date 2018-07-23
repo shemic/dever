@@ -4,6 +4,7 @@ use Dever\Loader\Project;
 use Dever\Loader\Config;
 use Dever\Routing\Input;
 use Dever\Output\Export;
+use Dever\Support\Env;
 
 class Condition
 {
@@ -183,14 +184,14 @@ class Condition
             $input = $this->input($method . '_' . $index, $value, '', $key, $method);
 
             //if ($this->update && !$input) {
-            if (!$input) {
+            if (!$input && !Env::zero($input)) {
                 $input = $this->input($index, $value, '', $key, $method);
                 if ($method == 'add' && !$input && isset($this->struct[$key]['default']) && $this->struct[$key]['default']) {
                     $input = $this->struct[$key]['default'];
                 }
             }
 
-            if ($input || ($input === '0' || $input === 0)) {
+            if ($input || Env::zero($input)) {
                 if (is_array($input)) {
                     if (isset($this->struct[$key]) && isset($this->struct[$key]['bit'])) {
                         $vt = 0;
@@ -299,7 +300,7 @@ class Condition
             $request = $this->param[$key];
         }
 
-        if (isset($request) && ($request === '0' || $request === 0)) {
+        if (isset($request) && Env::zero($request)) {
             return 0;
         }
 

@@ -229,4 +229,15 @@ class Env
         }
         return preg_match('/[\d\.]{7,15}/', $ip, $matches) ? $matches[0] : '';
     }
+
+    /**
+     * zero 检测是否是0
+     * @param int $value
+     *
+     * @return bool
+     */
+    public static function zero($value)
+    {
+        return is_numeric($value) === true && $value == 0;
+    }
 }

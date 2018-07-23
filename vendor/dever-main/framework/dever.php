@@ -59,12 +59,13 @@ class Dever
         'token' => array('Http\\Api', 'get'),
         'login' => array('Http\\Api', 'login'),
 
+        'rule' => array('String\\Regular', 'rule'),
         'id' => array('String\\Helper', 'id'),
-        'rule' => array('String\\Helper', 'rule'),
         'idtostr' => array('String\\Helper', 'idtostr'),
         'strtoid' => array('String\\Helper', 'strtoid'),
         'uuid' => array('String\\Helper', 'uuid'),
         'order' => array('String\\Helper', 'order'),
+        'hide' => array('String\\Helper', 'hide'),
         'cut' => array('String\\Helper', 'cut'),
         'code' => array('String\\Helper', 'code'),
         'rand' => array('String\\Helper', 'rand'),
@@ -80,6 +81,7 @@ class Dever
         'pathDay' => array('Support\\Path', 'day'),
         'mobile' => array('Support\\Env', 'mobile'),
         'weixin' => array('Support\\Env', 'weixin'),
+        'zero' => array('Support\\Env', 'zero'),
         'ua' => array('Support\\Env', 'ua'),
         'ip' => array('Support\\Env', 'ip'),
         'os' => array('Support\\Env', 'os'),
@@ -665,6 +667,27 @@ class Dever
     }
 
     /**
+     * session 使用session，默认为cookie
+     * @param string $key
+     * @param string $value
+     * @param string $type
+     *
+     * @return mixed
+     */
+    public static function session($key, $value = false, $type = 'cookie')
+    {
+        if (empty(self::$save)) {
+            self::$save = new \Dever\Session\Oper(DEVER_APP_NAME, $type);
+        }
+
+        if ($value) {
+            return self::$save->add($key, $value);
+        } else {
+            return self::$save->get($key);
+        }
+    }
+
+    /**
      * submit 处理重复提交功能 此处暂时有问题
      * @param string $type
      * @param int $value
@@ -673,32 +696,14 @@ class Dever
      */
     public static function submit($type = 'update', $value = 1)
     {
-        if (empty(self::$save)) {
-            self::$save = new \Dever\Session\Oper(DEVER_APP_NAME, 'cookie');
-        }
-
         if ($type == 'check') {
-            $submit = self::$save->get('submit');
+            $submit = self::session('submit');
 
             if ($submit == 2) {
                 Dever::abert('请不要重复提交');
             }
-        }
-
-        if ($value) {
-            self::$save->add('submit', $value);
+        } else {
+            self::session('submit', $value);
         }
     }
-
-    /**
-     * hide 将字符串中的某几个字符隐藏
-     * @param string $string
-     *
-     * @return mixed
-     */
-    public static function hide($string, $start = 3, $len = 4, $hide = '****')
-    {
-        return substr_replace($string, $hide, $start, $len);
-    }
-    
 }
