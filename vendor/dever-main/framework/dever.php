@@ -12,6 +12,7 @@ class Dever
         'location' => array('Http\\Url', 'location'),
         'upload' => array('Http\\Url', 'upload'),
         'pic' => array('Http\\Url', 'upload'),
+        'local' => array('Http\\Url', 'local'),
         'link' => array('Http\\Url', 'link'),
         'curl' => array('Http\\Curl', 'get'),
 

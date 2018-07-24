@@ -176,6 +176,22 @@ class Url
     }
 
     /**
+     * upload
+     * @param string $file
+     * @param string $name
+     *
+     * @return array
+     */
+    public static function local($content)
+    {
+        if (Config::get('host')->uploadRes && $content && strpos($content, '{uploadRes}') !== false) {
+            $content = str_replace('{uploadRes}', Config::data() . 'upload/', $content);
+        }
+
+        return $content;
+    }
+
+    /**
      * workspace
      * @param string $value
      *

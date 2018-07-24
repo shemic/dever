@@ -5,15 +5,35 @@ use Dever\Loader\Config;
 class Path
 {
     /**
+     * avatar
+     * @param $uid
+     *
+     * @return array
+     */
+    public static function avatar($uid) {
+        $uid = abs(intval($uid));
+        $suid = sprintf("%09d", $uid);
+        $dir1 = substr($suid, 0, 3);
+        $dir2 = substr($suid, 3, 2);
+        $dir3 = substr($suid, 5, 2);
+        return $dir1 . '/' . $dir2 . '/' . $dir3 . '/' . substr($uid, -2) . '/';
+    }
+
+    /**
      * get
      * @param string $path
      *
      * @return array
      */
-    public static function month($path)
+    public static function month($path, $project = true)
     {
         $date = explode('-', date("Y-m-d"));
-        $path = self::get(Config::data() . $path . DIRECTORY_SEPARATOR , DEVER_PROJECT . DIRECTORY_SEPARATOR . $date[0] . DIRECTORY_SEPARATOR . $date[1] . DIRECTORY_SEPARATOR);
+        if ($project) {
+            $path .= DIRECTORY_SEPARATOR . DEVER_PROJECT . DIRECTORY_SEPARATOR;
+        } else {
+            $path .= DIRECTORY_SEPARATOR;
+        }
+        $path = self::get(Config::data(), $path . $date[0] . DIRECTORY_SEPARATOR . $date[1] . DIRECTORY_SEPARATOR);
 
         return $path;
     }
@@ -24,10 +44,15 @@ class Path
      *
      * @return array
      */
-    public static function day($path)
+    public static function day($path, $project = true)
     {
         $date = explode('-', date("Y-m-d"));
-        $path = self::get(Config::data() . $path . DIRECTORY_SEPARATOR , DEVER_PROJECT . DIRECTORY_SEPARATOR . $date[0] . DIRECTORY_SEPARATOR . $date[1] . DIRECTORY_SEPARATOR . $date[2] . DIRECTORY_SEPARATOR);
+        if ($project) {
+            $path .= DIRECTORY_SEPARATOR . DEVER_PROJECT . DIRECTORY_SEPARATOR;
+        } else {
+            $path .= DIRECTORY_SEPARATOR;
+        }
+        $path = self::get(Config::data(),  $path . $date[0] . DIRECTORY_SEPARATOR . $date[1] . DIRECTORY_SEPARATOR . $date[2] . DIRECTORY_SEPARATOR);
 
         return $path;
     }

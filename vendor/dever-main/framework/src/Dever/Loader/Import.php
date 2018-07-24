@@ -233,7 +233,12 @@ class Import
     {
         $this->data = $this->cache(false, 'curl');
         if (!$this->data) {
-            $this->data = Server::get($url, $key, $this->param);
+            if (isset($this->param[0])) {
+                $param = $this->param[0];
+            } else {
+                $param = $this->param;
+            }
+            $this->data = Server::get($url, $key, $param);
             $this->cache($this->data, 'curl');
         }
     }
