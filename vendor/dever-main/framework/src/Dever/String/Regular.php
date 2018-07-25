@@ -10,7 +10,7 @@ class Regular
 
     public static function rule_mobile()
     {
-        return '^(1(([358][0-9])|(45)|(47)))\d{8}$';
+        return '^(1(([3578][0-9])|(45)|(47)))\d{8}$';
     }
 
     public static function rule_email()

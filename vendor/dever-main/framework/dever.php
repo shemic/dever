@@ -675,14 +675,14 @@ class Dever
      *
      * @return mixed
      */
-    public static function session($key, $value = false, $type = 'cookie')
+    public static function session($key, $value = false, $timeout = 3600, $type = 'cookie')
     {
         if (empty(self::$save)) {
             self::$save = new \Dever\Session\Oper(DEVER_APP_NAME, $type);
         }
 
         if ($value) {
-            return self::$save->add($key, $value);
+            return self::$save->add($key, $value, $timeout);
         } else {
             return self::$save->get($key);
         }
