@@ -163,13 +163,21 @@ class Url
      */
     public static function uploadRes($content)
     {
-        if (Config::get('host')->uploadRes && $content && strpos($content, '{uploadRes}') !== false) {
+        if (Config::get('host')->uploadRes && $content) {
             $host = Config::get('host')->uploadRes;
             if (is_array(Config::get('host')->uploadRes)) {
                 $index = array_rand(Config::get('host')->uploadRes);
                 $host = Config::get('host')->uploadRes[$index];
             }
-            $content = str_replace('{uploadRes}', $host, $content);
+
+            if (strpos($content, '{uploadRes}') !== false) {
+                $content = str_replace('{uploadRes}', $host, $content);
+            } else {
+                $data = Config::data() . 'upload/';
+                if (strpos($content, $data) !== false) {
+                    $content = str_replace($data, $host, $content);
+                }
+            }
         }
 
         return $content;
