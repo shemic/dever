@@ -70,6 +70,9 @@ class Dever
         'cut' => array('String\\Helper', 'cut'),
         'code' => array('String\\Helper', 'code'),
         'rand' => array('String\\Helper', 'rand'),
+        'replace' => array('String\\Helper', 'replace'),
+        'strlen' => array('String\\Helper', 'strlen'),
+        'addstr' => array('String\\Helper', 'addstr'),
         'encode' => array('String\\Encrypt', 'encode'),
         'decode' => array('String\\Encrypt', 'decode'),
 

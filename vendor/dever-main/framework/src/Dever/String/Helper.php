@@ -277,10 +277,10 @@ class Helper
      */
     public static function str_explode($value, $num = 2)
     {
-        $len = strlen($value);
+        $len = mb_strlen($value);
         $result = array();
         for ($i = 0; $i < $len; $i = $i + $num) {
-            $result[$i / $num] = substr($value, $i, $num);
+            $result[$i / $num] = mb_substr($value, $i, $num);
         }
 
         return $result;
@@ -303,5 +303,33 @@ class Helper
         $content = str_replace($replace, $value, $content);
 
         return $content;
+    }
+
+    /**
+     * addstr
+     * @param string $str
+     * @param string $index
+     * @param string $sub
+     *
+     * @return string
+     */
+    public static function addstr($str, $i, $sub)
+    {
+        $str = self::str_explode($str, 1);
+        $length = count($str);
+
+        $start = '';
+        for($j=0; $j < $i; $j++){
+            $start .= $str[$j];
+        }
+
+        $end = '';
+        for ($j = $i; $j < $length; $j++){
+            $end .= $str[$j];
+        }
+
+        $str = $start . $sub . $end;
+
+        return $str;
     }
 }
