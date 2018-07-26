@@ -317,19 +317,17 @@ class Helper
     {
         $str = self::str_explode($str, 1);
         $length = count($str);
-
-        $start = '';
-        for($j=0; $j < $i; $j++){
-            $start .= $str[$j];
+        $num = floor($length / $i);
+        for ($a = 1; $a <= $num; $a++) {
+            $start = '';
+            $b = $a * $i;
+            foreach ($str as $k => $v) {
+                if ($k == $b) {
+                    $str[$k] = $sub . $v;
+                }
+            }
         }
 
-        $end = '';
-        for ($j = $i; $j < $length; $j++){
-            $end .= $str[$j];
-        }
-
-        $str = $start . $sub . $end;
-
-        return $str;
+        return implode('', $str);
     }
 }
