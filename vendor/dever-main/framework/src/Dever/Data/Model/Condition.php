@@ -468,6 +468,18 @@ class Condition
             if (isset($this->struct[$index]['key']) && Config::get('host')->uploadRes && strpos($request, Config::get('host')->uploadRes) !== false) {
                 $request = str_replace(Config::get('host')->uploadRes, '{uploadRes}', $request);
             }
+
+            $type = $this->struct[$index]['type'];
+            if (strpos($type, '-')) {
+                $temp = explode('-', $type);
+                if (isset($temp[1]) && $temp[1]) {
+                    $len = strlen($request);
+                    if (!strstr($temp[0], 'text') && $len > $temp[1]) {
+                        $name = explode('-', $this->struct[$index]['name']);
+                        Export::alert('core_database_maxlen', array($name[0], $temp[1]));
+                    }
+                }
+            }
         }
 
         return $request;

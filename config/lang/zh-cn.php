@@ -7,6 +7,8 @@ return array
 	'core_database_exists' => '数据库{0}不存在',
 	# 请求不匹配
 	'core_database_request' => '参数{0}为空，或者不匹配该规则：{1}',
+	# 长度超过最大值
+	'core_database_maxlen' => '[{0}]的长度不能超过{1}位字符',
 	# dom不存在
 	'dom_exists' => 'dom"{0}"不存在',
 	# 文件不存在
