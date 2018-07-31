@@ -171,7 +171,20 @@ class Curl
         if (!Input::shell('all')) {
             $data = count($data) . ' records';
         }
-        Debug::log(array('url' => $this->url, 'param' => $this->param, 'result' => $data), 'curl');
+
+        $debug = array
+        (
+            'url' => $this->url,
+            'param' => $this->param, 
+            'result' => $data
+        );
+
+        if (Input::shell('debug')) {
+            curl_setopt($this->handle, CURLINFO_HEADER_OUT, true);
+            $debug['request'] = curl_getinfo($this->handle, CURLINFO_HEADER_OUT);
+        }
+
+        Debug::log($debug, 'curl');
         return $result;
     }
 

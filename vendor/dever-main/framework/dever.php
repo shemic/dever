@@ -710,4 +710,19 @@ class Dever
             self::session('submit', $value);
         }
     }
+
+    /**
+     * default 过滤默认值
+     * @param string $value
+     *
+     * @return mixed
+     */
+    public static function default($v)
+    {
+        $v = str_replace('-1', ',', $v);
+        $v = str_replace(',,,', ',', $v);
+        $v = str_replace(',,', ',', $v);
+        $v = str_replace(',,', ',', $v);
+        return $v;
+    }
 }
