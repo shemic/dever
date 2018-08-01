@@ -56,16 +56,64 @@ class Helper
      */
     public static function code($num = 4)
     {
-        $codes = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        $code = "";
-        for ($i = 1; $i <= $num; $i++) {
-            $code .= $codes{rand(0, 61)};
-        }
-        return $code;
+        $code = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $rand = $code[rand(0,25)]
+            .strtoupper(dechex(date('m')))
+            .date('d')
+            .substr(time(),-5)
+            .substr(microtime(),2,5)
+            .sprintf('%02d',rand(0,99));
+        for(
+            $a = md5( $rand, true ),
+            $s = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+            $d = '',
+            $f = 0;
+            $f < $num;
+            $g = ord( $a[ $f ] ),
+            $d .= $s[ ( $g ^ ord( $a[ $f + 8 ] ) ) - $g & 0x1F ],
+            $f++
+        );
+        return $d;
     }
 
     /**
-     * code 一般用于生成验证码
+     * uid 根据uid生成码
+     * @param int $uid
+     *
+     * @return mixed
+     */
+    function uid($uid, $type = 'encode')
+    {
+        static $source_string = 'E5FCDG3HQA4B1NOPIJ2RSTUV67MWX89KLYZ';
+
+        if ($type == 'encode') {
+            $code = '';
+            $num = $uid;
+            while ($num > 0) {
+                $mod = $num % 35;
+                $num = ($num - $mod) / 35;
+                $code = $source_string[$mod].$code;
+            }
+            if (empty($code[3])) {
+                $code = str_pad($code,4,'0',STR_PAD_LEFT);
+            }
+            return $code;
+        } else {
+            $code = $uid;
+            if (strrpos($code, '0') !== false)
+            $code = substr($code, strrpos($code, '0')+1);
+            $len = strlen($code);
+            $code = strrev($code);
+            $num = 0;
+            for ($i=0; $i < $len; $i++) {
+                $num += strpos($source_string, $code[$i]) * pow(35, $i);
+            }
+            return $num;
+        }
+    }
+
+    /**
+     * id 生成唯一id
      * @param int $num
      *
      * @return mixed

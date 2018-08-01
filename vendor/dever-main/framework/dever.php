@@ -69,6 +69,7 @@ class Dever
         'hide' => array('String\\Helper', 'hide'),
         'cut' => array('String\\Helper', 'cut'),
         'code' => array('String\\Helper', 'code'),
+        'uid' => array('String\\Helper', 'uid'),
         'rand' => array('String\\Helper', 'rand'),
         'replace' => array('String\\Helper', 'replace'),
         'strlen' => array('String\\Helper', 'strlen'),
