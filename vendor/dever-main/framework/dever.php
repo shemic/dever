@@ -720,11 +720,10 @@ class Dever
      */
     public static function defaultValue($v)
     {
-        $v = str_replace('-1', ',', $v);
+        $v = str_replace('-1', '', $v);
+        $v = ',' . $v;
         $v = str_replace(',,,', ',', $v);
         $v = str_replace(',,', ',', $v);
-        $v = str_replace(',,', ',', $v);
-        $v = ',' . $v;
         return $v;
     }
 }
