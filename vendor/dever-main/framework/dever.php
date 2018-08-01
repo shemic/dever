@@ -724,6 +724,7 @@ class Dever
         $v = str_replace(',,,', ',', $v);
         $v = str_replace(',,', ',', $v);
         $v = str_replace(',,', ',', $v);
+        $v = ',' . $v;
         return $v;
     }
 }
