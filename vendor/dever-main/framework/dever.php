@@ -712,12 +712,12 @@ class Dever
     }
 
     /**
-     * default 过滤默认值
+     * defaultValue 过滤默认值
      * @param string $value
      *
      * @return mixed
      */
-    public static function default($v)
+    public static function defaultValue($v)
     {
         $v = str_replace('-1', ',', $v);
         $v = str_replace(',,,', ',', $v);
