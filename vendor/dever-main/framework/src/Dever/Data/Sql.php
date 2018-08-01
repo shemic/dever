@@ -557,7 +557,7 @@ class Sql
         }
 
         if ($param[2] == 'like') {
-            $instr = 'instr(' . $param[0] . ', ' . $param[1] . ')';
+            $instr = 'instr(concat(",", ' . $param[0] . '), ' . $param[1] . ')';
             $where = $param[3] . ' ' . $instr . ' > 0' . $where;
             $this->orderBy = 'order by col_score desc';
             $this->score[] = 'IF('.$instr.', IF(' . $param[0] . '=' . $param[1] . ', 1000*'.$value.', (100-'.$instr.')*'.$value.'), 0)';
