@@ -726,4 +726,13 @@ class Dever
         $v = str_replace(',,', ',', $v);
         return $v;
     }
+
+    public function https($url)
+    {
+        if (strstr($url, 'http://')) {
+            $url = str_replace('http://', 'https://', $url);
+        }
+
+        return $url;
+    }
 }
