@@ -727,6 +727,12 @@ class Dever
         return $v;
     }
 
+    /**
+     * https 将url中的http替换为https
+     * @param string $url
+     *
+     * @return mixed
+     */
     public function https($url)
     {
         if (strstr($url, 'http://')) {
