@@ -203,7 +203,7 @@ class Excel
                     flush();
                     $num = 0;
                 }
-                $row = $data[$i] ? $data[$i] : 'null';
+                $row = $data[$i] ? $data[$i] : 'test';
                 fputcsv($fp, $row);
             }
         }
