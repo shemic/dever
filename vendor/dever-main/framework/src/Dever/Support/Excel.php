@@ -205,11 +205,6 @@ class Excel
                     $num = 0;
                 }
                 $row = $data[$i];
-                foreach ($row as $k => $v) {
-                    if (!$v) {
-                        $row[$k] = '11';
-                    }
-                }
                 fputcsv($fp, $row);
             }
         }
