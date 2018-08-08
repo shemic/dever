@@ -196,7 +196,7 @@ class Excel
         $count = count($data);
         if ($count > 0) {
             for ($i = 0; $i < $count; $i++) {
-                if (isset($data[$i]) && $data[$i]) {
+                if (isset($data[$i])) {
                     $num++;
                     //刷新一下输出buffer，防止由于数据过多造成问题
                     if ($limit == $num) {

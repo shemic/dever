@@ -178,8 +178,7 @@ class Api
         list($uid, $time) = (empty($auth) || count($auth) < 2) ? array(0, '') : $auth;
 
         if (!empty($uid) && (time() - $time) < 2592000) {
-            Config::get('base')->user = array('uid' => $uid, 'time' => $time);
-            return $user;
+            return Config::get('base')->user = array('uid' => $uid, 'time' => $time);
         } else {
             Export::alert('api_signature_exists');
         }

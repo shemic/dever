@@ -59,6 +59,7 @@ class Dever
 
         'token' => array('Http\\Api', 'get'),
         'login' => array('Http\\Api', 'login'),
+        'loginResult' => array('Http\\Api', 'loginResult'),
 
         'rule' => array('String\\Regular', 'rule'),
         'id' => array('String\\Helper', 'id'),
@@ -211,6 +212,10 @@ class Dever
      */
     public static function emoji($str)
     {
+        if (function_exists('mb_convert_encoding')) {
+             $str = mb_convert_encoding($str, 'UTF-8');
+        }
+       
         $str = preg_replace_callback(
             '/./u',
             function (array $match) {
@@ -720,6 +725,9 @@ class Dever
      */
     public static function defaultValue($v)
     {
+        if (!$v) {
+            return $v;
+        }
         $v = str_replace('-1', '', $v);
         $v = ',' . $v;
         $v = str_replace(',,,', ',', $v);
