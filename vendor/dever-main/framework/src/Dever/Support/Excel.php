@@ -194,6 +194,7 @@ class Excel
         $limit = 100000;
         //逐行取出数据，不浪费内存
         $count = count($data);
+        $data = array_reverse($data);
         if ($count > 0) {
             for ($i = 0; $i < $count; $i++) {
                 $num++;
@@ -203,7 +204,12 @@ class Excel
                     flush();
                     $num = 0;
                 }
-                $row = $data[$i] ? $data[$i] : 'test';
+                $row = $data[$i];
+                foreach ($row as $k => $v) {
+                    if (!$v) {
+                        $row[$k] = '11';
+                    }
+                }
                 fputcsv($fp, $row);
             }
         }
