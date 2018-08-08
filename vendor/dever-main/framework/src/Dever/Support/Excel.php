@@ -204,7 +204,7 @@ class Excel
                         flush();
                         $num = 0;
                     }
-                    $row = $data[$i];
+                    $row = $data[$i] ? $data[$i] : 'test';
                     fputcsv($fp, $row);
                 }
             }
