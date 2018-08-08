@@ -194,23 +194,19 @@ class Excel
         $limit = 100000;
         //逐行取出数据，不浪费内存
         $count = count($data);
-        $data = array_reverse($data);
         if ($count > 0) {
             for ($i = 0; $i < $count; $i++) {
-                $num++;
-                //刷新一下输出buffer，防止由于数据过多造成问题
-                if ($limit == $num) {
-                    ob_flush();
-                    flush();
-                    $num = 0;
-                }
-                $row = $data[$i];
-                foreach ($row as $k => $v) {
-                    if (!$v) {
-                        $row[$k] = '';
+                if (isset($data[$i])) {
+                    $num++;
+                    //刷新一下输出buffer，防止由于数据过多造成问题
+                    if ($limit == $num) {
+                        ob_flush();
+                        flush();
+                        $num = 0;
                     }
+                    $row = $data[$i];
+                    fputcsv($fp, $row);
                 }
-                fputcsv($fp, $row);
             }
         }
         fclose($fp);
