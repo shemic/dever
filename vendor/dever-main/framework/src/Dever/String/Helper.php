@@ -30,11 +30,10 @@ class Helper
      */
     public static function order($prefix = '')
     {
-        mt_srand((double) microtime() * 1000000);
         if ($prefix) {
-            return $prefix . date('Ymd') . str_pad(mt_rand(1, 999999), 6, '0', STR_PAD_LEFT);
+            $prefix = substr(strtoupper($prefix), 0, 2);
         }
-        return date('Ymd') . str_pad(mt_rand(1, 99999), 5, '0', STR_PAD_LEFT);
+        return $prefix . (strtotime(date('YmdHis', time()))) . substr(microtime(), 2, 6) . sprintf('%03d', rand(0, 999));
     }
 
     /**
@@ -120,7 +119,8 @@ class Helper
      */
     public static function id()
     {
-        return md5(uniqid(mt_rand(), true));
+        $charid = strtoupper(md5(uniqid(mt_rand(), true)));
+        return substr($charid, 0, 8) . substr($charid, 8, 4) . substr($charid, 12, 4) . substr($charid, 16, 4) . substr($charid, 20, 12);
     }
 
     /**

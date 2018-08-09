@@ -166,11 +166,6 @@ class Curl
             curl_setopt($this->handle, CURLOPT_HEADER, false);
         }
         $result = curl_exec($this->handle);
-        curl_close($this->handle);
-        $data = $result;
-        if (!Input::shell('all')) {
-            $data = count($data) . ' records';
-        }
 
         $debug = array
         (
@@ -182,6 +177,12 @@ class Curl
         if (Input::shell('debug')) {
             curl_setopt($this->handle, CURLINFO_HEADER_OUT, true);
             $debug['request'] = curl_getinfo($this->handle, CURLINFO_HEADER_OUT);
+        }
+        
+        curl_close($this->handle);
+        $data = $result;
+        if (!Input::shell('all')) {
+            $data = count($data) . ' records';
         }
 
         Debug::log($debug, 'curl');

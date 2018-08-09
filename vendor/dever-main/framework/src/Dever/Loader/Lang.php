@@ -1,7 +1,11 @@
 <?php namespace Dever\Loader;
 
+use Dever;
+
 class Lang
 {
+    private static $data = array();
+
     /**
      * get
      * @param string $key
@@ -11,11 +15,25 @@ class Lang
      */
     public static function get($key = 'host', $param = array())
     {
-        $name = 'lang/' . Config::get('base')->lang;
+        $lang = Dever::input('dever-lang');
+        if (!$lang) {
+            $lang = Dever::session('dever_lang');
+            if (!$lang) {
+                $lang = Config::get('base')->lang;
+            }
+        } else {
+            Dever::session('dever_lang', $lang, 86400 * 365);
+        }
 
-        if (Config::get($name)->$key) {
-            Config::get($name)->$key = self::replace(Config::get($name)->$key, $param);
-            return Config::get($name)->$key;
+        $name = 'lang/' . $lang;
+
+        if (!isset(self::$data[$name])) {
+            self::$data[$name] = Config::get($name)->cAll;
+        }
+
+        if (isset(self::$data[$name][$key])) {
+            self::$data[$name][$key] = self::replace(self::$data[$name][$key], $param);
+            return self::$data[$name][$key];
         }
 
         return $key;

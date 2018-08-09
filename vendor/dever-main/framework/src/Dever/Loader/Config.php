@@ -188,7 +188,15 @@ class Config
             $name = DEVER_PROJECT;
         } elseif ($app != $name) {
             $app = Project::load($app);
-            $root = isset($app['setup']) ? $app['setup'] : $app['path'];
+            if (isset($app['setup'])) {
+                if (is_dir($app['path'] . 'config')) {
+                    $root = $app['path'];
+                } else {
+                    $root = $app['setup'];
+                }
+            } else {
+                $root = $app['path'];
+            }
             $name = $app['name'];
         }
         return array($root, $name);

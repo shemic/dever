@@ -32,6 +32,7 @@ class Dever
         'load' => array('Loader\\Import', 'load'),
         'import' => array('Loader\\Project', 'import'),
         'apply' => array('Loader\\Import', 'apply'),
+        'lang' => array('Loader\\Lang', 'get'),
         'db' => array('Data\\Model', 'load'),
         'upinto' => array('Data\\Model', 'upinto'),
 
