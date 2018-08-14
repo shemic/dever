@@ -233,7 +233,7 @@ class Import
     {
         $this->data = $this->cache(false, 'curl');
         if (!$this->data) {
-            if (isset($this->param[0])) {
+            if (isset($this->param[0]) && !isset($this->param[1])) {
                 $param = $this->param[0];
             } else {
                 $param = $this->param;
