@@ -571,6 +571,6 @@ class Paginator
     {
         $page = $page ? $page : $this->current;
         //return Url::get($this->link . '&pg=' . $page . '&pt=' . $this->total) . $this->ext;
-        return Url::get($this->link . '&pg=' . $page, DEVER_APP_NAME);
+        return Url::get($this->link . '?pg=' . $page, DEVER_APP_NAME);
     }
 }

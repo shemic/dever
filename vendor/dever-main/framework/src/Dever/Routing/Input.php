@@ -3,6 +3,7 @@
 use Dever\Loader\Config;
 use Dever\String\Helper;
 use Dever\Support\Env;
+use Dever\Output\Export;
 
 class Input
 {
@@ -106,7 +107,7 @@ class Input
      *
      * @return mixed
      */
-    public static function get($name = false, $value = '')
+    public static function get($name = false, $value = '', $condition = '', $alert = '')
     {
         self::init();
         if (!$name) {
@@ -125,6 +126,15 @@ class Input
         }
 
         self::getEncode($name, $value);
+
+        if ($condition) {
+            $state = false;
+            $test = '$state = ' . $value . $condition . ';';
+            eval($test);
+            if (!$state) {
+                Export::alert($alert);
+            }
+        }
 
         return $value;
     }
