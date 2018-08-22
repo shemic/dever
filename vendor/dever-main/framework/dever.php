@@ -744,7 +744,7 @@ class Dever
      */
     public function https($url)
     {
-        if (strstr($url, 'http://')) {
+        if (DEVER_HOST_TYPE == 'https://' && strstr($url, 'http://')) {
             $url = str_replace('http://', 'https://', $url);
         }
 

@@ -48,7 +48,8 @@ if (!defined('DEVER_ENTRY')) {
 	define('DEVER_ENTRY', 'index.php');
 }
 if (isset($_SERVER['HTTP_HOST'])) {
-	define('DEVER_APP_HOST', 'http://' . $_SERVER['HTTP_HOST'] . ($_SERVER['SCRIPT_NAME'] ? substr($_SERVER['SCRIPT_NAME'], 0, strpos($_SERVER['SCRIPT_NAME'], DEVER_ENTRY)) : DIRECTORY_SEPARATOR));
+	define('DEVER_HOST_TYPE', ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https')) ? 'https://' : 'http://');
+	define('DEVER_APP_HOST', DEVER_HOST_TYPE . $_SERVER['HTTP_HOST'] . ($_SERVER['SCRIPT_NAME'] ? substr($_SERVER['SCRIPT_NAME'], 0, strpos($_SERVER['SCRIPT_NAME'], DEVER_ENTRY)) : DIRECTORY_SEPARATOR));
 } else {
 	define('DEVER_APP_HOST', '');
 }
