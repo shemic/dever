@@ -139,8 +139,6 @@ class Export
 
         self::func($result);
 
-        $result = Url::uploadRes($result);
-
         return $result;
     }
 
@@ -189,6 +187,7 @@ class Export
                 $msg = (object) $msg;
             }
             $msg = Dever::json_encode($msg, JSON_UNESCAPED_UNICODE);
+            $msg = Url::uploadRes($msg);
             self::$state = true;
         }
     }
