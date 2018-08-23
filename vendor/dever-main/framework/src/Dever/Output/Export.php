@@ -4,6 +4,7 @@ use Dever;
 use Dever\Loader\Lang;
 use Dever\Pagination\Paginator;
 use Dever\Routing\Input;
+use Dever\Http\Url;
 
 class Export
 {
@@ -137,6 +138,8 @@ class Export
         self::callback($result);
 
         self::func($result);
+
+        $result = Url::uploadRes($result);
 
         return $result;
     }

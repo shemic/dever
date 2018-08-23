@@ -8,6 +8,7 @@ use Dever\Loader\Project;
 use Dever\Output\Debug;
 use Dever\Output\Export;
 use Dever\Template\View;
+use Dever\Http\Url;
 
 class Route
 {
@@ -129,14 +130,10 @@ class Route
     {
         Debug::overtime();
 
-        if ($this->https() && $this->content) {
-            $this->content = str_replace('http://', 'https://', $this->content);
-        }
-
         if (Debug::init()) {
             Debug::out();
         } elseif ($this->html || Config::get('template')->view) {
-            echo $this->content;
+            echo Url::uploadRes($this->content);
         } else {
             Export::out($this->content);
         }
@@ -151,19 +148,5 @@ class Route
         header("Expires: -1");
         header("Cache-Control: no-store, private, post-check=0, pre-check=0, max-age=0", false);
         header("Pragma: no-cache");
-    }
-
-    /**
-     * https
-     *
-     * @return bool
-     */
-    private function https()
-    {
-        $state = false;
-        if (isset($_SERVER['HTTP_X_REQUEST_PROTOCOL']) && $_SERVER['HTTP_X_REQUEST_PROTOCOL'] == 'https') {
-            $state = true;
-        }
-        return $state;
     }
 }
