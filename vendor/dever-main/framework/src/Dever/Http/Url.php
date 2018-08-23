@@ -1,5 +1,6 @@
 <?php namespace Dever\Http;
 
+use Dever;
 use Dever\Loader\Config;
 use Dever\Loader\Project;
 use Dever\Routing\Uri;
@@ -169,6 +170,8 @@ class Url
                 $index = array_rand(Config::get('host')->uploadRes);
                 $host = Config::get('host')->uploadRes[$index];
             }
+
+            $host = Dever::https($host);
 
             if (strpos($content, '{uploadRes}') !== false) {
                 $content = str_replace('{uploadRes}', $host, $content);
