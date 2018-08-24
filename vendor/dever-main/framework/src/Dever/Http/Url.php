@@ -102,8 +102,6 @@ class Url
             return implode(',', $file);
         }
 
-        $file = self::uploadRes($file);
-
         if ($name && strstr($file, 'http://') && strstr($file, Config::get('host')->uploadRes)) {
 
             if (strstr($name, ',')) {
@@ -115,6 +113,8 @@ class Url
                 $file = self::uploadHandle($file, $name);
             }
         }
+
+        $file = self::uploadRes($file);
 
         return $file;
     }
