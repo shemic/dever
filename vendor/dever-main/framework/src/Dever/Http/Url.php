@@ -133,6 +133,10 @@ class Url
             $temp = explode('_c', $file);
             $temp1 = explode('.', $temp[1]);
             $file = $temp[0] . '_c' . $name . '.' . $temp1[1];
+        } elseif (strstr($name, 'p') && strpos($file, '_p') !== false) {
+            $temp = explode('_p', $file);
+            $temp1 = explode('.', $temp[1]);
+            $file = $temp[0] . '_p' . $name . '.' . $temp1[1];
         } else {
             $ext = pathinfo($file, PATHINFO_EXTENSION);
             $file = str_replace('.' . $ext, '_' . $name . '.' . $ext, $file);
