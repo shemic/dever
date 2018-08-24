@@ -102,6 +102,8 @@ class Url
             return implode(',', $file);
         }
 
+        $file = self::uploadRes($file);
+
         if ($name && strstr($file, 'http://') && strstr($file, Config::get('host')->uploadRes)) {
 
             if (strstr($name, ',')) {
@@ -114,7 +116,7 @@ class Url
             }
         }
 
-        $file = self::uploadRes($file);
+        $file = Dever::https($file);
 
         return $file;
     }
@@ -174,8 +176,6 @@ class Url
                 $index = array_rand(Config::get('host')->uploadRes);
                 $host = Config::get('host')->uploadRes[$index];
             }
-
-            $host = Dever::https($host);
 
             if (strpos($content, '{uploadRes}') !== false) {
                 $content = str_replace('{uploadRes}', $host, $content);
