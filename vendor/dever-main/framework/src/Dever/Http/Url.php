@@ -104,7 +104,7 @@ class Url
 
         $file = self::uploadRes($file);
 
-        if ($name && strstr($file, 'http://') && strstr($file, Config::get('host')->uploadRes)) {
+        if ($name && strstr($file, 'http://') && strstr($file, Config::get('host')->uploadRes) && !strstr($file, $name)) {
 
             if (strstr($name, ',')) {
                 $temp = explode(',', $name);
@@ -131,6 +131,7 @@ class Url
             $temp = explode('_t', $file);
             $temp1 = explode('.', $temp[1]);
             $file = $temp[0] . '_t' . $name . '.' . $temp1[1];
+            echo $file;die;
         } elseif (strstr($name, 'c') && strpos($file, '_c') !== false) {
             $temp = explode('_c', $file);
             $temp1 = explode('.', $temp[1]);
