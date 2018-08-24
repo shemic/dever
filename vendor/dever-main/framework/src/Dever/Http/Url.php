@@ -127,11 +127,14 @@ class Url
             return self::html($file, $name);
         }
 
-        if (strstr($name, 't') && strpos($file, '_t') !== false) {
+        if (strstr($name, 'wp') && strpos($file, '_wp') !== false) {
+            $temp = explode('_wp', $file);
+            $temp1 = explode('.', $temp[1]);
+            $file = $temp[0] . '_wp' . $name . '.' . $temp1[1];
+        } elseif (strstr($name, 't') && strpos($file, '_t') !== false) {
             $temp = explode('_t', $file);
             $temp1 = explode('.', $temp[1]);
             $file = $temp[0] . '_t' . $name . '.' . $temp1[1];
-            echo $file;die;
         } elseif (strstr($name, 'c') && strpos($file, '_c') !== false) {
             $temp = explode('_c', $file);
             $temp1 = explode('.', $temp[1]);
@@ -140,10 +143,6 @@ class Url
             $temp = explode('_p', $file);
             $temp1 = explode('.', $temp[1]);
             $file = $temp[0] . '_p' . $name . '.' . $temp1[1];
-        } elseif (strstr($name, 'wp') && strpos($file, '_wp') !== false) {
-            $temp = explode('_wp', $file);
-            $temp1 = explode('.', $temp[1]);
-            $file = $temp[0] . '_wp' . $name . '.' . $temp1[1];
         } else {
             $ext = pathinfo($file, PATHINFO_EXTENSION);
             $file = str_replace('.' . $ext, '_' . $name . '.' . $ext, $file);
