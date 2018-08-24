@@ -93,7 +93,20 @@ class Url
      */
     public static function upload($file, $name = false)
     {
-        if (strpos($file, ',') !== false) {
+        if (strstr($file, '{"') || strstr($file, '<img')) {
+            $key = '{uploadRes}';
+
+            $file = preg_replace_callback('/'.$key.'(.*?)(\.jpg|\.png)/i', function($matches) use ($key, $name)
+                {
+                    if (isset($matches[1]) && isset($matches[2])) {
+                        $file = Url::upload($key . $matches[1] . $matches[2], $name);
+                        return $file;
+                    } else {
+                        return $matches[0];
+                    }
+                }, $file);
+            return $file;
+        } elseif (strpos($file, ',') !== false) {
             $temp = explode(',', $file);
             $file = array();
             foreach ($temp as $k => $v) {
@@ -203,8 +216,10 @@ class Url
      */
     public static function local($content)
     {
-        if (Config::get('host')->uploadRes && $content && strpos($content, '{uploadRes}') !== false) {
+        if (strstr(Config::get('host')->uploadRes, Config::get('host')->base) && Config::get('host')->uploadRes && $content && strpos($content, '{uploadRes}') !== false) {
             $content = str_replace('{uploadRes}', Config::data() . 'upload/', $content);
+        } else {
+            $content = self::uploadRes($content);
         }
 
         return $content;

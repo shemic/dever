@@ -12,6 +12,7 @@ class Dever
         'location' => array('Http\\Url', 'location'),
         'upload' => array('Http\\Url', 'upload'),
         'pic' => array('Http\\Url', 'upload'),
+        'uploadRes' => array('Http\\Url', 'uploadRes'),
         'local' => array('Http\\Url', 'local'),
         'link' => array('Http\\Url', 'link'),
         'curl' => array('Http\\Curl', 'get'),
@@ -526,7 +527,15 @@ class Dever
      */
     public static function json_encode($value)
     {
-        return self::pic(json_encode($value, JSON_UNESCAPED_UNICODE));
+        $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+        $webp = self::input('webp', -1);
+        if ($webp > 0) {
+            $value = self::upload($value, 'wp' . $webp);
+        } else {
+            $value = self::uploadRes($value);
+        }
+
+        return $value;
     }
 
     /**
