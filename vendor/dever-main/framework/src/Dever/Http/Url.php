@@ -99,6 +99,7 @@ class Url
             $file = preg_replace_callback('/'.$key.'(.*?)(\.jpg|\.png)/i', function($matches) use ($key, $name)
                 {
                     if (isset($matches[1]) && isset($matches[2])) {
+                        $matches[1] = str_replace('\/', '/', $matches[1]);
                         $file = Url::upload($key . $matches[1] . $matches[2], $name);
                         return $file;
                     } else {
