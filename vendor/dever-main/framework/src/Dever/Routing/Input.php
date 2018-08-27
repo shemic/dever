@@ -128,6 +128,9 @@ class Input
         self::getEncode($name, $value);
 
         if ($condition) {
+            if (!$value) {
+                Export::alert($alert);
+            }
             $state = false;
             $test = '$state = ' . $value . $condition . ';';
             eval($test);
