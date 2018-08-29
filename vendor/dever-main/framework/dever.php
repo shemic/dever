@@ -90,6 +90,7 @@ class Dever
         'mobile' => array('Support\\Env', 'mobile'),
         'weixin' => array('Support\\Env', 'weixin'),
         'zero' => array('Support\\Env', 'zero'),
+        'header' => array('Support\\Env', 'header'),
         'ua' => array('Support\\Env', 'ua'),
         'ip' => array('Support\\Env', 'ip'),
         'os' => array('Support\\Env', 'os'),

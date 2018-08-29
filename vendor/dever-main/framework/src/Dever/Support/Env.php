@@ -240,4 +240,22 @@ class Env
     {
         return is_numeric($value) === true && $value == 0;
     }
+
+    /**
+     * getHeader
+     * @param int $value
+     *
+     * @return bool
+     */
+    public static function header($key = null)
+    {
+        $headers = [];
+        foreach ($_SERVER as $name => $value) {
+            if (substr($name, 0, 5) == 'HTTP_') {
+                $headers[str_replace(' ', '-', strtolower(str_replace('_', ' ', substr($name, 5))))] = $value;
+            }
+        }
+
+        return is_null($key) ? $headers : (isset($headers[$key]) ? $headers[$key] : null);
+    }
 }
