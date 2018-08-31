@@ -65,6 +65,9 @@ class Oper
         } elseif ($type == 3) {
             $type = LOG_INFO;
             $name = LOG_LOCAL3;
+        } else {
+            $type = LOG_INFO;
+            $name = LOG_LOCAL4;
         }
 
         openlog(DEVER_APP_NAME, LOG_PID, $name);

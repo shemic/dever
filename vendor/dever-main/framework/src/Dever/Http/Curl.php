@@ -81,7 +81,7 @@ class Curl
     {
         $this->init();
 
-        $this->param($param);
+        $param = $this->param($param);
 
         $this->setRequest($type);
 
@@ -118,7 +118,7 @@ class Curl
      */
     private function param($param)
     {
-        if (isset($param[0])) {
+        if (is_array($param) && isset($param[0])) {
             $temp = $param;
             $param = array();
             foreach ($temp as $k => $v) {
@@ -302,16 +302,6 @@ class Curl
     public function setJson($param)
     {
         $param = str_replace("\\/", "/", json_encode((object) $param, JSON_UNESCAPED_UNICODE));
-        $search = "/\\\u([0-9a-f]+)/i";
-
-        if (strpos(strtoupper(PHP_OS), 'WIN') === false) {
-            $replace = "iconv('UCS-2BE', 'UTF-8', pack('H4', '\\1'))";
-        } else {
-            $replace = "iconv('UCS-2', 'UTF-8', pack('H4', '\\1'))";
-        }
-
-        //$param = preg_replace($search, $replace, $param);
-        //$param = json_encode($param, JSON_UNESCAPED_UNICODE);
         $header['Content-Type'] = 'application/json';
         $header['Content-Length'] = strlen($param);
         $this->setHeader($header);

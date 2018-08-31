@@ -1,7 +1,10 @@
 <?php namespace Dever\Session;
 
+use Dever;
 use Dever\Loader\Config;
 use Dever\String\Encrypt;
+
+# 一系列的session、cookie等基本的操作，前期随意些的。后续将分开。
 
 class Oper
 {
@@ -42,10 +45,15 @@ class Oper
      */
     public function __construct($key = false, $method = 'session')
     {
-        @header('P3P: CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"');
-        @session_start();
-        if (Config::get('host')->cookie) {
-            ini_set('session.cookie_domain', Config::get('host')->cookie);
+        if (defined('DEVER_DAEMON')) {
+            $method = 'cli';
+        }
+        if ($method != 'cli') {
+            @header('P3P: CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"');
+            @session_start();
+            if (Config::get('host')->cookie) {
+                ini_set('session.cookie_domain', Config::get('host')->cookie);
+            }
         }
 
         $this->key = $key ? $key : $this->key;
@@ -203,6 +211,69 @@ class Oper
     {
         unset($_SESSION[$this->prefix . $key]);
 
+        return true;
+    }
+
+    /**
+     * _initCli
+     *
+     * @return mixed
+     */
+    private function _initCli()
+    {
+        $this->id = md5($this->key);
+        $this->file = Dever::path(Dever::data() . 'session/') . $this->id;
+
+        if (is_file($this->file)) {
+            $this->data = unserialize(file_get_contents($this->file));
+            return;
+        }
+
+        file_put_contents($this->file, null);
+    }
+
+    /**
+     * _setCli
+     * @param string $key
+     * @param string $value
+     *
+     * @return mixed
+     */
+    private function _setCli($key, $value, $time = 3600)
+    {
+        $this->_initCli();
+        $key = $this->prefix . $key;
+        $this->data[$key] = $value;
+        file_put_contents($this->file, serialize($this->data));
+
+        return $value;
+    }
+
+    /**
+     * _getCli
+     * @param string $key
+     *
+     * @return mixed
+     */
+    private function _getCli($key)
+    {
+        $this->_initCli();
+        $key = $this->prefix . $key;
+        return (isset($this->data[$key]) && $this->data[$key]) ? $this->data[$key] : false;
+    }
+
+    /**
+     * _unsetCli
+     * @param string $key
+     *
+     * @return mixed
+     */
+    private function _unsetCli($key)
+    {
+        $this->_initCli();
+        $key = $this->prefix . $key;
+        unset($this->data[$key]);
+        file_put_contents($this->file, serialize($this->data));
         return true;
     }
 }

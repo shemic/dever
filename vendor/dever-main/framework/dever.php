@@ -534,6 +534,7 @@ class Dever
             $value = self::upload($value, 'wp' . $webp);
         } else {
             $value = self::uploadRes($value);
+            $value = self::https($value);
         }
 
         return $value;
