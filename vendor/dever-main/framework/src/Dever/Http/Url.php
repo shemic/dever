@@ -141,6 +141,10 @@ class Url
             return self::html($file, $name);
         }
 
+        if (strstr($file, '.gif')) {
+            return $file;
+        }
+
         if (strstr($name, 'wp') && strpos($file, '_wp') !== false) {
             $temp = explode('_wp', $file);
             $temp1 = explode('.', $temp[1]);
@@ -220,7 +224,7 @@ class Url
         if (strstr(Config::get('host')->uploadRes, Config::get('host')->base) && Config::get('host')->uploadRes && $content && strpos($content, '{uploadRes}') !== false) {
             $content = str_replace('{uploadRes}', Config::data() . 'upload/', $content);
         } else {
-            $content = self::uploadRes($content);
+            $content = str_replace(Config::get('host')->uploadRes, Config::data() . 'upload/', $content);
         }
 
         return $content;

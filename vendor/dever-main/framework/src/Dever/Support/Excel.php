@@ -140,7 +140,19 @@ class Excel
             foreach($data AS $v) {
                 $j = 0;
                 foreach($v AS $cell) {
-                    $act->setCellValue($this->cell[$j] . ($i+$row), $cell);
+                    if (strstr($cell, '.jpg') || strstr($cell, '.gif') || strstr($cell, '.png')) {
+                        $objDrawing[$key] = new \PHPExcel_Worksheet_Drawing();
+                        $objDrawing[$key]->setPath($cell);
+                        //$objDrawing[$key]->setHeight('80px');
+                        $objDrawing[$key]->setWidth('150px');
+                        $objDrawing[$key]->setCoordinates($this->cell[$j] . ($i+$row));
+                        $objDrawing[$key]->setOffsetX(12);
+                        $objDrawing[$key]->setOffsetY(12);
+                        $objDrawing[$key]->setWorksheet($objActSheet);
+                    } else {
+                        $act->setCellValue($this->cell[$j] . ($i+$row), $cell);
+                    }
+                    
                     $act->getColumnDimension($this->cell[$j])->setWidth(20);
                     $j++;
                 }

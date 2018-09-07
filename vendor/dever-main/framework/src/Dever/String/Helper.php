@@ -1,5 +1,6 @@
 <?php namespace Dever\String;
 
+use Dever\Http\Curl;
 class Helper
 {
     /**
@@ -377,5 +378,47 @@ class Helper
         }
 
         return implode('', $str);
+    }
+
+    /**
+     * qqvideo
+     * @param string $link
+     *
+     * @return string
+     */
+    public function qqvideo($link)
+    {
+        if (!$link) {
+            return '';
+        }
+        $temp = explode('/', $link);
+        $temp = end($temp);
+        $key = str_replace('.html', '', $temp);
+
+        $api = 'http://vv.video.qq.com/getinfo?vids='.$key.'&platform=101001&charge=0&otype=json';
+
+        $data = Curl::get($api);
+
+        $data = Dever::json_decode(str_replace(array('QZOutputJson=', ';'), '', $data));
+        if (isset($data['vl']) && isset($data['vl']['vi'][0])) {
+            $data = $data['vl']['vi'][0];
+            $urls = $data['ul']['ui'];
+            foreach ($urls as $k => $v) {
+                $url = $v['url'];
+                break;
+                if (strstr($v['url'], 'vhot2.qqvideo.tc.qq.com')) {
+                    $url = $v['url'];
+                }
+            }
+            if (empty($url)) {
+                print_r($data);die;
+                return $this->decode_api($link);
+            }
+            $link = $url . $data['fn'] . '?vkey=' . $data['fvkey'];
+        } else {
+            return '';
+        }
+
+        return $link;
     }
 }

@@ -74,6 +74,7 @@ class Dever
         'code' => array('String\\Helper', 'code'),
         'uid' => array('String\\Helper', 'uid'),
         'rand' => array('String\\Helper', 'rand'),
+        'qqvideo' => array('String\\Helper', 'qqvideo'),
         'replace' => array('String\\Helper', 'replace'),
         'strlen' => array('String\\Helper', 'strlen'),
         'addstr' => array('String\\Helper', 'addstr'),
