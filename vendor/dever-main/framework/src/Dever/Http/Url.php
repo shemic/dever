@@ -130,7 +130,7 @@ class Url
             }
         }
 
-        $file = Dever::https($file);
+        $file = self::https($file);
 
         return $file;
     }
@@ -192,6 +192,9 @@ class Url
      */
     public static function uploadRes($content)
     {
+        if (Input::$command) {
+            return $content;
+        }
         if (Config::get('host')->uploadRes && $content) {
             $host = Config::get('host')->uploadRes;
             if (is_array(Config::get('host')->uploadRes)) {
@@ -397,6 +400,24 @@ class Url
         if (!$host) {
             $host = Config::get('host')->base;
         }
+    }
+
+    /**
+     * https 将url中的http替换为https
+     * @param string $url
+     *
+     * @return mixed
+     */
+    public function https($url)
+    {
+        if (Input::$command) {
+            return $url;
+        }
+        if (DEVER_HOST_TYPE == 'https://' && strstr($url, 'http://')) {
+            $url = str_replace('http://', 'https://', $url);
+        }
+
+        return $url;
     }
 
     /**

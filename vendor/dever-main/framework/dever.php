@@ -13,6 +13,7 @@ class Dever
         'upload' => array('Http\\Url', 'upload'),
         'pic' => array('Http\\Url', 'upload'),
         'uploadRes' => array('Http\\Url', 'uploadRes'),
+        'https' => array('Http\\Url', 'https'),
         'local' => array('Http\\Url', 'local'),
         'link' => array('Http\\Url', 'link'),
         'curl' => array('Http\\Curl', 'get'),
@@ -746,20 +747,5 @@ class Dever
         $v = str_replace(',,,', ',', $v);
         $v = str_replace(',,', ',', $v);
         return $v;
-    }
-
-    /**
-     * https 将url中的http替换为https
-     * @param string $url
-     *
-     * @return mixed
-     */
-    public function https($url)
-    {
-        if (DEVER_HOST_TYPE == 'https://' && strstr($url, 'http://')) {
-            $url = str_replace('http://', 'https://', $url);
-        }
-
-        return $url;
     }
 }
