@@ -224,10 +224,13 @@ class Url
      */
     public static function local($content)
     {
-        if (strstr(Config::get('host')->uploadRes, Config::get('host')->base) && Config::get('host')->uploadRes && $content && strpos($content, '{uploadRes}') !== false) {
-            $content = str_replace('{uploadRes}', Config::data() . 'upload/', $content);
-        } else {
-            $content = str_replace(Config::get('host')->uploadRes, Config::data() . 'upload/', $content);
+        if ($content) {
+            $path = Config::data() . 'upload/';
+            if (strpos($content, '{uploadRes}') !== false) {
+                $content = str_replace('{uploadRes}', $path, $content);
+            } elseif (Config::get('host')->uploadRes && strpos($content, Config::get('host')->uploadRes) !== false) {
+                $content = str_replace(Config::get('host')->uploadRes, $path, $content);
+            }
         }
 
         return $content;
