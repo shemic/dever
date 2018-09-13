@@ -226,13 +226,14 @@ class Url
     {
         if ($content) {
             $path = Config::data() . 'upload/';
-            if (strpos($content, '{uploadRes}') !== false) {
+            if (!strstr(Config::get('host')->uploadRes, Config::get('host')->base) && strpos($content, '{uploadRes}') !== false) {
+                $content = str_replace('{uploadRes}', Config::get('host')->uploadRes, $content);
+            } elseif (strpos($content, '{uploadRes}') !== false) {
                 $content = str_replace('{uploadRes}', $path, $content);
             } elseif (Config::get('host')->uploadRes && strpos($content, Config::get('host')->uploadRes) !== false) {
                 $content = str_replace(Config::get('host')->uploadRes, $path, $content);
             }
         }
-
         return $content;
     }
 
