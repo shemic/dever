@@ -1,5 +1,6 @@
 <?php namespace Dever\Support;
 
+use Dever;
 use Dever\Output\Export;
 # 以下代码来源自网络
 
@@ -38,7 +39,7 @@ class Excel
      *
      * @return mixed
      */
-    public static function export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '', $method = false)
+    public static function export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '', $return = false, $method = false)
     {
         if (!$method) {
             $state = class_exists('\PHPExcel');
@@ -51,7 +52,7 @@ class Excel
 
         $method .= '_export';
 
-        return self::getInstance()->$method($data, $header, $fileName, $sheet, $sheetName);
+        return self::getInstance()->$method($data, $header, $fileName, $sheet, $sheetName, $return);
     }
 
     /**
@@ -111,9 +112,13 @@ class Excel
         return $data;  
     }
 
-    private function excel_export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '')
+    private function excel_export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '', $return = false)
     {
-        $xls = new \PHPExcel();
+        if (!is_object($return)) {
+            $xls = new \PHPExcel();
+        } else {
+            $xls = $return;
+        }
 
         if ($sheet > 0) {
             $xls->createSheet();
@@ -127,9 +132,9 @@ class Excel
         $row = 1;
         if($header) {
             $i = 0;
-            foreach($header AS $v) {
+            foreach($header as $v) {
                 $act->setCellValue($this->cell[$i] . $row, $v);
-                $act->getColumnDimension($this->cell[$i])->setWidth(20);
+                $act->getColumnDimension($this->cell[$i])->setWidth(30);
                 $i++;
             }
             $row++;
@@ -137,27 +142,57 @@ class Excel
 
         if($data) {
             $i = 0;
-            foreach($data AS $v) {
+            $height = 80;
+            foreach($data as $v) {
                 $j = 0;
-                foreach($v AS $cell) {
+                foreach($v as $cell) {
                     if (strstr($cell, '.jpg') || strstr($cell, '.gif') || strstr($cell, '.png')) {
-                        $objDrawing[$key] = new \PHPExcel_Worksheet_Drawing();
-                        $objDrawing[$key]->setPath($cell);
-                        //$objDrawing[$key]->setHeight('80px');
-                        $objDrawing[$key]->setWidth('150px');
-                        $objDrawing[$key]->setCoordinates($this->cell[$j] . ($i+$row));
-                        $objDrawing[$key]->setOffsetX(12);
-                        $objDrawing[$key]->setOffsetY(12);
-                        $objDrawing[$key]->setWorksheet($objActSheet);
+                        $key = ($i+$row);
+                        $value = false;
+                        if (strpos($cell, '||')) {
+                            $t = explode('||', $cell);
+                            $cell = $t[1];
+                            $value = $t[0];
+                        }
+                        $temp = explode(',', $cell);
+
+                        foreach ($temp as $ck => $cv) {
+                            $cv = Dever::local($cv);
+                            $objDrawing[$ck] = new \PHPExcel_Worksheet_Drawing();
+                            $objDrawing[$ck]->setPath($cv);
+                            $objDrawing[$ck]->setHeight($height);
+                            //$objDrawing[$ck]->setWidth(150);
+                            $objDrawing[$ck]->setCoordinates($this->cell[$j] . ($i+$row));
+                            $objDrawing[$ck]->setOffsetX(12);
+                            if ($ck == 0) {
+                                $offsetY = 5;
+                            } else {
+                                $offsetY = $offsetY * ($ck + 1) + $height;
+                            }
+                            $objDrawing[$ck]->setOffsetY($offsetY);
+                            $objDrawing[$ck]->setWorksheet($act);
+                        }
+                        if ($value) {
+                            $act->setCellValue($this->cell[$j] . ($i+$row), $value);
+                        }
+                        
+                        $act->getRowDimension($i+$row)->setRowHeight($height * count($temp));
+                        
                     } else {
                         $act->setCellValue($this->cell[$j] . ($i+$row), $cell);
+                        $act->getStyle($this->cell[$j] . ($i+$row))->getAlignment()->setVertical(\PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
                     }
                     
-                    $act->getColumnDimension($this->cell[$j])->setWidth(20);
+                    $act->getColumnDimension($this->cell[$j])->setAutoSize();
+                    $act->getColumnDimension($this->cell[$j])->setWidth(30);
                     $j++;
                 }
                 $i++;
             }
+        }
+
+        if ($header && $return) {
+            return $xls;
         }
 
         if (!$fileName) {
@@ -190,7 +225,7 @@ class Excel
         return $data;
     }
 
-    private function csv_export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '')
+    private function csv_export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '', $return = false)
     {
         header('Content-Type: application/vnd.ms-excel;charset=gb2312');
         header('Content-Disposition: attachment;filename='.$fileName.'.csv');
