@@ -82,7 +82,9 @@ class Oper
             $key = md5(serialize($key));
         }
 
-        $key = $this->project . '_' . $key;
+        if ($this->project != $key) {
+            $key = $this->project . '_' . $key;
+        }
 
         $value = Encrypt::encode(base64_encode(serialize($value)), $this->key);
 

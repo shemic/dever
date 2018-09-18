@@ -531,6 +531,9 @@ class Dever
     public static function json_encode($value)
     {
         $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+        if (strpos($value, '<null>')) {
+            $value = str_replace('<null>', '', $value);
+        }
         $webp = self::input('webp', -1);
         if ($webp > 0) {
             $value = self::upload($value, 'wp' . $webp);
