@@ -142,7 +142,7 @@ class Excel
 
         if($data) {
             $i = 0;
-            $height = 80;
+            $height = $max = 80;
             foreach($data as $v) {
                 $j = 0;
                 foreach($v as $cell) {
@@ -176,9 +176,16 @@ class Excel
                             $act->setCellValue($this->cell[$j] . ($i+$row), $value);
                         }
                         
-                        $act->getRowDimension($i+$row)->setRowHeight($height * count($temp));
+                        $th = $height * count($temp);
+                        if ($th > $max) {
+                            $max = $th;
+                        }
+                        $act->getRowDimension($i+$row)->setRowHeight($max);
                         
                     } else {
+                        if (!$cell) {
+                            $cell = "\t";
+                        }
                         $act->setCellValue($this->cell[$j] . ($i+$row), $cell);
                         $act->getStyle($this->cell[$j] . ($i+$row))->getAlignment()->setVertical(\PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
                     }
