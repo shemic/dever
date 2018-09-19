@@ -154,8 +154,6 @@ class Excel
                             $t = explode('||', $cell);
                             $cell = $t[1];
                             $value = $t[0];
-                        } else {
-                            $cell = $cell . ',' . $cell . ',' . $cell . ',' . $cell;
                         }
                         $temp = explode(',', $cell);
 
