@@ -165,11 +165,11 @@ class Excel
                             $objDrawing[$ck]->setCoordinates($this->cell[$j] . ($i+$row));
                             $objDrawing[$ck]->setOffsetX(12);
                             if ($ck == 0) {
-                                $offsetY = 5;
+                                $offsetY[$ck] = 5;
                             } else {
-                                $offsetY = $offsetY * ($ck + 1) + $height;
+                                $offsetY[$ck] = $offsetY[$ck] * ($ck + 1) + $height;
                             }
-                            $objDrawing[$ck]->setOffsetY($offsetY);
+                            $objDrawing[$ck]->setOffsetY($offsetY[$ck]);
                             $objDrawing[$ck]->setWorksheet($act);
                         }
                         if ($value) {
