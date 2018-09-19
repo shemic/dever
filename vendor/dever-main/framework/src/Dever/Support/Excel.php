@@ -149,10 +149,13 @@ class Excel
                     if (strstr($cell, '.jpg') || strstr($cell, '.gif') || strstr($cell, '.png')) {
                         $key = ($i+$row);
                         $value = false;
+
                         if (strpos($cell, '||')) {
                             $t = explode('||', $cell);
                             $cell = $t[1];
                             $value = $t[0];
+                        } else {
+                            $cell = $cell . ',' . $cell . ',' . $cell . ',' . $cell;
                         }
                         $temp = explode(',', $cell);
 
@@ -165,11 +168,11 @@ class Excel
                             $objDrawing[$ck]->setCoordinates($this->cell[$j] . ($i+$row));
                             $objDrawing[$ck]->setOffsetX(12);
                             if ($ck == 0) {
-                                $offsetY[$ck] = 5;
+                                $offsetY = 5;
                             } else {
-                                $offsetY[$ck] = $offsetY[$ck] * ($ck + 1) + $height;
+                                $offsetY = $offsetY + $height + 5;
                             }
-                            $objDrawing[$ck]->setOffsetY($offsetY[$ck]);
+                            $objDrawing[$ck]->setOffsetY($offsetY);
                             $objDrawing[$ck]->setWorksheet($act);
                         }
                         if ($value) {
@@ -184,7 +187,7 @@ class Excel
                         
                     } else {
                         if (!$cell) {
-                            $cell = "\t";
+                            $cell = "";
                         }
                         $act->setCellValue($this->cell[$j] . ($i+$row), $cell);
                         $act->getStyle($this->cell[$j] . ($i+$row))->getAlignment()->setVertical(\PHPExcel_Style_Alignment::HORIZONTAL_CENTER);
