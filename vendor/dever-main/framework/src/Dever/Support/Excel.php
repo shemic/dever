@@ -158,8 +158,13 @@ class Excel
                         $temp = explode(',', $cell);
 
                         foreach ($temp as $ck => $cv) {
-                            $cv = Dever::local($cv);
                             $objDrawing[$ck] = new \PHPExcel_Worksheet_Drawing();
+                            if (Dever::project('upload')) {
+                                $cv = str_replace('.jpg', '_t1.jpg', $cv);
+                                $cv = str_replace('.png', '_t1.png', $cv);
+                                $cv = Dever::load('upload/view')->get($cv);
+                            }
+                            $cv = Dever::local($cv);
                             $objDrawing[$ck]->setPath($cv);
                             $objDrawing[$ck]->setHeight($height);
                             //$objDrawing[$ck]->setWidth(150);
