@@ -746,7 +746,7 @@ class Dever
             return $v;
         }
         $v = str_replace('-1', '', $v);
-        $v = ',' . $v;
+        $v = ',' . $v . ',';
         $v = str_replace(',,,', ',', $v);
         $v = str_replace(',,', ',', $v);
         return $v;
