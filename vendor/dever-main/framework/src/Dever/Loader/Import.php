@@ -382,6 +382,11 @@ class Import
                 $this->data = Import::load($project['name'] . '/plugin/' . $plugin['cover'], $param);
             } else {
                 if (is_array($param) && $param) {
+                    if (isset($param[0]) && is_array($param[0])) {
+                        foreach ($param[0] as $k => $v) {
+                            Input::set($k, $v);
+                        }
+                    }
                     $this->data = call_user_func_array(array($this->class, $method), $param);
                 } else {
                     $this->data = call_user_func(array($this->class, $method), $param);

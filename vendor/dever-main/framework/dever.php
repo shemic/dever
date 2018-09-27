@@ -243,10 +243,10 @@ class Dever
     {
         if (isset($param['add_' . $name])) {
             return $param['add_' . $name];
-        }
-
-        if (isset($param['set_' . $name])) {
+        } elseif (isset($param['set_' . $name])) {
             return $param['set_' . $name];
+        } elseif(isset($param[$name])) {
+            return $param[$name];
         }
 
         return false;
