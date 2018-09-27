@@ -556,11 +556,27 @@ class Sql
             $param[0] = $this->prefix . '`' . $param[0] . '`';
         }
 
-        if ($param[2] == 'like') {
-            $instr = 'instr(concat(",", ' . $param[0] . ',","), ' . $param[1] . ')';
-            $where = $param[3] . ' ' . $instr . ' > 0' . $where;
-            $this->orderBy = 'order by col_score desc';
-            $this->score[] = 'IF('.$instr.', IF(' . $param[0] . '=' . $param[1] . ', 1000*'.$value.', (100-'.$instr.')*'.$value.'), 0)';
+        if (strstr($param[2], 'like')) {
+            $content = explode('^', $param[2]);
+            $param[2] = $content[0];
+
+            if (isset($content[1]) && strstr($content[1], ',')) {
+                //$content[1] = trim($content[1], ',');
+                $len = strlen($content[1]);
+                $instr = 'left('.$param[0].', '.$len.')=' . $param[1];
+                $where = $param[3] . ' ' . $instr . $where;
+            } else {
+                if (isset($content[1]) && strstr($content[1], ',')) {
+                    $concat = 'concat(",", ' . $param[0] . ',",")';
+                } else {
+                    $concat = $param[0];
+                }
+                $instr = 'instr('.$concat.', ' . $param[1] . ')';
+                $where = $param[3] . ' ' . $instr . ' > 0' . $where;
+                $this->orderBy = 'order by col_score desc';
+                $this->score[] = 'IF('.$instr.', IF(' . $param[0] . '=' . $param[1] . ', 1000*'.$value.', (100-'.$instr.')*'.$value.'), 0)';
+            }
+            
             //$this->as[] = ' CONCAT("<em class=\"dever_highlight\">",' . $param[0] . ',"</em>") as ' . $col;
         } else {
             $where = $param[3] . ' ' . $param[0] . ' ' . $param[2] . ' ' . $param[1] . $where;

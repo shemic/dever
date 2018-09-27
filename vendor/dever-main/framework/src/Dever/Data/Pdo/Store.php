@@ -440,6 +440,11 @@ class Store extends Base
                 $this->value[$key] = $param[1];
 
                 $param[1] = $key;
+
+                if (isset($param[2]) && $param[2] == 'like') {
+                    $param[2] = 'like^' . $this->value[$key];
+                    //$this->value[$key] = trim($this->value[$key], ',');
+                }
             }
         }
 
