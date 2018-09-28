@@ -249,7 +249,7 @@ class Dever
             return $param[$name];
         }
 
-        return false;
+        return Dever::input($name, false);
     }
 
     public static function mdate($num, $type = 1)
