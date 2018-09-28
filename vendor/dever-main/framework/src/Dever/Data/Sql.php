@@ -104,8 +104,8 @@ class Sql
             }
             $create[] = $v;
         }
-        //$sql = 'DROP TABLE IF EXISTS `' . $table . '`;CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
-        $sql    = 'CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
+        $sql = 'DROP TABLE IF EXISTS `' . $table . '`;CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
+        //$sql    = 'CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
 
         if ($type) {
             $sql .= ' ENGINE = ' . $type . ';';
