@@ -445,7 +445,12 @@ class Paginator
                 $sql = $temp[1];
             }
 
-            $sql = 'SELECT count(1) as num FROM ' . $sql;
+            if (strstr($sql, 'group')) {
+                $sql = 'SELECT count(1) as num FROM (SELECT count(1) FROM '.$sql.' ) a ';
+            } else {
+                $sql = 'SELECT count(1) as num FROM ' . $sql;
+            }
+            
             $this->total = $db->query($sql, $data)->fetchColumn();
         }
     }
