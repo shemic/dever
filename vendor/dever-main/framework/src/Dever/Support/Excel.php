@@ -240,7 +240,7 @@ class Excel
 
     private function csv_export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '', $return = false)
     {
-        header('Content-Type: application/vnd.ms-excel;charset=gb2312');
+        header('Content-Type: application/vnd.ms-excel');
         header('Content-Disposition: attachment;filename='.$fileName.'.csv');
         header('Cache-Control: max-age=0');
         header('Content-Transfer-Encoding: binary'); 
