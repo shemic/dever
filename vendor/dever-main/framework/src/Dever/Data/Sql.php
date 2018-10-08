@@ -294,7 +294,16 @@ class Sql
 
         $join = isset($this->join) ? implode(' ', $this->join) : '';
 
-        $sql = 'SELECT ' . $col . ' FROM `' . $table . '` ' . $join . $where . ' ' . $this->group . ' ';
+        if (strstr($sql, 'group')) {
+            $sql = '`' . $table . '` ' . $join . $where . ' ' . $this->group . ' ';
+
+            $sql = 'SELECT ' . $col . ' FROM (SELECT '.$col.' FROM '.$sql.' ) a ';
+
+        } else {
+            $sql = 'SELECT ' . $col . ' FROM `' . $table . '` ' . $join . $where . ' ' . $this->group . ' ';
+        }
+
+        
 
         if ($state == 1) {
             $this->init();
