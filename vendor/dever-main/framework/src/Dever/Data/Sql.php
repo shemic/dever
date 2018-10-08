@@ -294,7 +294,7 @@ class Sql
 
         $join = isset($this->join) ? implode(' ', $this->join) : '';
 
-        if (strstr($sql, 'group')) {
+        if (strstr($this->group, 'group')) {
             $sql = '`' . $table . '` ' . $join . $where . ' ' . $this->group . ' ';
 
             $sql = 'SELECT ' . $col . ' FROM (SELECT '.$col.' FROM '.$sql.' ) a ';
