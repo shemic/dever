@@ -146,7 +146,12 @@ class Excel
             foreach($data as $v) {
                 $j = 0;
                 foreach($v as $cell) {
-                    if (strstr($cell, '.jpg') || strstr($cell, '.gif') || strstr($cell, '.png')) {
+                    $html = Dever::ishtml($cell);
+                    if ($html) {
+                        $wizard = new \PHPExcel_Helper_HTML;
+                        $cell = $wizard->toRichTextObject($cell);
+                    }
+                    if (!$html && (strstr($cell, '.jpg') || strstr($cell, '.gif') || strstr($cell, '.png'))) {
                         $key = ($i+$row);
                         $value = false;
 

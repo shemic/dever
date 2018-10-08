@@ -386,7 +386,7 @@ class Helper
      *
      * @return string
      */
-    public function qqvideo($link)
+    public static function qqvideo($link)
     {
         if (!$link) {
             return '';
@@ -420,5 +420,14 @@ class Helper
         }
 
         return $link;
+    }
+
+    public function ishtml($html)
+    {
+        if($html != strip_tags($html)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 }
