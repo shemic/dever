@@ -749,7 +749,9 @@ class Dever
         $v = str_replace('-1', '', $v);
         $v = str_replace(',,,', ',', $v);
         $v = str_replace(',,', ',', $v);
-        if (!strstr($v, ',')) {
+        if ($v == ',') {
+            $v = '';
+        } elseif (!strstr($v, ',')) {
             $v .= ',';
         }
         return $v;
