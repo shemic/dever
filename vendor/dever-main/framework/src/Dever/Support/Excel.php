@@ -149,7 +149,7 @@ class Excel
                     $html = Dever::ishtml($cell);
                     if ($html) {
                         $wizard = new \PHPExcel_Helper_HTML;
-                        $cell = $wizard->toRichTextObject($cell);
+                        $cell = $wizard->toRichTextObject('<?xml encoding="UTF-8">' . $cell);
                     }
                     if (!$html && (strstr($cell, '.jpg') || strstr($cell, '.gif') || strstr($cell, '.png'))) {
                         $key = ($i+$row);
