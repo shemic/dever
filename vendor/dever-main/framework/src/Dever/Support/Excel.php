@@ -211,8 +211,10 @@ class Excel
         if (!$fileName) {
             $fileName = uniqid(time(),true);
         }
-
+        
         $write = \PHPExcel_IOFactory::createWriter($xls, 'Excel2007');
+        ob_end_clean();
+        header('Content-Type: application/vnd.ms-excel');
         header('pragma:public');
         header("Content-Disposition:attachment;filename=$fileName.xlsx");
         $write->save('php://output');
@@ -240,7 +242,7 @@ class Excel
 
     private function csv_export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '', $return = false)
     {
-        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Type: application/vnd.ms-excel;charset=gb2312');
         header('Content-Disposition: attachment;filename='.$fileName.'.csv');
         header('Cache-Control: max-age=0');
         header('Content-Transfer-Encoding: binary'); 
