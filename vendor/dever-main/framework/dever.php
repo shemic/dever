@@ -63,6 +63,7 @@ class Dever
         'token' => array('Http\\Api', 'get'),
         'login' => array('Http\\Api', 'login'),
         'loginResult' => array('Http\\Api', 'loginResult'),
+        'nonce' => array('Http\\Api', 'nonce'),
 
         'rule' => array('String\\Regular', 'rule'),
         'id' => array('String\\Helper', 'id'),
