@@ -72,9 +72,24 @@ class Connect
             Debug::log('db ' . $config['host'] . ' connected', $config['type']);
         } catch (\PDOException $e) {
             if (strstr($e->getMessage(), 'Unknown database')) {
-                $link = @mysqli_connect($config['host'] . ':' . $config['port'], $config['username'], $config['password']);
-                @mysqli_query($link, "CREATE DATABASE `" . $config['database'] . "` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;");
-                @mysqli_close($link);
+                $method = 'mysql';
+                if (function_exists('mysqli_connect')) {
+                    $method = 'mysqli';
+                }
+                $connect = $method . '_connect';
+                $query = $method . '_query';
+                $close = $method . '_close';
+                $link = $connect($config['host'] . ':' . $config['port'], $config['username'], $config['password']);
+                if ($link) {
+                    if ($method == 'mysql') {
+                        $query("CREATE DATABASE `" . $config['database'] . "` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;", $link);
+                    } else {
+                        $query($link, "CREATE DATABASE `" . $config['database'] . "` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;");
+                    }
+                    
+                    $close($link);
+                }
+                
                 $this->init($config);
             } else {
                 Export::alert($e->getMessage());
