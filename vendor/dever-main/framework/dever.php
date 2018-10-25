@@ -220,7 +220,7 @@ class Dever
     public static function emoji($str)
     {
         if (function_exists('mb_convert_encoding')) {
-             $str = mb_convert_encoding($str, 'UTF-8');
+            //$str = mb_convert_encoding($str, 'UTF-8');
         }
        
         $str = preg_replace_callback(

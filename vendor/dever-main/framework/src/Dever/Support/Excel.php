@@ -170,6 +170,9 @@ class Excel
                                 $cv = Dever::load('upload/view')->get($cv);
                             }
                             $cv = Dever::local($cv);
+                            if (!is_file($cv)) {
+                                continue;
+                            }
                             $objDrawing[$ck]->setPath($cv);
                             $objDrawing[$ck]->setHeight($height);
                             //$objDrawing[$ck]->setWidth(150);

@@ -198,6 +198,10 @@ class Config
                 $root = $app['path'];
             }
             $name = $app['name'];
+        } elseif (defined('DEVER_APP_SETUP')) {
+            if (is_dir(DEVER_APP_SETUP . 'config')) {
+                $root = DEVER_APP_SETUP;
+            }
         }
         return array($root, $name);
     }
