@@ -427,7 +427,7 @@ class Condition
      */
     private function request($index, $request, $method)
     {
-        if ($index && isset($this->struct[$index]) && is_array($this->struct[$index]) && isset($this->struct[$index]['callback']) && $this->struct[$index]['callback'] && $request) {
+        if ($index && isset($this->struct[$index]) && is_array($this->struct[$index]) && isset($this->struct[$index]['callback']) && $this->struct[$index]['callback'] && $request && $request != 'null') {
             $callback = $this->struct[$index]['callback'];
             if ($callback == 'maketime') {
                 if (is_string($request)) {
