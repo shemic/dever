@@ -260,7 +260,7 @@ class Export
     private static function success($status, &$result)
     {
         if ($status == 1) {
-            $result['code'] = 1;
+            $result['code'] = 0;
             if ($page = self::page()) {
                 $result['page'] = $page;
             }

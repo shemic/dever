@@ -124,8 +124,19 @@ class Import
         if (strpos($method, '?')) {
             $temp = explode('?', $method);
             $method = $temp[0];
+            $send = array();
+            parse_str($temp[1], $send);
+            if ($send) {
+                foreach ($send as $k => $v) {
+                    Input::set($k, $v);
+                }
+            }
+            $param += $send;
+
+            /*
             $param[0] = array();
             parse_str($temp[1], $param[0]);
+            */
         }
 
         list($method, $attr) = self::attr($method);
