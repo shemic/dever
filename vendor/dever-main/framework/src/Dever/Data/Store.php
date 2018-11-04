@@ -174,7 +174,7 @@ class Store
         }
 
         if (empty($data['index']) || (isset($data['index']) && $data['index'] < $version)) {
-            $data = $this->getIndex($version, $index);
+            $data += $this->getIndex($version, $index);
 
             file_put_contents($file, '<?php return ' . var_export($data, true) . ';');
         }

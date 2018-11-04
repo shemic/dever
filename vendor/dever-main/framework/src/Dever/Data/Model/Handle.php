@@ -442,12 +442,18 @@ class Handle
     {
         if ($this->update) {
 
-            if (Project::load('manage') && isset($this->config['manage']) && isset($this->config['manage']['filter'])) {
-                $this->filter($this->config['manage']['filter'], $data);
-            }
+            if (!isset(Config::get('base')->after) || (isset(Config::get('base')->after) && Config::get('base')->after == false)) {
+                if (Project::load('manage') && isset($this->config['manage']) && isset($this->config['manage']['filter'])) {
+                    $this->filter($this->config['manage']['filter'], $data);
+                }
 
-            if (isset($this->config['sync'])) {
-                $this->sync($this->config['sync'], $data);
+                if (isset($this->config['sync'])) {
+                    $this->sync($this->config['sync'], $data);
+                }
+
+                if (isset($this->config['syncone'])) {
+                    $this->syncone($this->config['syncone'], $data);
+                }
             }
 
         } elseif ($data && isset($this->request['relate'])) {
@@ -476,6 +482,51 @@ class Handle
         }
     }
 
+    private function syncone($config, $id)
+    {
+        foreach ($config as $k => $v) {
+            $id = $id > 0 ? $id : $this->param['where_id'];
+
+            $info = Model::load($this->config['project']['name'] . '/' . $this->config['name'])->one(array('option_id' => $id, 'option_time' => time()));
+
+            $where = array();
+
+            if (isset($v['where'][0])) {
+                $where['option_' . $v['where'][0]] = $info[$v['where'][1]];
+            } else {
+                foreach ($v['where'] as $k1 => $v1) {
+                    if (isset($info[$v1])) {
+                        $where['option_' . $k1] = $info[$v1];
+                    } else {
+                        $where['option_' . $k1] = $v1;
+                    }
+                }
+            }
+
+            $one = Model::load($k)->one($where);
+
+            $method = 'insert';
+            $type = 'add';
+            if ($one) {
+                $method = 'update';
+                $type = 'set';
+                $where['where_id'] = $one['id'];
+            }
+
+            $param = array();
+            foreach ($v['update'] as $i => $j) {
+                if (isset($info[$j])) {
+                    $j = $info[$j];
+                }
+                $param[$type . '_' . $i] = $j;
+            }
+
+            $param = $where + $param;
+
+            Model::load($k)->$method($param);
+        }
+    }
+
     /**
      * handle
      *
@@ -487,12 +538,27 @@ class Handle
             $id = $id > 0 ? $id : $this->param['where_id'];
 
             $info = Model::load($this->config['project']['name'] . '/' . $this->config['name'])->one(array('option_id' => $id, 'option_time' => time()));
-            if (empty($info[$v['where'][1]])) {
+
+            $where = array();
+
+            if (isset($v['where'][0])) {
+                $where['option_' . $v['where'][0]] = $info[$v['where'][1]];
+            } else {
+                foreach ($v['where'] as $k1 => $v1) {
+                    if (isset($info[$v1])) {
+                        $where['option_' . $k1] = $info[$v1];
+                    } else {
+                        $where['option_' . $k1] = $v1;
+                    }
+                }
+            }
+
+            if (!$where) {
                 break;
             }
 
             if ($v['type'] == 'only') {
-                $param['option_' . $v['where'][0]] = $info[$v['where'][1]];
+                $param = $where;
                 foreach ($v['update'] as $i => $j) {
                     if (isset($info[$j])) {
                         $param[$i] = $info[$j];
@@ -501,10 +567,7 @@ class Handle
                 Model::load($k)->updates($param);
             } else {
                 if ($v['type'] == 'delete') {
-                    Model::load($k)->delete(array
-                    (
-                        'option_' . $v['where'][0] => $info[$v['where'][1]],
-                    ));
+                    Model::load($k)->delete($where);
                 }
                 foreach ($v['update'] as $i => $j) {
                     if (strpos($i, '-')) {
@@ -522,12 +585,9 @@ class Handle
                             $method = 'insert';
                             $type = 'add';
                             $param = array();
+                            $where['option_' . $i] = $b;
                             if ($v['type'] != 'delete') {
-                                $check = Model::load($k)->one(array
-                                    (
-                                        'option_' . $i => $b,
-                                        'option_' . $v['where'][0] => $info[$v['where'][1]],
-                                    ));
+                                $check = Model::load($k)->one($where);
 
                                 if ($check) {
                                     $method = 'update';
@@ -540,11 +600,7 @@ class Handle
                             }
 
                             if ($method) {
-                                $param += array
-                                    (
-                                    $type . '_' . $i => $b,
-                                    $type . '_' . $v['where'][0] => $info[$v['where'][1]],
-                                );
+                                $param += $where;
 
                                 if (isset($v['sync'])) {
                                     foreach ($v['sync'] as $c => $d) {
