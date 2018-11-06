@@ -531,7 +531,7 @@ class Handle
      * handle
      *
      * @return mixd
-     */
+     *
     private function sync($config, $id)
     {
         foreach ($config as $k => $v) {
@@ -601,6 +601,88 @@ class Handle
 
                             if ($method) {
                                 $param += $where;
+
+                                if (isset($v['sync'])) {
+                                    foreach ($v['sync'] as $c => $d) {
+                                        if (isset($info[$d]) && $info[$d]) {
+                                            $param[$type . '_' . $c] = $info[$d];
+                                        }
+                                    }
+                                }
+                                Model::load($k)->$method($param);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    */
+
+    private function sync($config, $id)
+    {
+        foreach ($config as $k => $v) {
+            $id = $id > 0 ? $id : $this->param['where_id'];
+
+            $info = Model::load($this->config['project']['name'] . '/' . $this->config['name'])->one(array('option_id' => $id, 'option_time' => time()));
+            if (empty($info[$v['where'][1]])) {
+                break;
+            }
+
+            if ($v['type'] == 'only') {
+                $param['option_' . $v['where'][0]] = $info[$v['where'][1]];
+                foreach ($v['update'] as $i => $j) {
+                    if (isset($info[$j])) {
+                        $param[$i] = $info[$j];
+                    }
+                }
+                Model::load($k)->updates($param);
+            } else {
+                if ($v['type'] == 'delete') {
+                    Model::load($k)->delete(array
+                    (
+                        'option_' . $v['where'][0] => $info[$v['where'][1]],
+                    ));
+                }
+                foreach ($v['update'] as $i => $j) {
+                    if (strpos($i, '-')) {
+                        $t = explode('-', $i);
+                        $i = $t[0];
+                    }
+                    $value = $info[$j];
+
+                    if ($value) {
+                        $value = explode(',', $value);
+                        foreach ($value as $a => $b) {
+                            if ($b < 0) {
+                                continue;
+                            }
+                            $method = 'insert';
+                            $type = 'add';
+                            $param = array();
+                            if ($v['type'] != 'delete') {
+                                $check = Model::load($k)->one(array
+                                    (
+                                        'option_' . $i => $b,
+                                        'option_' . $v['where'][0] => $info[$v['where'][1]],
+                                    ));
+
+                                if ($check) {
+                                    $method = 'update';
+                                    $type = 'set';
+                                    $param = array
+                                    (
+                                        'where_id' => $check['id'],
+                                    );
+                                }
+                            }
+
+                            if ($method) {
+                                $param += array
+                                    (
+                                    $type . '_' . $i => $b,
+                                    $type . '_' . $v['where'][0] => $info[$v['where'][1]],
+                                );
 
                                 if (isset($v['sync'])) {
                                     foreach ($v['sync'] as $c => $d) {
