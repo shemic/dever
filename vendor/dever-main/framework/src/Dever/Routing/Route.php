@@ -133,7 +133,7 @@ class Route
         if (Debug::init()) {
             Debug::out();
         } elseif ($this->html || Config::get('template')->view) {
-            echo Url::uploadRes($this->content);
+            echo Url::https(Url::uploadRes($this->content));
         } else {
             Export::out($this->content);
         }
