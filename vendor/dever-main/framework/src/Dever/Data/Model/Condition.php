@@ -366,6 +366,9 @@ class Condition
                 $index = $temp[1];
             }*/
             if (isset($this->struct[$index]) && is_array($this->struct[$index]) && isset($this->struct[$index]['match']) && $this->struct[$index]['match']) {
+                if (is_string($this->struct[$index]['match']) && strstr($this->struct[$index]['match'], 'option||')) {
+                    $this->struct[$index]['match'] = str_replace('option||', '', $this->struct[$index]['match']);
+                }
                 $value = $this->struct[$index]['match'];
             }
         }
