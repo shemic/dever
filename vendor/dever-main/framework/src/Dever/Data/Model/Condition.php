@@ -475,7 +475,7 @@ class Condition
             $type = $this->struct[$index]['type'];
             if (strpos($type, '-')) {
                 $temp = explode('-', $type);
-                if (isset($temp[1]) && $temp[1] && is_string($request)) {
+                if (isset($temp[1]) && $temp[1] && is_string($request) && $request) {
                     $len = strlen($request);
                     if (!strstr($temp[0], 'text') && $len > $temp[1]) {
                         $name = explode('-', $this->struct[$index]['name']);
