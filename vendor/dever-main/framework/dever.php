@@ -532,7 +532,8 @@ class Dever
      */
     public static function json_encode($value)
     {
-        $value = json_encode($value, JSON_UNESCAPED_UNICODE + JSON_FORCE_OBJECT);
+        //$value = json_encode($value, JSON_UNESCAPED_UNICODE + JSON_FORCE_OBJECT);
+        $value = json_encode($value, JSON_UNESCAPED_UNICODE);
         if (strpos($value, '<null>')) {
             $value = str_replace('<null>', '', $value);
         }
