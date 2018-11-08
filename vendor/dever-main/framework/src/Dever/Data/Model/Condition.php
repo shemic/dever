@@ -479,7 +479,7 @@ class Condition
                     $len = strlen($request);
                     if (!strstr($temp[0], 'text') && $len > $temp[1]) {
                         $name = explode('-', $this->struct[$index]['name']);
-                        Export::alert('core_database_maxlen', array($name[0], $temp[1]));
+                        //Export::alert('core_database_maxlen', array($name[0], $temp[1]));
                     }
                 }
             }
