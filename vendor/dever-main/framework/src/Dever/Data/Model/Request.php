@@ -93,6 +93,9 @@ class Request
         }
 
         if (empty($this->config[$method][$state][$key]) && isset($value['match'])) {
+            if (is_string($value['match']) && strstr($value['match'], 'option||')) {
+                $value['match'] = str_replace('option||', '', $value['match']);
+            }
             $this->config[$method][$state][$key] = $value['match'];
         }
     }
