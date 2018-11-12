@@ -56,7 +56,10 @@ class Url
 
         self::workspace($value);
 
-        return self::$config['url'][$key] = $host . Uri::$type . $value;
+        $url = $host . Uri::$type . $value;
+        self::$config['url'][$key] = str_replace('??', '?', $url);
+
+        return self::$config['url'][$key];
     }
 
     /**
@@ -438,6 +441,9 @@ class Url
             $project = $temp[0];
             unset($temp[0]);
             $value = implode('/', $temp);
+            if (!isset($config['url'])) {
+                $config['url'] = $config['path'];
+            }
             $host = $config['url'];
         }
     }
