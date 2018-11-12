@@ -99,7 +99,7 @@ class Url
         if (strstr($file, '{"') || strstr($file, '<img')) {
             $key = '{uploadRes}';
 
-            $file = preg_replace_callback('/'.$key.'(.*?)(\.jpg|\.png)/i', function($matches) use ($key, $name)
+            $file = preg_replace_callback('/'.$key.'(.*?)(\.jpg|\.png|\.gif)/i', function($matches) use ($key, $name)
                 {
                     if (isset($matches[1]) && isset($matches[2])) {
                         $matches[1] = str_replace('\/', '/', $matches[1]);
