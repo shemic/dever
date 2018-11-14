@@ -168,7 +168,7 @@ class Api
      *
      * @return mixed
      */
-    public static function loginResult($signature)
+    public static function loginResult($signature, $state = true)
     {
         $auth = $user = array();
         if ($signature) {
@@ -179,7 +179,7 @@ class Api
 
         if (!empty($uid) && (time() - $time) < 2592000) {
             return Config::get('base')->user = array('uid' => $uid, 'time' => $time);
-        } else {
+        } elseif ($state) {
             Export::alert('api_signature_exists');
         }
     }
