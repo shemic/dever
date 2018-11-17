@@ -625,6 +625,11 @@ class Handle
             $id = $id > 0 ? $id : $this->param['where_id'];
 
             $info = Model::load($this->config['project']['name'] . '/' . $this->config['name'])->one(array('option_id' => $id, 'option_time' => time()));
+            
+
+            if (empty($v['where'][1])) {
+                break;
+            }
             if (empty($info[$v['where'][1]])) {
                 break;
             }
