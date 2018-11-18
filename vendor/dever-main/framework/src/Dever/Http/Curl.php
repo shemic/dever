@@ -46,10 +46,10 @@ class Curl
      *
      * @return \Dever\Http\Curl
      */
-    public static function getInstance($url, $param = false, $type = 'get', $json = false, $header = false)
+    public static function getInstance($url, $param = false, $type = 'get', $json = false, $header = false, $agent = false, $refer = false)
     {
         self::$instance = new self();
-        return self::$instance->load($url, $param, $type, $json, $header);
+        return self::$instance->load($url, $param, $type, $json, $header, $agent, $refer);
     }
 
     /**
@@ -57,9 +57,9 @@ class Curl
      *
      * @return mixed
      */
-    public static function get($url, $param = false, $type = 'get', $json = false, $header = false)
+    public static function get($url, $param = false, $type = 'get', $json = false, $header = false, $agent = false, $refer = false)
     {
-        return self::getInstance($url, $param, $type, $json, $header)->result();
+        return self::getInstance($url, $param, $type, $json, $header, $agent, $refer)->result();
     }
 
     /**
@@ -67,9 +67,9 @@ class Curl
      *
      * @return mixed
      */
-    public static function post($url, $param = false, $json = false, $header = false)
+    public static function post($url, $param = false, $json = false, $header = false, $agent = false, $refer = false)
     {
-        return self::getInstance($url, $param, $type = 'post', $json, $header)->result();
+        return self::getInstance($url, $param, $type = 'post', $json, $header, $agent, $refer)->result();
     }
 
     /**
@@ -77,7 +77,7 @@ class Curl
      *
      * @return mixed
      */
-    public function load($url, $param = false, $type = '', $json = false, $header = false)
+    public function load($url, $param = false, $type = '', $json = false, $header = false, $agent = false, $refer = false)
     {
         $this->init();
 
@@ -87,6 +87,14 @@ class Curl
 
         if ($header) {
             $this->setHeader($header);
+        }
+
+        if ($agent) {
+            $this->setAgent($agent);
+        }
+
+        if ($refer) {
+            $this->setRefer($refer);
         }
 
         if ($json) {
