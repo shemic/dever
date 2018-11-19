@@ -50,7 +50,20 @@ class Oper
         }
         if ($method != 'cli') {
             @header('P3P: CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"');
+            //
+            # 解决post页面返回上一页问题 这个有问题
+            /*
+            if (Config::get('template')->session_cache) {
+                @session_cache_limiter('private');
+            }
+            */
             @session_start();
+
+            # 解决post页面返回上一页问题
+            if (Config::get('template')->session_cache) {
+                //@header("Cache-control: private");
+            }
+            
             if (Config::get('host')->cookie) {
                 ini_set('session.cookie_domain', Config::get('host')->cookie);
             }

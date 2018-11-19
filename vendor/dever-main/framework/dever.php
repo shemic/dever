@@ -578,7 +578,7 @@ class Dever
      */
     public static function array_decode($value)
     {
-        return self::json_decode(base64_decode($value));
+        return self::json_decode(base64_decode($value, true));
     }
 
     /**
