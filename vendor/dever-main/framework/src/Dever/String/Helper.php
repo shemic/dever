@@ -431,4 +431,20 @@ class Helper
             return false;
         }
     }
+
+    /**
+     * filter 过滤一些有问题的代码
+     * @param string $content 内容
+     *
+     * @return mixed
+     */
+    public static function filter($content)
+    {
+        if (strpos($content, 'font-family') !== false) {
+            $content = preg_replace('/font-family:([\s\S]*?);/i', '', $content);
+            $content = preg_replace('/"="([\s\S]*?)">/i', '">', $content);
+        }
+
+        return $content;
+    }
 }
