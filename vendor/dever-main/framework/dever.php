@@ -760,4 +760,17 @@ class Dever
         }
         return $v;
     }
+
+    /**
+     * score 积分组件
+     * @param string $value
+     *
+     * @return mixed
+     */
+    public static function score($uid, $key, $name = '', $content = '')
+    {
+        if (self::project('score')) {
+            self::load('score/lib/core')->log($uid, $key, $name, $content);
+        }
+    }
 }
