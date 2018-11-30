@@ -258,6 +258,7 @@ class Dever
 
     public static function mdate($num, $type = 1)
     {
+        $date = $num;
         $num = time() - $num;
 
         if ($num <= 0) {
@@ -270,9 +271,9 @@ class Dever
 
         $config = array
             (
-            array(31536000, 'Y', '年'),
-            array(2592000, 'T', '个月'),
-            array(604800, 'W', '星期'),
+            //array(31536000, 'Y', '年'),
+            //array(2592000, 'T', '个月'),
+            //array(604800, 'W', '星期'),
             array(86400, 'D', '天'),
             array(3600, 'H', '小时'),
             array(60, 'M', '分钟'),
@@ -282,13 +283,15 @@ class Dever
         if ($type == 2) {
             foreach ($config as $k => $v) {
                 $value = intval($num / $v[0]);
-
+                if ($v[1] == 'D' && $value >= 7) {
+                    break;
+                }
                 if ($value != 0) {
                     return $value . $v[2] . '前';
                 }
             }
 
-            return '';
+            return date('Y-m-d H:i:s', $date);
         } else {
             $result = '';
 
