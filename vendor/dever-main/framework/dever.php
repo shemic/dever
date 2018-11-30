@@ -770,10 +770,10 @@ class Dever
      *
      * @return mixed
      */
-    public static function score($uid, $key, $name = '', $content = '', $score = false)
+    public static function score($uid, $key, $name = '', $content = '', $score = false, $num = false)
     {
         if (self::project('score')) {
-            self::load('score/lib/core')->log($uid, $key, $name, $content, $score);
+            self::load('score/lib/core')->log($uid, $key, $name, $content, $score, $num);
         }
     }
 }
