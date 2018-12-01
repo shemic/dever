@@ -776,4 +776,24 @@ class Dever
             self::load('score/lib/core')->log($uid, $key, $name, $content, $score, $num);
         }
     }
+
+    /**
+     * 判断文件是否存在，支持本地及远程文件
+     * @param  String  $file 文件路径
+     * @return Boolean
+     */
+    public static function is_file($file)
+    {
+        // 远程文件
+        if(strtolower(substr($file, 0, 4))=='http'){
+
+            $header = get_headers($file, true);
+
+            return isset($header[0]) && (strpos($header[0], '200') || strpos($header[0], '304'));
+
+        // 本地文件
+        }else{
+            return is_file($file);
+        }
+    }
 }
