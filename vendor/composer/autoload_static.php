@@ -103,6 +103,7 @@ class ComposerStaticInit250b3766e5468b010f1c776855455762
         'Dever\\Support\\Csv' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Support/Csv.php',
         'Dever\\Support\\Env' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Support/Env.php',
         'Dever\\Support\\Path' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Support/Path.php',
+        'Dever\\Support\\Img' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Support/Img.php',
         'Dever\\Template\\Common' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Template/Common.php',
         'Dever\\Template\\Compile' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Template/Compile.php',
         'Dever\\Template\\Dom' => __DIR__ . '/..' . '/dever-main/framework/src/Dever/Template/Dom.php',
