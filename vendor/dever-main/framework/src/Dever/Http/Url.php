@@ -169,7 +169,7 @@ class Url
             $file = str_replace('.' . $ext, '_' . $name . '.' . $ext, $file);
         }
         
-        $file = Import::load('upload/view.get', $file);
+        $file = Import::load('upload/view.get?file=' . $file);
         return $file;
     }
 
