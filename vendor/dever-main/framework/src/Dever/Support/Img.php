@@ -1308,7 +1308,7 @@ class Img
         $this->_check('txt','size');
         $this->_check('txt','angle');
         $this->_check('txt','name');
-        $this->_check('mark', 'position');
+        $this->_check('txt', 'position');
         //$this->_check('txt','left');
         //$this->_check('txt','top');
         //$this->_check('txt','bgcolor');
@@ -1318,11 +1318,18 @@ class Img
 
         if ($this->_setup == true || !file_exists($this->_dest['txt'])) {
 
-            $draw = new \ImagickDraw();
-            if (isset($this->_txt['font'])) {
-                $draw->setFont($this->_txt['font']);
+            $fontFile = isset($this->_txt['font']) ? $this->_txt['font'] : "SIMSUN.TTC";
+            
+            $this->_txt['autowrap'] = 0;
+            if (isset($this->_txt['width']) && $this->_txt['width'] > 0) {
+                $this->_txt['name'] = $this->_gd_autowrap($this->_txt['size'], $this->_txt['angle'], $fontFile, $this->_txt['name'], $this->_txt['width']);
+            }
 
-                $position = imagettfbbox($this->_txt['size'], $this->_txt['angle'], $this->_txt['font'], $this->_txt['name']);
+            $draw = new \ImagickDraw();
+            if ($fontFile) {
+                $draw->setFont($fontFile);
+
+                $position = imagettfbbox($this->_txt['size'], $this->_txt['angle'], $fontFile, $this->_txt['name']);
                 if ($position) {
                     $source_x   = $this->_image->getImageWidth();
                     $source_y   = $this->_image->getImageHeight();
@@ -1350,7 +1357,7 @@ class Img
                     $frame->annotateImage($draw, $this->_txt['left'], $this->_txt['top'], $this->_txt['angle'], $this->_txt['name']);
                 }
             } else {
-                $this->_image->annotateImage($draw, $this->_txt['left'], $this->_txt['top'], $this->_txt['angle'], $this->_txt['name']);
+                $this->_image->annotateImage($draw, $this->_txt['left'], $this->_txt['top'] + $this->_txt['autowrap'], $this->_txt['angle'], $this->_txt['name']);
             }
 
             $this->_image->writeImage($this->_dest['txt']);
@@ -1363,9 +1370,11 @@ class Img
      */
     private function _im_get($image = false)
     {
-        if (!is_file($image)) {
+        /*
+        if (!Dever::is_file($image)) {
             return false;
         }
+        */
         if ($image && strstr($image, 'http')) {
             $content = file_get_contents($image);
             $im = new \Imagick();
