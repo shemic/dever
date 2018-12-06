@@ -298,7 +298,7 @@ class Helper
                 $length -= 0.5;
             }
         }
-        $result = htmlentities($result, ENT_QUOTES, 'utf-8');
+        //$result = htmlentities($result, ENT_QUOTES, 'utf-8');
         if ($i < strlen($string)) {
             $result .= $etc;
         }
