@@ -111,6 +111,7 @@ class Dever
         'excelImport' => array('Support\\Excel', 'import'),
 
         'log' => array('Log\\Oper', 'add'),
+        'getLog' => array('Log\\Oper', 'get'),
     );
 
     private static $define = array();
