@@ -127,7 +127,7 @@ class Server
     private function curl()
     {
         $this->url .= $this->key;
-        $data = Curl::get($this->url, $this->param);
+        $data = Curl::get($this->url, $this->param, 'post');
         return $data;
     }
 
