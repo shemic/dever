@@ -234,6 +234,14 @@ class Library
      */
     public function loadFunction($project)
     {
+        $key = 'project_' . DEVER_PROJECT;
+        if (empty($this->function[$key])) {
+            $this->function[$key] = true;
+            $file  = DEVER_PROJECT_PATH . 'common.php';
+            if (is_file($file)) {
+                include $file;
+            }
+        }
         $this->project = $project;
         if (empty($this->function[$project['name']]) && isset($project['name']) && isset($project['path'])) {
             $this->function[$project['name']] = true;

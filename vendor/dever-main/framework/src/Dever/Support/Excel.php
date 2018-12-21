@@ -42,6 +42,9 @@ class Excel
     public static function export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '', $return = false, $method = false)
     {
         if (!$method) {
+            if (Dever::project('excel')) {
+                Dever::apply('src/PHPExcel', 'excel');
+            }
             $state = class_exists('\PHPExcel');
             if ($state) {
                 $method = 'excel';
@@ -63,6 +66,9 @@ class Excel
     public static function import($file, $sheet = 0, $offset = 0)
     {
         if (!$method) {
+            if (Dever::project('excel')) {
+                Dever::apply('src/PHPExcel', 'excel');
+            }
             $state = class_exists('\PHPExcel');
             if ($state) {
                 $method = 'excel';
@@ -250,7 +256,7 @@ class Excel
 
     private function csv_export($data = array(), $header = array(), $fileName = '', $sheet = 0, $sheetName = '', $return = false)
     {
-        header('Content-Type: application/vnd.ms-excel;charset=gb2312');
+        header('Content-Type: application/vnd.ms-excel;charset=gb2312,\uFEFF');
         header('Content-Disposition: attachment;filename='.$fileName.'.csv');
         header('Cache-Control: max-age=0');
         header('Content-Transfer-Encoding: binary'); 

@@ -64,6 +64,9 @@ class Input
     protected static function requestHttp()
     {
         $header = Env::header();
+        if (isset($header['cookie'])) {
+            unset($header['cookie']);
+        }
         self::$request = array_merge($_GET, $_POST, $_FILES, $header);
         //unset($_GET);unset($_POST);unset($_FILES);
         self::$command = false;

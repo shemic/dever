@@ -170,6 +170,9 @@ class Api
      */
     public static function loginResult($signature, $state = true)
     {
+        if (is_numeric($signature)) {
+            return Config::get('base')->user = array('uid' => $signature, 'time' => time());
+        }
         $auth = $user = array();
         if ($signature) {
             $auth = explode("\t", Encrypt::decode(base64_decode($signature), self::$token));

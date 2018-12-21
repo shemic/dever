@@ -12,7 +12,7 @@ class Oper
         if (!Config::get('debug')->log) {
             return;
         }
-        $log = '';
+        $log = 'dever';
         if (is_array($msg)) {
             foreach ($msg as $k => $v) {
                 if (is_array($v)) {
@@ -51,7 +51,7 @@ class Oper
         $class = '\\Dever\\Server\\Udp';
         $class = new $class;
         $class->client(Config::get('debug')->log['host'], Config::get('debug')->log['port']);
-        $class->push($log);
+        return $class->push($log);
     }
 
     private static function push_syslog($log, $type)
@@ -78,30 +78,65 @@ class Oper
 
     private static function push_file($log, $type)
     {
-        $size = isset(Config::get('debug')->log['size']) ? Config::get('debug')->log['size'] : 5242880;//默认5M
-        $date = explode('-', date("Y-m-d"));
-        $path = Path::month('logs');
         $now = Dever::udate('Y-m-d'.'\T'.'H:i:s.u+08:00');
         $project = DEVER_PROJECT;
         $app = DEVER_APP_NAME;
         $log = $now . ' ' . $project . ' ' . $app . ' ' . $log . "\r\n";
-        $file = date('Y_m_d');
-        if ($type == 1) {
-            $file = 'debug_' . $file . '.log';
-        } elseif ($type == 2) {
-            $file = 'notice_' . $file . '.log';
-        } elseif ($type == 3) {
-            $file = 'info_' . $file . '.log';
-        } else {
-            $file = $type . '_' . $file . '.log';
-        }
-        $file = $path . $file;
+        $file = self::getFileName($type);
+        $file = Dever::path($file[0], $file[1] . $file[2]);
+
+        $size = isset(Config::get('debug')->log['size']) ? Config::get('debug')->log['size'] : 5242880;//默认5M
 
         if (file_exists($file) && $size <= filesize($file)) {
-            rename($file, $file . '_bak');
+            rename($file, $file . '.' . date('H_i_s') . '.bak');
         }
         
         return error_log($log, 3, $file);
+    }
+
+    public static function get($day, $type = 1)
+    {
+        if (is_array(Config::get('debug')->log)) {
+            $method = Config::get('debug')->log['type'];
+        } else {
+            $method = 'syslog';
+        }
+        $method = 'get_' . $method;
+        return self::$method($day, $type);
+    }
+
+    private static function get_http($day, $type)
+    {
+        return false;
+    }
+
+    private static function get_udp($day, $type)
+    {
+        return false;
+    }
+
+    private static function get_syslog($day, $type)
+    {
+        return false;
+    }
+
+    private static function get_file($day, $type)
+    {
+        $file = self::getFileName($type, $day);
+        $content = '';
+        $path = $file[0] . $file[1];
+        if (is_dir($path)) {
+            $dir = scandir($path);
+            foreach ($dir as $k => $v) {
+                if (strstr($v, $file[2])) {
+                    $content .= file_get_contents($path . $v);
+                }
+            }
+        }
+        if ($content) {
+            return explode("\n", $content); 
+        }
+        return array();    
     }
 
     public static function filter($string)
@@ -110,5 +145,31 @@ class Oper
             $string = json_encode($string);
         }
         return str_replace(array("\t","\n","\r"),array(",",",",","),$string);
+    }
+
+    private static function getFileName($type, $day = '')
+    {
+        $root = Path::month('logs');
+        $file = $day ? $day : date('Y_m_d');
+        
+        if ($type == 1) {
+            $prefix = 'debug';
+        } elseif ($type == 2) {
+            $prefix = 'notice';
+        } elseif ($type == 3) {
+            $prefix = 'info';
+        } else {
+            $prefix = $type;
+        }
+
+        if (strstr($type, '/')) {
+            $path = $prefix . '/';
+            $file = $file . '.log';
+        } else {
+            $path = '';
+            $file = $prefix . '_' . $file . '.log';
+        }
+
+        return array($root, $path, $file);
     }
 }

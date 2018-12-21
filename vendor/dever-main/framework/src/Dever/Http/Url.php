@@ -140,6 +140,7 @@ class Url
 
     private function uploadHandle($file, $name)
     {
+        $source = $file;
         if (strstr($file, '<img')) {
             return self::html($file, $name);
         }
@@ -170,7 +171,11 @@ class Url
         }
         
         $file = Import::load('upload/view.get?file=' . $file);
-        return $file;
+
+        if ($file) {
+            return $file;
+        }
+        return $source;
     }
 
     private static function html($file, $name)
