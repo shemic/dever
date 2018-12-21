@@ -849,6 +849,7 @@ class Img
      */
     private function _gd_get($image)
     {
+        ini_set("memory_limit", "2048M");
         $imgstream = file_get_contents($image);
         $im = imagecreatefromstring($imgstream);
         return $im;
