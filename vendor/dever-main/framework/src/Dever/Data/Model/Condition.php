@@ -161,7 +161,7 @@ class Condition
         $send = array();
         if (!$config && isset($this->param)) {
             foreach ($this->param as $k => $v) {
-                $k = str_replace(array('option_', 'where_'), '', $k);
+                $k = str_replace(array('option_', 'where_', 'add_', 'set_'), '', $k);
                 $config[$k] = $v;
             }
         }

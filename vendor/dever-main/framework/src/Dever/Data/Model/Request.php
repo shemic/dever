@@ -151,7 +151,7 @@ class Request
             if (strpos($value['search'], 'time') !== false || strpos($value['search'], 'date') !== false) {
                 $this->config[$method]['option']['start_' . $key] = array('yes-' . $key, '>=');
                 $this->config[$method]['option']['end_' . $key] = array('yes-' . $key, '<=');
-            } elseif (strpos($value['search'], 'fulltext') !== false || strpos($value['search'], 'linkage') !== false) {
+            } elseif ($method == 'list' && strpos($value['search'], 'fulltext') !== false || strpos($value['search'], 'linkage') !== false) {
                 $this->config[$method]['option'][$key] = array('option', 'like');
             }
         }
@@ -265,6 +265,16 @@ class Request
     protected function _stateTotal()
     {
         return array_merge($this->_total(), array('where' => array('state' => 1)));
+    }
+
+    /**
+     * _state
+     *
+     * @return mixd
+     */
+    protected function _stateOne()
+    {
+        return array_merge($this->_one(), array('where' => array('state' => 1)));
     }
 
     /**
