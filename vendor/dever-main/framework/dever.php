@@ -712,14 +712,19 @@ class Dever
      */
     public static function session($key, $value = false, $timeout = 3600, $type = 'cookie')
     {
-        if (empty(self::$save)) {
-            self::$save = new \Dever\Session\Oper(DEVER_APP_NAME, $type);
+        if (!isset(self::$save[$key])) {
+            self::$save[$key] = new \Dever\Session\Oper(DEVER_APP_NAME, $type);
         }
 
         if ($value) {
-            return self::$save->add($key, $value, $timeout);
+            if ($value == 'delete') {
+                return self::$save[$key]->un($key);
+            } else {
+                return self::$save[$key]->add($key, $value, $timeout);
+            }
+            
         } else {
-            return self::$save->get($key);
+            return self::$save[$key]->get($key);
         }
     }
 
@@ -795,6 +800,29 @@ class Dever
         // 本地文件
         }else{
             return is_file($file);
+        }
+    }
+
+    /**
+     * 获取refer和设置refer
+     */
+    public function refer($project = 'main', $method = 'set')
+    {
+        if ($method == 'set') {
+            return 'refer=' . self::encode(self::url(false, $project));
+        } else {
+            $refer = self::input('refer');
+            if ($refer) {
+                $refer = self::decode($refer);
+            } else {
+                $refer = Dever::url('home', $project);
+            }
+
+            $param = Dever::input('refer_param');
+            if ($param) {
+                $refer .= '&' . $param;
+            }
+            return $refer;
         }
     }
 }
