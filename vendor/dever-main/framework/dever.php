@@ -825,4 +825,40 @@ class Dever
             return $refer;
         }
     }
+
+    /**
+     * 获取后台的项目权限
+     */
+    public function top($key = false)
+    {
+        if (!$key) {
+            $key = self::config('base')->top;
+        }
+        return self::load('manage/auth.getTop', $key);
+    }
+
+    /**
+     * 获取后台的项目权限
+     */
+    public function tops($key = false)
+    {
+        if (!$key) {
+            $key = self::config('base')->top;
+        }
+        $auth = self::auth();
+        if ($auth['top'] != 'all') {
+            $key = str_replace('/', '-', $key);
+            $auth['top'] = str_replace($key . '_', '', $auth['top']);
+            return $auth['top'];
+        }
+        return false;
+    }
+
+    /**
+     * 获取后台的项目权限
+     */
+    public function auth()
+    {
+        return self::load('manage/auth.data');
+    }
 }
