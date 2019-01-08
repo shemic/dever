@@ -591,7 +591,7 @@ class Sql
             $where = $param[3] . ' ' . $param[0] . ' ' . $param[2] . ' ' . $param[1] . $where;
         }
 
-        if ($param[2] == 'in') {
+        if ($param[2] == 'in' && isset($param[4]) && $param[4] == 'order') {
             $param[1] = str_replace(array('(',')'), '', $param[1]);
             $this->orderBy = 'order by field(' . $param[0] . ', ' . $param[1] . ')';
         }
