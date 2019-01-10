@@ -1,6 +1,7 @@
 <?php namespace Dever\String;
 
 use Dever\Http\Curl;
+use Dever;
 class Helper
 {
     /**
