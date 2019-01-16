@@ -448,4 +448,178 @@ class Helper
 
         return $content;
     }
+
+    /**
+     * parseEditor 解析kindeditor特殊模块
+     * @param string $html 内容
+     *
+     * @return array
+     */
+    public static function parseEditor($html)
+    {
+        $html = Dever::filter($html);
+
+        $content = $html;
+        $replace = array();
+
+        # embed已废弃
+        if (strstr($html, 'embed')) {
+            # 音频
+            preg_match_all('/<embed src="(.*?)"(.*?)\/>/i', $content, $matches);
+            if (isset($matches[1])) {
+                foreach ($matches[1] as $k => $v) {
+                    $content = str_replace($matches[0][$k], '{replace}'.count($replace).'{replace}', $content);
+
+                    if (strstr($v, '.mp4') || strstr($v, '.mov') || strstr($v, '.m3u8')) {
+                        $replace[] = array('type' => 6, 'content' => $v);
+                    } else {
+                        $replace[] = array('type' => 5, 'content' => $v);
+                    }
+                }
+            }
+        }
+
+        if (strstr($html, 'data-applet') && Dever::project('content')) {
+            # 小程序
+            preg_match_all('/<img(.*?)data-applet="(.*?)" \/>/', $content, $matches);
+
+            if (isset($matches[2])) {
+                foreach ($matches[2] as $k => $v) {
+                    $content = str_replace($matches[0][$k], '{replace}'.count($replace).'{replace}', $content);
+                    $temp = explode('||', $v);
+                    $pic = $temp[0];
+                    $appid = $temp[1];
+                    $path = $temp[2];
+
+                    $appinfo = Dever::db('content/applet')->one(array('appid' => $appid));
+                    if (isset($temp[3]) && $temp[3]) {
+                        $appinfo['link'] = $temp[3];
+                    }
+
+                    $replace[] = array('type' => 7, 'pic_cover' => $pic, 'appid' => $appid, 'path' => $path, 'name' => $appinfo['name'], 'link' => $appinfo['link']);
+                }
+            }
+        }
+
+        if (strstr($html, 'data-file')) {
+            # 音频
+            preg_match_all('/<img src="(.*?)" style="(.*?)" data-file="(.*?)" \/>/', $content, $matches);
+
+            if (!isset($matches[1][0])) {
+                preg_match_all('/<img style="(.*?)" src="(.*?)" data-file="(.*?)" \/>/', $content, $matches);
+                $temp = array();
+                if (isset($matches[2][0])) {
+                    $temp = $matches;
+                    $matches[1] = $temp[2];
+                    unset($temp);
+                }
+            }
+
+            if (isset($matches[1])) {
+                foreach ($matches[1] as $k => $v) {
+                    if (isset($matches[3][$k])) {
+                        $content = str_replace($matches[0][$k], '{replace}'.count($replace).'{replace}', $content);
+
+                        $file = $matches[3][$k];
+                        $temp = explode('||', $file);
+                        $file = $temp[0];
+                        if (isset($temp[1])) {
+                            $name = $temp[1];
+                        } else {
+                            $name = '';
+                        }
+
+                        if (isset($temp[2])) {
+                            $wh = explode('*', $temp[2]);
+                            $width = $wh[0];
+                            $height = $wh[1];
+                        } else {
+                            $width = $height = '100%';
+                        }
+                        
+                        $cover = $v;
+
+                        if (strstr($v, '.mp4') || strstr($v, '.mov') || strstr($v, '.m3u8')) {
+                            $replace[] = array('type' => 6, 'content' => $file, 'cover' => $cover, 'name' => $name, 'width' => $width, 'height' => $height);
+                        } else {
+                            $replace[] = array('type' => 5, 'content' => $file, 'cover' => $cover, 'name' => $name, 'width' => $width, 'height' => $height);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (strstr($html, 'data-id') && Dever::project('video')) {
+            # 视频+直播
+            preg_match_all('/<img(.*?)data-id="(.*?)" data-key="(.*?)" \/>/', $content, $matches);
+            
+            
+            if (!isset($matches[2][0])) {
+                preg_match_all('/<img(.*?)data-key="(.*?)" data-id="(.*?)" \/>/', $content, $matches);
+                $temp = array();
+                if (isset($matches[2][0]) && isset($matches[3][0])) {
+                    $temp = $matches;
+                    $matches[2] = $temp[3];
+                    $matches[3] = $temp[2];
+                    unset($temp);
+                }
+            }
+            
+            if (isset($matches[2][0]) && isset($matches[3][0])) {
+                foreach ($matches[2] as $k => $v) {
+                    $content = str_replace($matches[0][$k], '{replace}'.count($replace).'{replace}', $content);
+                    if ($matches[3][$k] == 'video/lib/core.vod') {
+                        $method = 'video/lib/vod';
+                        $type = 2;
+                    } else {
+                        $type = 3;
+                        $method = 'video/lib/live';
+                    }
+
+                    $info = Dever::load($method)->get($v);
+                    if (isset($info['content'])) {
+                        unset($info['content']);
+                    }
+
+                    if ($type == 3) {
+                        # 查看是否有预约
+                        if ($uid > 0) {
+                            $info['user_act']['note'] = Dever::load('act/lib/note')->get($uid, $v, $type);
+                        } else {
+                            $info['user_act']['note'] = 2;
+                        }
+                    }
+                    $replace[] = array('id' => $v, 'type' => $type, 'content' => $info);
+                }
+            }
+        }
+
+        //$html = preg_replace('/<div class="dever-drop">([\s\S]*?)<\/div>/i', '', $html);
+
+        $content = explode('{replace}', $content);
+        $result = array();
+        //print_r($content);die;
+        foreach ($content as $k => $v) {
+            $v = trim($v);
+            if (is_numeric($v) && $v >= 0 && isset($replace[$v])) {
+                $result[] = $replace[$v];
+            } elseif ($v) {
+                $result[] = array
+                (
+                    'type' => 1,
+                    'content' => $v,
+                );
+            }
+        }
+
+        if (!$result) {
+            $result[] = array
+            (
+                'type' => 1,
+                'content' => $html,
+            );
+        }
+
+        return $result;
+    }
 }

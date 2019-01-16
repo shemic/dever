@@ -77,6 +77,7 @@ class Dever
         'uid' => array('String\\Helper', 'uid'),
         'rand' => array('String\\Helper', 'rand'),
         'filter' => array('String\\Helper', 'filter'),
+        'parseEditor' => array('String\\Helper', 'parseEditor'),
 
         'qqvideo' => array('String\\Helper', 'qqvideo'),
         'ishtml' => array('String\\Helper', 'ishtml'),
