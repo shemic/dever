@@ -26,6 +26,13 @@ class Uri
     public static $value;
 
     /**
+     * pathinfo value
+     *
+     * @var string
+     */
+    public static $pathinfo;
+
+    /**
      * method
      *
      * @var string
@@ -115,10 +122,20 @@ class Uri
      */
     private static function info()
     {
+        self::$pathinfo = -1;
         if (isset($_SERVER['PATH_INFO'])) {
-            self::$type = '';
+            self::$pathinfo = $_SERVER['PATH_INFO'];
+        } elseif (isset($_SERVER['ORIG_PATH_INFO'])) {
+            self::$pathinfo = $_SERVER['ORIG_PATH_INFO'];
+        }
+        if (self::$pathinfo != -1) {
+            if (strstr($_SERVER['REQUEST_URI'], 'index.php/')) {
+                self::$type = 'index.php/';
+            } else {
+                self::$type = '';
+            }
 
-            self::$value = trim($_SERVER['PATH_INFO'], self::EXPLODE);
+            self::$value = trim(self::$pathinfo, self::EXPLODE);
 
             self::$url = preg_replace('/^\//i', '', $_SERVER['REQUEST_URI']);
         }
@@ -147,7 +164,7 @@ class Uri
      */
     private static function request_uri()
     {
-        if (!isset($_SERVER['PATH_INFO']) && isset($_SERVER['REQUEST_URI']) && $_SERVER['REQUEST_URI'] && $_SERVER['REQUEST_URI'] != '/') {
+        if (self::$pathinfo == -1 && isset($_SERVER['REQUEST_URI']) && $_SERVER['REQUEST_URI'] && $_SERVER['REQUEST_URI'] != '/') {
             $entry = defined('DEVER_ENTRY') ? DEVER_ENTRY : 'index.php';
             self::$type = $entry == 'index.php' ? '?' : $entry . '?';
             if ($_SERVER['REQUEST_URI'] != $_SERVER['SCRIPT_NAME']) {
