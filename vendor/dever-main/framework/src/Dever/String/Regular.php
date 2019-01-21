@@ -26,4 +26,11 @@ class Regular
         $rule = $rule ? $rule : 8;
         return '^([\x{4e00}-\x{9fa5}]){'.$rule.'}$';
     }
+
+    # 中英文
+    public static function rule_name($rule)
+    {
+        $rule = $rule ? $rule : 16;
+        return '^([\x4e00-\x9fa5_a-zA-Z0-9]){'.$rule.'}$';
+    }
 }
