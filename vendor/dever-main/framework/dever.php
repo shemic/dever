@@ -395,7 +395,7 @@ class Dever
 
     public static function script()
     {
-        $script = 'var config={};config.init=false;config.host="' . self::url('') . '";config.type="' . Dever\Routing\Uri::$type . '";config.current="' . self::url() . '";config.upload="' . self::config('host')->upload . '";config.assets="' . self::config('host')->assets . '";config.script="' . self::config('host')->script . '";';
+        $script = 'var config={};config.init=false;config.host="' . self::url('') . '";config.type="' . Dever\Routing\Uri::$type . '";config.current="' . self::url() . '";config.upload="' . self::config('host')->upload . '";config.uploadRes="' . self::config('host')->uploadRes . '";config.assets="' . self::config('host')->assets . '";config.script="' . self::config('host')->script . '";';
 
         if (self::config('host')->css) {
             $script .= 'config.css="' . self::config('host')->css . '";';
