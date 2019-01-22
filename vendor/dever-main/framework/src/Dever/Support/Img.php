@@ -288,6 +288,22 @@ class Img
     }
 
     /**
+     * @desc 对图片进行jpg转换
+     * @param *
+     */
+    public function jpg($source, $quality = 75, $name = false)
+    {
+        $this->setSource($source);
+        if (!$this->_image) {
+            return $source;
+        }
+        if ($name) $this->setName($name);
+        $this->setQuality($quality);
+        $this->loadMethod('jpg');
+        return $this->getDest('jpg');
+    }
+
+    /**
      * @desc 构造函数 可批量建立
      * @param *
      */
@@ -1104,6 +1120,22 @@ class Img
 
         $this->_image->setImageFormat('webp');
         $this->_image->writeImage($this->_dest['webp']);
+    }
+
+    /**
+     * @desc 设置jpg格式
+     * @param *
+     */
+    private function _im_create_jpg()
+    {
+        $this->_check('source');
+        $this->_dest['jpg'] = $this->getName('.jpg');
+
+        //apk add libwebp-tools
+        //Dever::run('cwebp -q 75 '.$this->_source.' -o ' . $this->_dest['webp']);
+
+        $this->_image->setImageFormat('jpg');
+        $this->_image->writeImage($this->_dest['jpg']);
     }
 
     /**
