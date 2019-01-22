@@ -130,7 +130,7 @@ class Handle
             return false;
         }
         $data = $this->store->get($key);
-        //$data = json_decode(base64_decode($data), true);
+        $data = json_decode(base64_decode($data), true);
         $this->log('get', $key, $data, $this->expire($key));
         if ($page = $this->store->get('page_' . $key)) {
             Dever::$global['page'] = $page;
@@ -151,7 +151,7 @@ class Handle
         }
         $this->init($key, $expire);
         $this->log('set', $key, $value, $expire);
-        //$value = base64_encode(json_encode($value));
+        $value = base64_encode(json_encode($value));
         if (isset(Dever::$global['page']) && Dever::$global['page']) {
             $this->store->set('page_' . $key, Dever::$global['page'], $expire);
         }
