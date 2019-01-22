@@ -31,6 +31,6 @@ class Regular
     public static function rule_name($rule)
     {
         $rule = $rule ? $rule : 16;
-        return '^([\x4e00-\x9fa5_a-zA-Z0-9]){'.$rule.'}$';
+        return '^([\x4e00-\x9fa5_a-zA-Z0-9\-]){'.$rule.'}$';
     }
 }
