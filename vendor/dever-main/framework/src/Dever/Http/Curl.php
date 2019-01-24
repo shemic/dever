@@ -3,6 +3,7 @@
 use Dever\Loader\Config;
 use Dever\Output\Debug;
 use Dever\Routing\Input;
+use Dever\Log\Oper as Log;
 
 class Curl
 {
@@ -192,6 +193,7 @@ class Curl
         $debug['param'] = $this->param;
         $debug['result'] = $data;
 
+        Log::add($debug, 'curl');
         Debug::log($debug, 'curl');
         return $result;
     }
