@@ -468,7 +468,7 @@ class Condition
                 $request = $this->replace($request);
             }
 
-            if (isset($this->struct[$index]['key']) && Config::get('host')->uploadRes && strpos($request, Config::get('host')->uploadRes) !== false) {
+            if ($request && is_string($request) && isset($this->struct[$index]['key']) && Config::get('host')->uploadRes && strpos($request, Config::get('host')->uploadRes) !== false) {
                 $request = str_replace(Config::get('host')->uploadRes, '{uploadRes}', $request);
             }
 
