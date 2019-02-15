@@ -161,6 +161,14 @@ $config['cache'] = array
 		# 定义缓存名为auth.data的缓存时间
 		'auth.data' => 200,
 	),
+
+	# 哪个key不用缓存
+    'mysqlNone' => array
+    (
+        'passport',
+        'oauth',
+        'manage',
+    ),
 	
 	# 缓存清理的参数名,请通过shell=clearcache执行
 	'shell' => 'clearcache',
