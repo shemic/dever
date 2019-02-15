@@ -90,15 +90,16 @@ class Handle
 
     public function store($key)
     {
-        if ($this->none($key)) {
-            return false;
-        }
         if ($this->store) {
             return true;
         }
 
         if (!$this->config) {
             $this->config = Config::get('cache')->cAll;
+        }
+
+        if ($this->none($key)) {
+            return false;
         }
 
         if (isset($this->config['store']) && $this->config['store']) {
