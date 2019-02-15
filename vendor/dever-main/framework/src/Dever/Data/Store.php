@@ -418,9 +418,6 @@ class Store
 
     public function cache($key = false, $data = array())
     {
-        if (DEVER_APP_NAME == 'manage' && !$data) {
-            return;
-        }
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
 
         if (empty($cache['mysql'])) {
@@ -436,6 +433,7 @@ class Store
                 }
             }
         }
+
         if ($data) {
             if ($this->table) {
                 $keys = $handle->get($this->table);
@@ -445,6 +443,10 @@ class Store
             }
 
             return $handle->set($key, $data);
+        }
+
+        if (DEVER_APP_NAME == 'manage') {
+            return;
         }
         return $handle->get($key);
     }
