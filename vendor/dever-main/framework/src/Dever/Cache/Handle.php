@@ -94,7 +94,7 @@ class Handle
             return false;
         }
         if ($this->store) {
-            return;
+            return true;
         }
 
         if (!$this->config) {
@@ -113,7 +113,11 @@ class Handle
                 }
                 $this->store->connect($v);
             }
+
+            return true;
         }
+
+        return false;
     }
 
     /**
@@ -123,8 +127,8 @@ class Handle
      */
     public function get($key)
     {
-        $this->store($key);
-        if (!$this->store) {
+        $state = $this->store($key);
+        if (!$state) {
             return false;
         }
         $param = isset($this->config['shell']) ? $this->config['shell'] : 'clearcache';
@@ -153,8 +157,8 @@ class Handle
      */
     public function set($key, $value, $expire = 0)
     {
-        $this->store($key);
-        if (!$this->store) {
+        $state = $this->store($key);
+        if (!$state) {
             return false;
         }
         $this->init($key, $expire);
@@ -177,8 +181,8 @@ class Handle
      */
     public function delete($key)
     {
-        $this->store($key);
-        if (!$this->store) {
+        $state = $this->store($key);
+        if (!$state) {
             return false;
         }
         $this->log('delete', $key, 1);
