@@ -212,7 +212,7 @@ class Handle
     {
         if (isset($this->config[$this->type . 'None'])) {
             foreach ($this->config[$this->type . 'None'] as $k => $v) {
-                if (strpos($key, $k) !== false) {
+                if (strpos($key, $v) !== false) {
                     return true;
                 }
             }
