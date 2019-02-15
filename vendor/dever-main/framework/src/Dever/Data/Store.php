@@ -418,7 +418,7 @@ class Store
 
     public function cache($key = false, $data = array())
     {
-        if (DEVER_APP_NAME == 'manage') {
+        if (DEVER_APP_NAME == 'manage' && !$data) {
             return;
         }
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;

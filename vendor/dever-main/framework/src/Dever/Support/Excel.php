@@ -122,7 +122,7 @@ class Excel
     {
         if (!is_object($return)) {
             $xls = new \PHPExcel();
-        } else {
+        } elseif(is_object($return)) {
             $xls = $return;
         }
 
