@@ -90,6 +90,9 @@ class Handle
 
     public function store($key)
     {
+        if ($this->none($key)) {
+            return false;
+        }
         if ($this->store) {
             return;
         }
@@ -198,6 +201,24 @@ class Handle
         }
 
         $this->expire($key, ($expire > 0 ? $expire : $this->expire));
+    }
+
+    /**
+     * none
+     *
+     * @return mixed
+     */
+    protected function none($key)
+    {
+        if (isset($this->config[$this->type . 'None'])) {
+            foreach ($this->config[$this->type . 'None'] as $k => $v) {
+                if (strpos($key, $k) !== false) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
