@@ -4,7 +4,7 @@ use Dever;
 use Dever\Loader\Config;
 use Dever\String\Encrypt;
 
-# 一系列的session、cookie等基本的操作，前期随意些的。后续将分开。
+# 一系列的session、cookie等基本的操作，前期随意写的。后续将分开。
 
 class Oper
 {
@@ -57,6 +57,8 @@ class Oper
                 @session_cache_limiter('private');
             }
             */
+            //ini_set('session.save_handler', 'redis');
+            //ini_set('session.save_path', 'tcp://192.168.1.10:6379?auth=password');
             @session_start();
 
             # 解决post页面返回上一页问题

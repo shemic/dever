@@ -205,13 +205,13 @@ class Import
      *
      * @return mixed
      */
-    protected function data($param)
+    protected function data($status)
     {
         $cache = $this->cache();
         if ($cache) {
             $this->data = $cache;
         } else {
-            $this->getData($param);
+            $this->getData($status);
             $this->cache($this->data);
         }
     }
