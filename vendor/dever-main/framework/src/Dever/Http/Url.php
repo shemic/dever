@@ -31,7 +31,7 @@ class Url
 
         self::defaultValue($value);
 
-        if (strpos($value, 'http://') !== false || strpos($value, 'https://') !== false) {
+        if (strpos($value, 'http:') !== false || strpos($value, 'https:') !== false) {
             return $value;
         }
 
@@ -121,7 +121,7 @@ class Url
 
         $file = self::uploadRes($file);
 
-        if ($name && strstr($file, 'http://') && strstr($file, Config::get('host')->uploadRes) && !strstr($file, $name)) {
+        if ($name && strstr($file, 'http:') && strstr($file, Config::get('host')->uploadRes) && !strstr($file, $name)) {
 
             if (strstr($name, ',')) {
                 $temp = explode(',', $name);
@@ -425,8 +425,8 @@ class Url
         if (Input::$command) {
             return $url;
         }
-        if (DEVER_HOST_TYPE == 'https://' && strstr($url, 'http://')) {
-            $url = str_replace('http://', 'https://', $url);
+        if (DEVER_HOST_TYPE == 'https://' && strstr($url, 'http:')) {
+            $url = str_replace('http:', 'https:', $url);
         }
 
         return $url;
@@ -552,7 +552,7 @@ class Url
      */
     public static function location($value, $type = 1)
     {
-        if (strpos($value, 'http://') === false && strpos($value, 'https://') === false) {
+        if (strpos($value, 'http:') === false && strpos($value, 'https:') === false) {
             $value = self::get($value);
         }
         switch ($type) {
