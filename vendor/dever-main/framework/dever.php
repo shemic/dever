@@ -1,5 +1,5 @@
 <?php
-ini_set('max_input_vars', '100000');
+
 class Dever
 {
     private static $register = array
