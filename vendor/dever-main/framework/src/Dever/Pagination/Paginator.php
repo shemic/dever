@@ -3,6 +3,7 @@
 use Dever\Http\Url;
 use Dever\Routing\Input;
 use Dever\Routing\Uri;
+use Dever;
 
 class Paginator
 {
