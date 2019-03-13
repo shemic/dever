@@ -57,8 +57,11 @@ class Oper
                 @session_cache_limiter('private');
             }
             */
-            //ini_set('session.save_handler', 'redis');
-            //ini_set('session.save_path', 'tcp://192.168.1.10:6379?auth=password');
+            $server = Config::get('database')->session;
+            if ($server) {
+                @ini_set('session.save_handler', $server['type']);
+                @ini_set('session.save_path', 'tcp://'.$server['host'].':'.$server['port'].'?auth='.$server['password'].'');
+            }
             @session_start();
 
             # 解决post页面返回上一页问题
