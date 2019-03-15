@@ -26,7 +26,7 @@ class Url
     public static function get($value = false, $project = false, $replace = false)
     {
         if ($replace) {
-            return str_replace('{' . $replace . '}', $value, Config::$global['host']['domain']);
+            return str_replace('{' . $replace . '}', $value, Config::$global['host']['domains']);
         }
 
         self::defaultValue($value);
@@ -427,6 +427,15 @@ class Url
         }
         if (DEVER_HOST_TYPE == 'https://' && strstr($url, 'http:')) {
             $url = str_replace('http:', 'https:', $url);
+
+            $replace = Config::get('base')->replace;
+            if ($replace) {
+                foreach ($replace as $k => $v) {
+                    if (strstr($url, $k)) {
+                        $url = str_replace($k, $v, $url);
+                    }
+                }
+            }
         }
 
         return $url;

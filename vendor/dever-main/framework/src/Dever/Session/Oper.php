@@ -59,8 +59,12 @@ class Oper
             */
             $server = Config::get('database')->session;
             if ($server) {
+                $link = 'tcp://'.$server['host'].':'.$server['port'];
+                if (isset($server['password']) && $server['password']) {
+                    $link .= '?auth='.$server['password'];
+                }
                 @ini_set('session.save_handler', $server['type']);
-                @ini_set('session.save_path', 'tcp://'.$server['host'].':'.$server['port'].'?auth='.$server['password'].'');
+                @ini_set('session.save_path', $link);
             }
             @session_start();
 
