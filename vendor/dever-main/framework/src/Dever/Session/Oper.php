@@ -211,6 +211,7 @@ class Oper
      */
     private function _setSession($key, $value, $time = 3600)
     {
+        setCookie(session_name(), session_id(), time() + $time, "/", Config::get('host')->cookie); 
         return $_SESSION[$this->prefix . $key] = $value;
     }
 
