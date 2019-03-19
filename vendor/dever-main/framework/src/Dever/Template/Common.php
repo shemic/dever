@@ -176,6 +176,14 @@ class Common
             $style = 'class="dever-img" border=1 width=100% height=100%';
         }
 
+        if (!Config::get('base')->table_id_num) {
+            Config::get('base')->table_id_num = 1;
+        } else {
+            Config::get('base')->table_id_num++;
+        }
+
+        $id = $id . '_' . Config::get('base')->table_id_num;
+
         $html = '<table ' . $style . '  id="'.$id.'">';
 
         foreach ($data as $k => $v) {
