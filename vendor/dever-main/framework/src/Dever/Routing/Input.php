@@ -22,6 +22,13 @@ class Input
     public static $command = false;
 
     /**
+     * method
+     *
+     * @var bool
+     */
+    public static $method = false;
+
+    /**
      * init status
      *
      * @var bool
@@ -44,6 +51,28 @@ class Input
             }
             self::$init = true;
         }
+
+        if (isset(self::$request['l'])) {
+            unset(self::$request['l']);
+        }
+
+        if (isset(self::$request['h'])) {
+            unset(self::$request['h']);
+        }
+    }
+
+    /**
+     * method
+     *
+     * @return mixed
+     */
+    public static function method()
+    {
+        if (!self::$method) {
+            self::$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+        }
+        
+        return self::$method;
     }
 
     /**
@@ -63,11 +92,24 @@ class Input
      */
     protected static function requestHttp()
     {
-        $header = Env::header();
-        if (isset($header['cookie'])) {
-            unset($header['cookie']);
+        self::$request = $_GET;
+        $method = self::method();
+        if ($method && $method == 'POST' && isset($_POST) && $_POST) {
+            self::$request = array_merge(self::$request, $_POST);
         }
-        self::$request = array_merge($_GET, $_POST, $_FILES, $header);
+
+        if (isset($_FILES) && $_FILES) {
+            self::$request = array_merge(self::$request, $_FILES);
+        }
+
+        if (!isset(self::$request['h'])) {
+            $header = Env::header();
+            if (isset($header['cookie'])) {
+                unset($header['cookie']);
+            }
+            self::$request = array_merge(self::$request, $header);
+        }
+        
         //unset($_GET);unset($_POST);unset($_FILES);
         self::$command = false;
     }

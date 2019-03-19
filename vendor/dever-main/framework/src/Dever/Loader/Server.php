@@ -153,7 +153,11 @@ class Server
                 if (isset($data['data']) && $data['data']) {
                     $data = $data['data'];
                 } elseif(isset($data['code']) || (isset($data['status']) && $data['status'] == 2)) {
-                    $data = false;
+                    if (isset($this->param['h']) && $this->param['h'] == -1) {
+                        $data = $data['msg'];
+                    } else {
+                        $data = false;
+                    }
                 }
             }
         }
@@ -177,6 +181,13 @@ class Server
         }
         $this->param['json'] = 1;
         $this->param['cache'] = 1;
+
+        if (isset($this->param['dever_token'])) {
+            $token = $this->param['dever_token'];
+            unset($this->param['dever_token']);
+            $this->param = Dever::token($this->param, $token);
+            $this->param['h'] = -1;
+        }
     }
 
     /**

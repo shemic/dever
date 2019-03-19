@@ -1,6 +1,7 @@
 <?php namespace Dever\Loader;
 
 use Dever\Http\Api;
+use Dever\Http\Url;
 use Dever\Output\Export;
 use Dever\Routing\Input;
 use Dever\String\Helper;
@@ -317,8 +318,9 @@ class Import
         if ($this->data) {
             return;
         }
-        if ($project && strpos($project['path'], 'http://') === 0) {
-            $this->loadServer(strtolower($key) . '.' . $method, $project['path']);
+        if ($project && strpos($project['path'], 'http') === 0) {
+            $url = Url::get($project['name'] . '/' . strtolower($key) . '.' . $method);
+            $this->loadServer('', $url);
             return;
         }
 
@@ -508,6 +510,7 @@ class Import
                     return $newMethod;
                 }
             }
+
             Export::alert('method_exists', array($class, $method));
         }
         return $method;
@@ -521,11 +524,16 @@ class Import
     protected function secure($method)
     {
         if (strpos($method, self::SECURE_API) !== false) {
-            Api::check($this->key, $this->param);
+            Api::check($this->param);
         } else {
             $api = Helper::replace(self::API, self::SECURE_API, $method);
+            $token = $api . '_token';
+            $key = false;
+            if (method_exists($this->class, $token)) {
+                $key = call_user_func(array($this->class, $token));
+            }
             if (method_exists($this->class, $api)) {
-                Api::check($this->key, $this->param);
+                Api::check($this->param, array(), $key);
                 return $api;
             }
         }

@@ -96,7 +96,7 @@ class Uri
      */
     private static function method()
     {
-        self::$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+        self::$method = Input::method();
 
         if (isset($_SERVER['DEVER_URITYPE']) && $_SERVER['DEVER_URITYPE']) {
             self::$type = $_SERVER['DEVER_URITYPE'];

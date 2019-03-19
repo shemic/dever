@@ -53,7 +53,7 @@ class Api
         $index = str_replace(DEVER_APP_NAME . '/', '', $class . '.' . $key);
         if (isset($config[$index]) && $config[$index]) {
             if (isset($config[$index]['secure'])) {
-                self::check($index, $param, $config[$index]);
+                self::check($param, $config[$index]);
             }
             return array(true, $key);
         }
@@ -102,8 +102,11 @@ class Api
      *
      * @return mixed
      */
-    public static function get($request)
+    public static function get($request, $key = false)
     {
+        if ($key) {
+            Config::get('base')->token = $key;
+        }
         $time = time();
         $nonce = self::nonce();
         $signature = self::signature($time, $nonce, $request);
@@ -124,16 +127,20 @@ class Api
      *
      * @return string
      */
-    public static function check($key, $request, $param = array())
+    public static function check($request, $param = array(), $key = false)
     {
         if (empty($request['signature']) || empty($request['nonce'])) {
             Export::alert('api_signature_exists');
         }
 
+        if ($key) {
+            Config::get('base')->token = $key;
+        }
+
         self::checkSignatureExits($request['signature']);
 
         if (empty($request['time'])) {
-            return self::loginResult($request['signature']);
+            return self::checkLogin($request['signature']);
         }
         if (time() - $request['time'] > self::TIME) {
             Export::alert('api_signature_exists');
@@ -164,11 +171,11 @@ class Api
     }
 
     /**
-     * loginResult
+     * checkLogin
      *
      * @return mixed
      */
-    public static function loginResult($signature, $state = true)
+    public static function checkLogin($signature, $state = true, $max = false)
     {
         if (is_numeric($signature)) {
             return Config::get('base')->user = array('uid' => $signature, 'time' => time());
@@ -179,11 +186,14 @@ class Api
         }
 
         list($uid, $time) = (empty($auth) || count($auth) < 2) ? array(0, '') : $auth;
+        Config::get('base')->user = array('uid' => $uid, 'time' => $time);
 
-        //if (!empty($uid) && (time() - $time) < 2592000) {
         if (!empty($uid)) {
-            return Config::get('base')->user = array('uid' => $uid, 'time' => $time);
-        } elseif ($state) {
+            if ($max == false || ($max > 0 && (time() - $time) < $max)) {
+                return Config::get('base')->user;
+            }
+        }
+        if ($state) {
             Export::alert('api_signature_exists');
         }
     }
@@ -195,6 +205,9 @@ class Api
      */
     public static function signature($time, $nonce, $request = array())
     {
+        if (isset($request['signature'])) {
+            unset($request['signature']);
+        }
         $request['token'] = self::token();
         $request['time'] = $time;
         $request['nonce'] = $nonce;

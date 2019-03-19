@@ -61,8 +61,10 @@ class Dever
         'dom' => array('Template\\Common', 'dom'),
 
         'token' => array('Http\\Api', 'get'),
+        'checkToken' => array('Http\\Api', 'check'),
         'login' => array('Http\\Api', 'login'),
-        'loginResult' => array('Http\\Api', 'loginResult'),
+        'loginResult' => array('Http\\Api', 'checkLogin'),
+        'checkLogin' => array('Http\\Api', 'checkLogin'),
         'nonce' => array('Http\\Api', 'nonce'),
 
         'rule' => array('String\\Regular', 'rule'),
