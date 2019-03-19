@@ -319,8 +319,8 @@ class Import
             return;
         }
         if ($project && strpos($project['path'], 'http') === 0) {
-            $url = Url::get($project['name'] . '/' . strtolower($key) . '.' . $method);
-            $this->loadServer('', $url);
+            //$url = Url::get($project['name'] . '/' . strtolower($key) . '.' . $method);
+            $this->loadServer('l=' . strtolower($key) . '.' . $method, $project['path']);
             return;
         }
 
