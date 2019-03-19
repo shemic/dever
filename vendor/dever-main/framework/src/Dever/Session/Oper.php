@@ -65,7 +65,10 @@ class Oper
                 }
                 @ini_set('session.save_handler', $server['type']);
                 @ini_set('session.save_path', $link);
+            } else {
+                @ini_set('session.save_path', '/tmp/');
             }
+            @ini_set('session.gc_maxlifetime', 86400);
             @session_start();
 
             # 解决post页面返回上一页问题
