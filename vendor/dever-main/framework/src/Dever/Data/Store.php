@@ -80,6 +80,8 @@ class Store
         return static::$instance[$key];
     }
 
+    
+
     /**
      * __construct
      *
@@ -89,7 +91,9 @@ class Store
     {
         $this->init();
 
-        $this->register($config);
+        $this->config = $config;
+
+        //$this->register($config);
     }
 
     /**
@@ -97,20 +101,22 @@ class Store
      *
      * @return mixd
      */
-    private function register($config)
+    protected function register()
     {
-        if (is_array($config['host'])) {
-            $host = $config['host'];
+        if ($this->read && $this->update) {
+            return;
+        }
+        if (is_array($this->config['host'])) {
+            $config = $this->config;
+            $host = $this->config['host'];
             $config['host'] = $host['read'];
             $this->read = $this->connect($config);
             $config['host'] = $host['update'];
             $this->update = $this->connect($config);
         } else {
-            $this->read = $this->update = $this->connect($config);
+            $this->read = $this->update = $this->connect($this->config);
         }
-        $config['link'] = false;
-        $this->config = $config;
-        unset($config);
+        $this->config['link'] = false;
     }
 
     /**
@@ -416,12 +422,12 @@ class Store
         return $this;
     }
 
-    public function cache($key = false, $data = array())
+    public function cache($key = false, $method = 'get', $data = false)
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
 
         if (empty($cache['mysql'])) {
-            return;
+            return false;
         }
 
         $handle = Handle::getInstance('mysql', $cache['mysql']);
@@ -434,21 +440,27 @@ class Store
             }
         }
 
-        if ($data) {
+        if ($method == 'get') {
+            if (DEVER_APP_NAME == 'manage') {
+                return false;
+            }
+            return $handle->get($key);
+        }
+
+        if ($method == 'put' && $data !== false) {
+
             if ($this->table) {
                 $keys = $handle->get($this->table);
-                $keys[$key] = 1;
-
-                $handle->set($this->table, $keys);
+                if (!isset($keys[$key])) {
+                    $keys[$key] = 1;
+                    $handle->set($this->table, $keys);
+                }
             }
 
             return $handle->set($key, $data);
         }
 
-        if (DEVER_APP_NAME == 'manage') {
-            return;
-        }
-        return $handle->get($key);
+        return false;
     }
 
     /**

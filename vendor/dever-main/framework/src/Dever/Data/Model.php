@@ -102,6 +102,21 @@ class Model
         return static::$instance[$key];
     }
 
+    /**
+     * closeAll
+     *
+     * @return mixed
+     */
+    public static function closeAll()
+    {
+        if (static::$instance) {
+            foreach (static::$instance as $k => $v) {
+                static::$instance[$k] = null;
+                unset(static::$instance[$k]);
+            }
+        }
+    }
+
 
     /**
      * table

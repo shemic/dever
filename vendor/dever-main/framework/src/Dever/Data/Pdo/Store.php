@@ -42,6 +42,7 @@ class Store extends Base
      */
     public function getIndex($version, $index)
     {
+        $this->register();
         $sql = $this->sql->showIndex($this->table);
 
         $handle = $this->update->query($sql);
@@ -66,6 +67,7 @@ class Store extends Base
     private function dropIndex($info)
     {
         if ($info) {
+            $this->register();
             foreach ($info as $k => $v) {
                 if ($v['Key_name'] != 'PRIMARY') {
                     $sql = $this->sql->dropIndex($this->table, $v['Key_name']);
@@ -77,6 +79,7 @@ class Store extends Base
 
     public function exe($sql, $value = array(), $method = '')
     {
+        $this->register();
         if (stristr($sql, 'select')) {
             $db = $this->read;
         } else {
@@ -124,6 +127,7 @@ class Store extends Base
             \Dever::run($this->config['shell'] . '"' . $sql . '"');
         } else {
             try {
+                $this->register();
                 # 同步执行
                 if (strpos($sql, ';')) {
                     $temp = explode(';', $sql);
@@ -146,6 +150,7 @@ class Store extends Base
      */
     public function getInserts($value, $data = array())
     {
+        $this->register();
         $sql = $this->sql->inserts($this->table, $value['col'], $value['value']);
 
         try {
@@ -207,6 +212,8 @@ class Store extends Base
 
         if ($sql) {
             try {
+                $this->register();
+
                 $handle = $this->update->prepare($sql);
 
                 $handle->execute($this->value);
@@ -239,6 +246,8 @@ class Store extends Base
 
         if ($sql) {
             try {
+                $this->register();
+
                 $handle = $this->update->prepare($sql);
 
                 $handle->execute($this->value);
@@ -272,6 +281,8 @@ class Store extends Base
 
         if ($sql) {
             try {
+                $this->register();
+
                 $handle = $this->update->prepare($sql);
 
                 $handle->execute($this->value);
@@ -304,7 +315,7 @@ class Store extends Base
 
         $data = $this->cache($key);
 
-        if ($data) {
+        if ($data !== false) {
             if ($col != 'clear') {
                 $this->value = array();
             }
@@ -317,6 +328,8 @@ class Store extends Base
         }
 
         try {
+            $this->register();
+
             if ($this->value) {
                 $handle = $this->read->prepare($sql);
                 //print_r($this->value);
@@ -334,7 +347,9 @@ class Store extends Base
         } else {
             $data = $handle->$method();
         }
-        $this->cache($key, $data);
+
+        //print_r($data);die;
+        $state = $this->cache($key, 'put', $data);
         $this->log($sql, $this->value, $data);
         if ($col != 'clear') {
             $this->value = array();
@@ -361,6 +376,7 @@ class Store extends Base
      */
     public function begin()
     {
+        $this->register();
         $this->update->method('beginTransaction');
 
         return $this;
@@ -373,6 +389,7 @@ class Store extends Base
      */
     public function commit()
     {
+        $this->register();
         $this->update->method('commit');
 
         return $this;
@@ -385,6 +402,7 @@ class Store extends Base
      */
     public function rollback()
     {
+        $this->register();
         $this->update->method('rollBack');
 
         return $this;
@@ -397,7 +415,7 @@ class Store extends Base
      */
     public function __call($method, $param)
     {
-        if (is_array($param[0]) && $method != 'order') {
+        if (isset($param[0]) && is_array($param[0]) && $method != 'order') {
             foreach ($param[0] as $k => $v) {
                 $this->call($method, $v);
             }

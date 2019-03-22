@@ -140,6 +140,7 @@ class Store extends Base
      */
     public function exe($url = '_status', $type = 'get', $param = array(), $state = true)
     {
+        $this->register();
         $url = $this->alias . '/' . $url;
         if (isset($this->value['method'])) {
             $url = $this->value['method'];

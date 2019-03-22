@@ -82,10 +82,33 @@ class Handle
         return self::$instance[$type];
     }
 
+    /**
+     * closeAll
+     *
+     * @return mixed
+     */
+    public static function closeAll()
+    {
+        if (self::$instance) {
+            foreach (self::$instance as $k => $v) {
+                self::$instance[$k]->close();
+                self::$instance[$k] = null;
+                unset(self::$instance[$k]);
+            }
+        }
+    }
+
     public function __construct($expire = 3600, $type = 'mysql')
     {
         $this->expire = $expire;
         $this->type = $type;
+    }
+
+    public function close()
+    {
+        if ($this->store) {
+            $this->store->close();
+        }
     }
 
     public function store($key)
@@ -138,10 +161,8 @@ class Handle
             return false;
         }
         $data = $this->store->get($key);
-        if ($data) {
-            $data = json_decode(base64_decode($data), true);
-        }
-        
+        //$data = json_decode(base64_decode($data), true);
+        $data = unserialize($data);
         $this->log('get', $key, $data, $this->expire($key));
 
         /*
@@ -167,10 +188,8 @@ class Handle
         }
         $this->init($key, $expire);
         $this->log('set', $key, $value, $expire);
-        if ($value) {
-            $value = base64_encode(json_encode($value));
-        }
-
+        //$value = base64_encode(json_encode($value));
+        $value = serialize($value);
         /*
         if (isset(Dever::$global['page']) && Dever::$global['page']) {
             $this->store->set('page_' . $key, base64_encode(json_encode(Dever::$global['page'])), $expire);

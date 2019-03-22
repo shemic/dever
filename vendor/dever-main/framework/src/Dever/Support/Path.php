@@ -107,7 +107,7 @@ class Path
         if (!is_dir($path)) {
             mkdir($path);
             @chmod($path, 0755);
-            @system('chmod -R 777 ' . $path);
+            //@system('chmod -R 777 ' . $path);
         }
     }
 

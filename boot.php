@@ -105,3 +105,5 @@ $route = new Dever\Routing\Route;
 if (!defined('DEVER_DAEMON')) {
 	$route->runing()->output();
 }
+$route->close();
+$route = null;

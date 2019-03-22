@@ -9,6 +9,8 @@ use Dever\Output\Debug;
 use Dever\Output\Export;
 use Dever\Template\View;
 use Dever\Http\Url;
+use Dever\Cache\Handle as Cache;
+use Dever\Data\Model as Db;
 
 class Route
 {
@@ -137,7 +139,12 @@ class Route
         } else {
             Export::out($this->content);
         }
-        die;
+    }
+
+    public function close()
+    {
+        Cache::closeAll();
+        Db::closeAll();
     }
 
     /**

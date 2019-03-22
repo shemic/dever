@@ -36,6 +36,7 @@ class Store extends Base
      */
     public function setTable($table)
     {
+        $this->register();
         $this->table = $this->read->db . '.' . $table;
         $this->connect = $this->read->table($table);
     }

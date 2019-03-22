@@ -91,7 +91,11 @@ class Oper
             rename($file, $file . '.' . date('H_i_s') . '.bak');
         }
         
-        return error_log($log, 3, $file);
+        $state = error_log($log, 3, $file);
+
+        @chmod($file, 0755);
+        //@system('chmod -R 777 ' . $path);
+        return $state;
     }
 
     public static function get($day, $type = 1)

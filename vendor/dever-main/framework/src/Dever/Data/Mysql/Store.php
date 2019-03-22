@@ -42,6 +42,7 @@ class Store extends Base
      */
     public function getIndex($version, $index)
     {
+        $this->register();
         $sql = $this->sql->showIndex($this->table);
 
         $info = $this->update->fetchAll($sql);
@@ -70,6 +71,7 @@ class Store extends Base
 
     public function exe($sql, $value = array(), $method = 'fetchAll')
     {
+        $this->register();
         if (stristr($sql, 'select')) {
             $db = $this->read;
         } else {
@@ -105,6 +107,7 @@ class Store extends Base
             # 异步执行
             \Dever::run($this->config['shell'] . '"' . $sql . '"');
         } else {
+            $this->register();
             # 同步执行
             if (strpos($sql, ';')) {
                 $temp = explode(';', $sql);
@@ -124,6 +127,7 @@ class Store extends Base
      */
     public function getInserts($value, $data = array())
     {
+        $this->register();
         $sql = $this->sql->inserts($this->table, $value['col'], $value['value']);
 
         $this->update->query($sql);
@@ -200,6 +204,7 @@ class Store extends Base
      */
     public function insert()
     {
+        $this->register();
         $sql = $this->sql->insert($this->table);
 
         $id = $this->update->query($sql)->id();
@@ -220,6 +225,7 @@ class Store extends Base
      */
     public function update()
     {
+        $this->register();
         $sql = $this->sql->update($this->table);
 
         $result = false;
@@ -245,6 +251,7 @@ class Store extends Base
      */
     public function delete()
     {
+        $this->register();
         $sql = $this->sql->delete($this->table);
 
         $result = false;
@@ -286,10 +293,11 @@ class Store extends Base
         if ($type == 'count' && strpos($sql, 'group by `')) {
             $method = 'fetchAll';
         }
+        $this->register();
 
         $data = $this->read->$method($sql);
 
-        $this->cache($key, $data);
+        $this->cache($key, 'put', $data);
 
         $this->log($sql, $this->value, $data);
 
@@ -319,6 +327,7 @@ class Store extends Base
      */
     public function begin()
     {
+        $this->register();
         $this->update->query('start transaction');
 
         return $this;
@@ -331,6 +340,7 @@ class Store extends Base
      */
     public function commit()
     {
+        $this->register();
         $this->update->query('commit');
 
         return $this;
@@ -343,6 +353,7 @@ class Store extends Base
      */
     public function rollback()
     {
+        $this->register();
         $this->update->query('rollback');
 
         return $this;
