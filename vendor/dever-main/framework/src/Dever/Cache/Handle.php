@@ -186,9 +186,11 @@ class Handle
         if (!$state) {
             return false;
         }
-        $this->init($key, $expire);
+        $state = $this->init($key, $expire);
+        if (!$state) {
+            return false;
+        }
         $this->log('set', $key, $value, $expire);
-        print_r($value);die;
         //$value = base64_encode(json_encode($value));
         $value = serialize($value);
         /*
@@ -222,15 +224,20 @@ class Handle
      */
     protected function init($key, &$expire)
     {
+        $state = true;
         if (isset($this->config[$this->type . 'Key'])) {
             foreach ($this->config[$this->type . 'Key'] as $k => $v) {
                 if (strpos($key, $k) !== false) {
                     $expire = $v;
+                    if ($v <= 0) {
+                        $state = false;
+                    }
                 }
             }
         }
 
         $this->expire($key, ($expire > 0 ? $expire : $this->expire));
+        return $state;
     }
 
     /**

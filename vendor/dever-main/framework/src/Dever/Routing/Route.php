@@ -54,10 +54,10 @@ class Route
             if (isset(Config::get('template')->relation[$file])) {
                 $file = array($file, Config::get('template')->relation[$file]);
             }
-            $this->content = $this->cache();
+            $this->content = $this->cache($uri);
             if (!$this->content) {
                 $this->content = View::getInstance($file)->runing();
-                $this->cache($this->content);
+                $this->cache($uri, $this->content);
             }
             $this->html = true;
         }
@@ -99,10 +99,10 @@ class Route
                 $uri .= '_api';
             }
 
-            $this->content = $this->cache();
+            $this->content = $this->cache($uri);
             if (!$this->content) {
                 $this->content = Import::load($uri);
-                $this->cache($this->content);
+                $this->cache($uri, $this->content);
             }
             
             $this->html = false;
@@ -160,9 +160,9 @@ class Route
      *
      * @return mixed
      */
-    private function cache($data = false)
+    private function cache($key, $data = false)
     {
-        $key = 'route_' . md5(Uri::$url);
+        $key = $key . '_' . md5(Uri::$url);
         return Cache::load($key, $data, 0, 'route');
     }
 

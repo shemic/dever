@@ -427,6 +427,16 @@ class Store
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
 
+        if (isset($cache['route']) && $cache['route'] > 0 && $method == 'put' && $data !== false && $this->table) {
+            $handle = Handle::getInstance('route', $cache['route']);
+            $keys = $handle->get($this->table);
+            $route = Uri::$url;
+            if (!isset($keys[$route])) {
+                $keys[$route] = 1;
+                $handle->set($this->table, $keys);
+            }
+        }
+
         if (empty($cache['mysql'])) {
             return false;
         }
