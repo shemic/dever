@@ -7,6 +7,7 @@ use Dever\Output\Debug;
 use Dever\Pagination\Paginator as Page;
 use Dever\Routing\Input;
 use Dever\Support\Path;
+use Dever\Routing\Uri;
 
 class Store
 {

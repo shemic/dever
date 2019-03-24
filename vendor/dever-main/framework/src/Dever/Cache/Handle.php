@@ -188,6 +188,7 @@ class Handle
         }
         $this->init($key, $expire);
         $this->log('set', $key, $value, $expire);
+        print_r($value);die;
         //$value = base64_encode(json_encode($value));
         $value = serialize($value);
         /*
