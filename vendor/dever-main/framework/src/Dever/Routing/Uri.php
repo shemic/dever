@@ -54,6 +54,13 @@ class Uri
     public static $url;
 
     /**
+     * key
+     *
+     * @var string
+     */
+    public static $key;
+
+    /**
      * get
      *
      * @return string
@@ -77,6 +84,23 @@ class Uri
         self::match();
 
         return self::$value;
+    }
+
+    /**
+     * key
+     *
+     * @return mixed
+     */
+    public static function key()
+    {
+        if (!self::$key) {
+            $url = self::$url;
+            if (strpos($url, 'shell')) {
+                $url = preg_replace('/&shell=(.*)/', '', $url);
+            }
+            self::$key = self::get() . '_' . md5($url);
+        }
+        return self::$key;
     }
 
     /**

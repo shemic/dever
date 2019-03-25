@@ -102,6 +102,7 @@ class Route
             $this->content = $this->cache($uri);
             if (!$this->content) {
                 $this->content = Import::load($uri);
+                Export::page();
                 $this->cache($uri, $this->content);
             }
             
@@ -162,7 +163,10 @@ class Route
      */
     private function cache($key, $data = false)
     {
-        $key = $key . '_' . md5(Uri::$url);
+        if (DEVER_APP_NAME == 'manage') {
+            return false;
+        }
+        $key = Uri::key();
         return Cache::load($key, $data, 0, 'route');
     }
 

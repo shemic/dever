@@ -427,13 +427,19 @@ class Store
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
 
-        if (isset($cache['route']) && $cache['route'] > 0 && $method == 'put' && $data !== false && $this->table) {
+        if (isset($cache['route']) && $cache['route'] > 0 && $this->table) {
             $handle = Handle::getInstance('route', $cache['route']);
             $keys = $handle->get($this->table);
-            $route = Uri::$url;
-            if (!isset($keys[$route])) {
-                $keys[$route] = 1;
-                $handle->set($this->table, $keys);
+            if ($method == 'put' && $data !== false) {
+                $route = Uri::key();
+                if (!isset($keys[$route])) {
+                    $keys[$route] = 1;
+                    $handle->set($this->table, $keys);
+                }
+            } elseif (!$key && $this->table && $keys) {
+                foreach ($keys as $k => $v) {
+                    $handle->delete($k);
+                }
             }
         }
 
