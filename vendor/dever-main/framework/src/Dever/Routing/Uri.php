@@ -94,11 +94,7 @@ class Uri
     public static function key()
     {
         if (!self::$key) {
-            $url = self::$url;
-            if (strpos($url, 'shell')) {
-                $url = preg_replace('/&shell=(.*)/', '', $url);
-            }
-            self::$key = self::get() . '_' . md5($url);
+            self::$key = self::get() . '_' . md5(self::$url);
         }
         return self::$key;
     }
@@ -136,6 +132,10 @@ class Uri
     {
         if (!self::$url && Input::get('send') && Input::$command == true) {
             self::$url = self::$value = str_replace(array('__', '^'), array('?', '&'), Input::get('send'));
+        }
+
+        if (strpos(self::$url, 'shell')) {
+            self::$url = preg_replace('/[&|?]shell=(.*)/', '', self::$url);
         }
     }
 
