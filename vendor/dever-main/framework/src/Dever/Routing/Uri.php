@@ -94,7 +94,23 @@ class Uri
     public static function key()
     {
         if (!self::$key) {
-            self::$key = self::get() . '_' . md5(self::$url) . '_v1';
+            $url = self::$url;
+            $uri = DEVER_PROJECT . '_' . self::get();
+
+            $param = Config::get('cache')->routeNoParam;
+            if ($param) {
+                foreach ($param as $k => $v) {
+                    if (strpos($url, $k)) {
+                        foreach ($v as $k1 => $v1) {
+                            if (strpos($uri, $v1)) {
+                                $url = preg_replace('/[&|?]'.$k.'=([a-zA-Z0-9_]+)/', '', $url);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            self::$key = $uri . '_' . md5($url) . '_v1';
         }
         return self::$key;
     }
