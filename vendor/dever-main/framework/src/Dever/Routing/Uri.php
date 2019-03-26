@@ -94,11 +94,7 @@ class Uri
     public static function key()
     {
         if (!self::$key) {
-            if (self::$method == 'GET') {
-                $url = self::$url;
-            } else {
-                $url = Input::get('dever_uri');
-            }
+            $url = Input::get('dever_uri');
             
             $uri = DEVER_PROJECT . '_' . self::get();
 
