@@ -110,7 +110,7 @@ class Uri
                 }
             }
             
-            $uri = DEVER_PROJECT . '_' . self::get();
+            $uri = DEVER_APP_NAME . '_' . self::get();
 
             $param = Config::get('cache')->routeNoParam;
             if ($param) {
