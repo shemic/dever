@@ -103,13 +103,14 @@ class Uri
                     if (strpos($url, $k)) {
                         foreach ($v as $k1 => $v1) {
                             if (strpos($uri, $v1)) {
-                                $url = preg_replace('/[&|?]'.$k.'=([a-zA-Z0-9_]+)/', '', $url);
+                                $url = preg_replace('/[&|?]'.$k.'=([a-zA-Z0-9_%=]+)/', '', $url);
                                 break;
                             }
                         }
                     }
                 }
             }
+            
             self::$key = $uri . '_' . md5($url) . '_v1';
         }
         return self::$key;
