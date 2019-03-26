@@ -94,7 +94,12 @@ class Uri
     public static function key()
     {
         if (!self::$key) {
-            $url = self::$url;
+            if (self::$method == 'GET') {
+                $url = self::$url;
+            } else {
+                $url = Input::get('dever_uri');
+            }
+            
             $uri = DEVER_PROJECT . '_' . self::get();
 
             $param = Config::get('cache')->routeNoParam;
@@ -110,7 +115,7 @@ class Uri
                     }
                 }
             }
-            
+
             self::$key = $uri . '_' . md5($url) . '_v1';
         }
         return self::$key;

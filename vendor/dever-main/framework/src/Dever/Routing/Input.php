@@ -15,6 +15,13 @@ class Input
     private static $request = array();
 
     /**
+     * param
+     *
+     * @var array
+     */
+    private static $param = '';
+
+    /**
      * command
      *
      * @var bool
@@ -102,6 +109,8 @@ class Input
             self::$request = array_merge(self::$request, $_FILES);
         }
 
+        self::$param = http_build_query(self::$request);
+
         if (!isset(self::$request['h'])) {
             $header = Env::header();
             if (isset($header['cookie'])) {
@@ -156,6 +165,9 @@ class Input
     public static function get($name = false, $value = '', $condition = '', $alert = '')
     {
         self::init();
+        if ($name == 'dever_uri') {
+            return self::$param;
+        }
         if (!$name) {
             return self::$request;
         }
