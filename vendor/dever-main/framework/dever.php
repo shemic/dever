@@ -732,6 +732,43 @@ class Dever
     }
 
     /**
+     * session_start()
+     *
+     * @return mixed
+     */
+    public static function session_start()
+    {
+        if (!self::config('base')->session) {
+            @header('P3P: CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"');
+            $server = self::config('database')->session;
+            if ($server) {
+                $link = 'tcp://'.$server['host'].':'.$server['port'];
+                if (isset($server['password']) && $server['password']) {
+                    $link .= '?auth='.$server['password'];
+                }
+                @ini_set('session.save_handler', $server['type']);
+                @ini_set('session.save_path', $link);
+            } else {
+                @ini_set('session.save_path', '/tmp/');
+            }
+            @ini_set('session.gc_maxlifetime', 86400);
+            @session_start();
+
+            # 解决post页面返回上一页问题
+            if (self::config('template')->session_cache) {
+                //@session_cache_limiter('private');//这个有问题
+                //@header("Cache-control: private");//这个也不行
+            }
+            
+            if (self::config('host')->cookie) {
+                ini_set('session.cookie_domain', self::config('host')->cookie);
+            }
+
+            self::config('base')->session = true;
+        }
+    }
+
+    /**
      * submit 处理重复提交功能 此处暂时有问题
      * @param string $type
      * @param int $value

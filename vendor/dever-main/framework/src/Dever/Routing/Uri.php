@@ -1,5 +1,6 @@
 <?php namespace Dever\Routing;
 
+use Dever;
 use Dever\Loader\Config;
 
 class Uri
@@ -98,6 +99,15 @@ class Uri
                 $url = self::$url;
             } else {
                 $url = Input::get('dever_uri');
+            }
+
+            if (defined('DEVER_SESSION')) {
+                Dever::session_start();
+                if (isset($_SESSION)) {
+                    $url .= '&' . http_build_query($_SESSION);
+                } elseif (isset($_COOKIE)) {
+                    $url .= '&' . http_build_query($_COOKIE);
+                }
             }
             
             $uri = DEVER_PROJECT . '_' . self::get();
