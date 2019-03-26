@@ -436,10 +436,12 @@ class Store
                     $keys[$route] = 1;
                     $handle->set($this->table, $keys);
                 }
-            } elseif (!$key && $this->table && $keys) {
+            } elseif (!$key && $this->table) {
                 $keys = $handle->get($this->table);
-                foreach ($keys as $k => $v) {
-                    $handle->delete($k);
+                if ($keys) {
+                    foreach ($keys as $k => $v) {
+                        $handle->delete($k);
+                    }
                 }
             }
         }
