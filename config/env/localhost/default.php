@@ -141,7 +141,7 @@ $config['database'] = array
 	)
 );
 
-# 缓存配置
+# 缓存配置 多级缓存
 $config['cache'] = array
 (
 	# 启用mysql数据库缓存，这个缓存是根据表名自动生成，dever::load形式和service的all、one形式均自动支持，无需手动添加
@@ -154,21 +154,33 @@ $config['cache'] = array
 	'load' => 0,
 	# 启用load加载器的远程加载缓存
 	'curl' => 3600,
+	# 启用路由缓存
+    'route' => 0,
 
-	# 缓存精细控制，可以根据缓存的key（mysql为表名、service为小写类名，规则是模糊匹配），来控制每一条缓存
+    # 路由缓存精细控制，可以根据缓存的key（mysql为表名、service为小写类名，规则是模糊匹配），来控制每一条缓存，如果为0则不缓存
+    'routeKey' => array
+    (
+        'journal.home' => 0,
+        'passport' => 0,
+        'oauth' => 0,
+    ),
+
+    /*
+	# load缓存精细控制，可以根据缓存的key（mysql为表名、service为小写类名，规则是模糊匹配），来控制每一条缓存
 	'loadKey' => array
 	(
 		# 定义缓存名为auth.data的缓存时间
 		'auth.data' => 200,
 	),
 
-	# 哪个key不用缓存
+	# mysql缓存哪个key不用缓存，和上边的routeKey里的值为0一样
     'mysqlNone' => array
     (
         'passport',
         'oauth',
         'manage',
     ),
+    */
 	
 	# 缓存清理的参数名,请通过shell=clearcache执行
 	'shell' => 'clearcache',

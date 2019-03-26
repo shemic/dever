@@ -102,6 +102,10 @@ class Handle
     {
         $this->expire = $expire;
         $this->type = $type;
+
+        if (!$this->config) {
+            $this->config = Config::get('cache')->cAll;
+        }
     }
 
     public function close()
@@ -115,10 +119,6 @@ class Handle
     {
         if ($this->store) {
             return true;
-        }
-
-        if (!$this->config) {
-            $this->config = Config::get('cache')->cAll;
         }
 
         if ($this->none($key)) {
@@ -151,15 +151,20 @@ class Handle
      */
     public function get($key)
     {
-        $state = $this->store($key);
-        if (!$state) {
-            return false;
-        }
         $param = isset($this->config['shell']) ? $this->config['shell'] : 'clearcache';
         if (Input::shell($param)) {
             //$this->delete($key);
             return false;
         }
+
+        if (!$this->init($key)) {
+            return false;
+        }
+
+        if (!$this->store($key)) {
+            return false;
+        }
+        
         $data = $this->store->get($key);
         //$data = json_decode(base64_decode($data), true);
         $data = unserialize($data);
@@ -180,14 +185,24 @@ class Handle
      */
     public function set($key, $value, $expire = 0)
     {
-        $state = $this->store($key);
+        $state = $this->init($key);
         if (!$state) {
             return false;
         }
-        $state = $this->init($key, $expire);
-        if (!$state) {
+
+        if (!$this->store($key)) {
             return false;
         }
+
+        if ($expire == 0) {
+            if ($state > 1) {
+                $expire = $state;
+            } else {
+                $expire = $this->expire;
+            }
+        }
+
+        $this->expire($key, $expire);
         $this->log('set', $key, $value, $expire);
         //$value = base64_encode(json_encode($value));
         $value = serialize($value);
@@ -219,21 +234,25 @@ class Handle
      *
      * @return mixed
      */
-    protected function init($key, &$expire)
+    protected function init($key)
     {
-        $state = true;
+        if ($this->type == 'route' && isset(Dever::config('base')->clearCache[$this->type])) {
+            return false;
+        }
+        $state = 1;
+
         if (isset($this->config[$this->type . 'Key'])) {
             foreach ($this->config[$this->type . 'Key'] as $k => $v) {
                 if (strpos($key, $k) !== false) {
-                    $expire = $v;
-                    if ($v <= 0) {
-                        $state = false;
-                    }
+                    $state = $v;
                 }
             }
         }
 
-        $this->expire($key, ($expire > 0 ? $expire : $this->expire));
+        if (!$state) {
+            Dever::config('base')->clearCache = array($this->type => 1);
+        }
+
         return $state;
     }
 
