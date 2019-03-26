@@ -94,7 +94,7 @@ class Uri
     public static function key()
     {
         if (!self::$key) {
-            self::$key = self::get() . '_' . md5(self::$url);
+            self::$key = self::get() . '_' . md5(self::$url) . '_v1';
         }
         return self::$key;
     }
