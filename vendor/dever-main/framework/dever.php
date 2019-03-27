@@ -225,6 +225,7 @@ class Dever
      */
     public static function emoji($str)
     {
+        return $str;
         if (function_exists('mb_convert_encoding')) {
             //$str = mb_convert_encoding($str, 'UTF-8');
         }
