@@ -62,7 +62,37 @@ class Route
             $this->html = true;
         }
 
+        $this->end($uri);
+
         return $this;
+    }
+
+    /**
+     * end
+     * @param string $uri
+     *
+     * @return bool
+     */
+    private function end($uri)
+    {
+        if ($uri && Config::get('base')->route && isset(Config::get('base')->route['end'])) {
+            $end = '';
+            $uri = DEVER_APP_NAME . '/' . $uri;
+            foreach (Config::get('base')->route['end'] as $k => $v) {
+                if (strstr($uri, $k)) {
+                    $end = $v;
+                }
+            }
+
+            if ($end) {
+                $param = array();
+                if (isset($this->content['end'])) {
+                    $param = $this->content['end'];
+                }
+                Config::get('base')->clearCache = array('route' => 1);
+                Import::load($end, $param);
+            }
+        }
     }
 
     /**
@@ -95,6 +125,7 @@ class Route
         if (strpos($uri, '.') !== false) {
 
             $uri = DEVER_APP_NAME . '/' . $uri;
+            $key = $uri;
             if (!Input::$command) {
                 $uri .= '_api';
             }
@@ -105,7 +136,7 @@ class Route
                 Export::page();
                 $this->cache($uri, $this->content);
             }
-            
+
             $this->html = false;
 
             return true;

@@ -40,6 +40,17 @@ $config['base'] = array
 		1 => '恢复',
 		2 => '删除',
 	),
+
+	# 路由结束时要执行的方法
+	/*
+	'route' => array
+	(
+		'end' => array
+		(
+			'main/view.article' => 'main/view.article_end',
+		),
+	),
+	*/
 );
 
 $config['template'] = array
