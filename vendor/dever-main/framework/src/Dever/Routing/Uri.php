@@ -103,10 +103,11 @@ class Uri
 
             if (defined('DEVER_SESSION')) {
                 Dever::session_start();
-                if (isset($_SESSION)) {
-                    $url .= '&' . http_build_query($_SESSION);
-                } elseif (isset($_COOKIE)) {
-                    $url .= '&' . http_build_query($_COOKIE);
+                $key = 'dever_' . DEVER_PROJECT . '_passport';
+                if (isset($_SESSION[$key])) {
+                    $url .= '&u=' . $_SESSION[$key];
+                } elseif (isset($_COOKIE[$key])) {
+                    $url .= '&u=' . $_COOKIE[$key];
                 }
             }
             
@@ -126,7 +127,7 @@ class Uri
                 }
             }
 
-            self::$key = $uri . '_' . md5($url) . '_v1';
+            self::$key = $uri . '_' . sha1($url) . '_v1';
         }
         return self::$key;
     }
