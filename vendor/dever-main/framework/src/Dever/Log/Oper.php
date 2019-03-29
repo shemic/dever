@@ -89,12 +89,11 @@ class Oper
 
         if (file_exists($file) && $size <= filesize($file)) {
             rename($file, $file . '.' . date('H_i_s') . '.bak');
+            @chmod($file, 0755);
+            //@system('chmod -R 777 ' . $file);
         }
         
         $state = error_log($log, 3, $file);
-
-        @chmod($file, 0755);
-        //@system('chmod -R 777 ' . $path);
         return $state;
     }
 

@@ -197,6 +197,8 @@ class Server
      */
     protected function log($data = array())
     {
+        # curl中已经记录
+        return;
         Debug::log(array('url' => $this->url, 'param' => $this->param, 'data' => $data), 'server');
     }
 }
