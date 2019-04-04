@@ -86,7 +86,7 @@ $config['database'] = array
 		'database' => 'dever',
 		'username' => 'root',
 		'password' => '123456',
-		'charset' => 'utf8',
+		'charset' => 'utf8mb4',
 	),
 	
 	# 持久化服务器，只负责保存数据，跟读写分离差不多，但可以更换不同的数据库类型
