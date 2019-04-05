@@ -289,7 +289,10 @@ class Parsing
 
         //$content  = preg_replace('/<{\$(.*?)=(.*?)}>/i', self::LEFT.'\$$1=$2' . self::RIGHT, $content);
         $content = preg_replace('/<{\$([a-zA-Z0-9_\'\"\[\]\s]+)=([a-zA-Z0-9_\'\"\[\]\s]+)}>/i', self::LEFT . '\$$1=$2' . self::RIGHT, $content);
-        $content = preg_replace('/<{\$([a-zA-Z0-9_\'\"\[\]\s]+)}>/i', self::LEFT . 'echo isset(\$$1) ? \$$1 : ""' . self::RIGHT, $content);
+        
+        if (Config::get('debug')->error)) {
+            $content = preg_replace('/<{\$([a-zA-Z0-9_\'\"\[\]\s]+)}>/i', self::LEFT . 'echo isset(\$$1) ? \$$1 : ""' . self::RIGHT, $content);
+        }
 
         if (strpos($content, 'loop(')) {
             $content = preg_replace_callback('/loop\((.*?)\):/i', array($this, 'callback'), $content);
