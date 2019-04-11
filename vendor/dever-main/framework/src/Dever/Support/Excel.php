@@ -63,7 +63,7 @@ class Excel
      *
      * @return array
      */
-    public static function import($file, $sheet = 0, $offset = 0)
+    public static function import($file, $sheet = 0, $offset = 0, $method = false)
     {
         if (!$method) {
             if (Dever::project('excel')) {
@@ -84,7 +84,7 @@ class Excel
 
     private function excel_import($file = '', $sheet = 0, $offset = 0)
     {
-        $file = iconv("utf-8", "gb2312", $file);
+        //$file = iconv("utf-8", "gb2312", $file);
         if(empty($file) OR !file_exists($file)) {
             Export::alert('file not exists!');
         }
