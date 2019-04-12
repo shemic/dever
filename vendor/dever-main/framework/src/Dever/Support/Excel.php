@@ -84,7 +84,7 @@ class Excel
 
     private function excel_import($file = '', $sheet = 0, $offset = 0)
     {
-        //$file = iconv("utf-8", "gb2312", $file);
+        $file = mb_convert_encoding($file, "UTF-8", "gbk");
         if(empty($file) OR !file_exists($file)) {
             Export::alert('file not exists!');
         }
