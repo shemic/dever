@@ -434,7 +434,7 @@ class Store
                 $route = Uri::key();
                 if (!isset($keys[$route])) {
                     $keys[$route] = 1;
-                    $handle->set($this->table, $keys);
+                    $handle->set($this->table, $keys, 0, false);
                 }
             } elseif (!$key && $this->table) {
                 $keys = $handle->get($this->table);
@@ -449,8 +449,6 @@ class Store
         if (empty($cache['mysql'])) {
             return false;
         }
-
-        echo 2;die;
 
         $handle = Handle::getInstance('mysql', $cache['mysql']);
         if (!$key && $this->table) {
@@ -475,7 +473,7 @@ class Store
                 $keys = $handle->get($this->table);
                 if (!isset($keys[$key])) {
                     $keys[$key] = 1;
-                    $handle->set($this->table, $keys);
+                    $handle->set($this->table, $keys, 0, false);
                 }
             }
 

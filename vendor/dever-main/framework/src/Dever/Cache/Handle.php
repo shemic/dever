@@ -183,7 +183,7 @@ class Handle
      *
      * @return mixd
      */
-    public function set($key, $value, $expire = 0)
+    public function set($key, $value, $expire = 0, $page = true)
     {
         $state = $this->init($key);
         if (!$state) {
@@ -207,7 +207,7 @@ class Handle
         //$value = base64_encode(json_encode($value));
         $value = serialize($value);
 
-        if (isset(Dever::$global['page']) && Dever::$global['page']) {
+        if ($page && isset(Dever::$global['page']) && Dever::$global['page']) {
             $this->store->set('page_' . $key, serialize(Dever::$global['page']), $expire);
         }
         
