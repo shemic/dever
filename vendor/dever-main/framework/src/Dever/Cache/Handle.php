@@ -149,7 +149,7 @@ class Handle
      *
      * @return mixd
      */
-    public function get($key)
+    public function get($key, $page = true)
     {
         $param = isset($this->config['shell']) ? $this->config['shell'] : 'clearcache';
         if (Input::shell($param)) {
@@ -171,10 +171,10 @@ class Handle
         $this->log('get', $key, $data, $this->expire($key));
 
         $page_key = 'page_' . $key;
-        if ($page = $this->store->get($page_key)) {
-            $page = unserialize($page);
-            Dever::$global['page'] = $page;
-            $this->log('get', $page_key, $page, $this->expire($page_key));
+        if ($page && $page_data = $this->store->get($page_key)) {
+            $page_data = unserialize($page_data);
+            Dever::$global['page'] = $page_data;
+            $this->log('get', $page_key, $page_data, $this->expire($page_key));
         }
 
         return $data;
