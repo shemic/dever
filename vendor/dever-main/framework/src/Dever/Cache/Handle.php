@@ -164,15 +164,17 @@ class Handle
         if (!$this->store($key)) {
             return false;
         }
-        
+
         $data = $this->store->get($key);
         //$data = json_decode(base64_decode($data), true);
         $data = unserialize($data);
         $this->log('get', $key, $data, $this->expire($key));
 
-        if ($page = $this->store->get('page_' . $key)) {
+        $page_key = 'page_' . $key;
+        if ($page = $this->store->get($page_key)) {
             $page = unserialize($page);
             Dever::$global['page'] = $page;
+            $this->log('get', $page_key, $page, $this->expire($page_key));
         }
 
         return $data;
@@ -208,7 +210,9 @@ class Handle
         $value = serialize($value);
 
         if ($page && isset(Dever::$global['page']) && Dever::$global['page']) {
-            $this->store->set('page_' . $key, serialize(Dever::$global['page']), $expire);
+            $page_key = 'page_' . $key;
+            $this->store->set($page_key, serialize(Dever::$global['page']), $expire);
+            $this->log('set', $page_key, Dever::$global['page'], $expire);
         }
         
         return $this->store->set($key, $value, $expire);
