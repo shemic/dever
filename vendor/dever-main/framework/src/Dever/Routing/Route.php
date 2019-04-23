@@ -183,8 +183,9 @@ class Route
 
     public function close()
     {
-        Cache::closeAll();
-        Db::closeAll();
+        return;
+        //Cache::closeAll();
+        //Db::closeAll();
     }
 
     /**
