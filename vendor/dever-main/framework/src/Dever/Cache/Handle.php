@@ -90,6 +90,7 @@ class Handle
      */
     public static function closeAll()
     {
+        return;
         if (self::$instance) {
             foreach (self::$instance as $k => $v) {
                 self::$instance[$k]->close();
