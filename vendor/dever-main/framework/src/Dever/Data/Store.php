@@ -428,7 +428,6 @@ class Store
         return $handle->delete($value);
     }
 
-    /*
     public function cache($key = false, $method = 'get', $data = false)
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
@@ -483,8 +482,8 @@ class Store
 
         return false;
     }
-    */
-
+    
+    /*
     public function cache($key = false, $method = 'get', $data = false)
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
@@ -546,6 +545,7 @@ class Store
 
         return false;
     }
+    */
 
 
     /**
