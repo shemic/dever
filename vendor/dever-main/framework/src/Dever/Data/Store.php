@@ -428,6 +428,7 @@ class Store
         return $handle->delete($value);
     }
 
+    /*
     public function cache($key = false, $method = 'get', $data = false)
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
@@ -482,6 +483,70 @@ class Store
 
         return false;
     }
+    */
+
+    public function cache($key = false, $method = 'get', $data = false)
+    {
+        $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
+
+        if (isset($cache['route']) && $cache['route'] > 0 && $this->table && !isset(Config::get('base')->clearCache['route'])) {
+            $handle = Handle::getInstance('route', $cache['route']);
+            if ($method == 'put' && $data !== false) {
+                $keys = $handle->get($this->table);
+                $route = Uri::key();
+                if (!isset($keys[$route])) {
+                    $keys[$route] = 1;
+                    $handle->set($this->table, $keys);
+                }
+            } elseif (!$key && $this->table) {
+                $keys = $handle->get($this->table);
+                if ($keys) {
+                    foreach ($keys as $k => $v) {
+                        $handle->delete($k);
+                    }
+                }
+            }
+        }
+
+        if (empty($cache['mysql'])) {
+            return false;
+        }
+
+        echo 2;die;
+
+        $handle = Handle::getInstance('mysql', $cache['mysql']);
+        if (!$key && $this->table) {
+            $keys = $handle->get($this->table);
+            if ($keys) {
+                foreach ($keys as $k => $v) {
+                    $handle->delete($k);
+                }
+            }
+        }
+
+        if ($method == 'get') {
+            if (DEVER_APP_NAME == 'manage') {
+                return false;
+            }
+            return $handle->get($key);
+        }
+
+        if ($method == 'put' && $data !== false) {
+
+            if ($this->table) {
+                $keys = $handle->get($this->table);
+                if (!isset($keys[$key])) {
+                    $keys[$key] = 1;
+                    $handle->set($this->table, $keys);
+                }
+            }
+
+            return $handle->set($key, $data);
+        }
+
+        return false;
+    }
+
 
     /**
      * error
