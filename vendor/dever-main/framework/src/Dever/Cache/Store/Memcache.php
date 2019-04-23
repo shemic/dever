@@ -87,6 +87,7 @@ class Memcache implements Store
 
     public function close()
     {
+        return;
         if (!$this->class) {
             return false;
         }
