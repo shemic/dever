@@ -61,6 +61,16 @@ class Memcache implements Store
         return $result;
     }
 
+    public function hGet($key, $hkey = false)
+    {
+        return false;
+    }
+
+    public function hSet($key, $hkey, $value, $expire = 0)
+    {
+        return false;
+    }
+
     public function delete($key)
     {
         if (!$this->class) {

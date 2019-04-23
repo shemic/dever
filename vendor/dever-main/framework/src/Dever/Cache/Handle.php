@@ -1,5 +1,6 @@
 <?php namespace Dever\Cache;
 
+# 2019-04-23更新，为了新需求比较乱，后续优化
 use Dever;
 use Dever\Cache\Store;
 use Dever\Loader\Config;
@@ -219,17 +220,98 @@ class Handle
     }
 
     /**
+     * hGet
+     *
+     * @return mixd
+     */
+    public function hGet($key, $hkey = '', $exists = false)
+    {
+        $param = isset($this->config['shell']) ? $this->config['shell'] : 'clearcache';
+        if (Input::shell($param)) {
+            //$this->delete($key);
+            return false;
+        }
+
+        if (!$this->init($key)) {
+            return false;
+        }
+
+        if (!$this->store($key)) {
+            return false;
+        }
+
+        if ($hkey) {
+            if ($exists) {
+                $data = $this->store->hExists($key, $hkey);
+                return $data;
+            } else {
+                $data = $this->store->hGet($key, $hkey);
+            }
+        } else {
+            if ($exists) {
+                $data = $this->store->hKeys($key);
+                return $data;
+            }
+            $data = $this->store->hGet($key);
+        }
+
+        if ($data === false) {
+            $data = false;
+        } else {
+            $data = unserialize($data);
+        }
+
+        $this->log('hGet', $key . ':' . $hkey, $data, $this->expire($key));
+
+        return $data;
+    }
+
+    /**
+     * hSet
+     *
+     * @return mixd
+     */
+    public function hSet($key, $hkey, $value, $expire = 0)
+    {
+        $state = $this->init($key);
+        if (!$state) {
+            return false;
+        }
+
+        if (!$this->store($key)) {
+            return false;
+        }
+
+        if ($expire == 0) {
+            if ($state > 1) {
+                $expire = $state;
+            } else {
+                $expire = $this->expire;
+            }
+        }
+
+        $this->expire($key, $expire);
+        $this->log('hSet', $key . ':' . $hkey, $value, $expire);
+        $value = serialize($value);
+        
+        return $this->store->hSet($key, $hkey, $value, $expire);
+    }
+
+    /**
      * delete
      *
      * @return mixd
      */
-    public function delete($key)
+    public function delete($key, $hkey = false)
     {
         $state = $this->store($key);
         if (!$state) {
             return false;
         }
         $this->log('delete', $key, 1);
+        if ($hkey) {
+            return $this->store->hDel($key, $hkey);
+        }
         return $this->store->delete($key);
     }
 
