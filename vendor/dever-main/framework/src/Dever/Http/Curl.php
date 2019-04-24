@@ -185,7 +185,7 @@ class Curl
         
         curl_close($this->handle);
         $data = $result;
-        if (!Input::shell('all')) {
+        if (!Input::shell('all') && is_array($data)) {
             $data = count($data) . ' records';
         }
 
