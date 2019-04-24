@@ -396,7 +396,7 @@ class Handle
         $log['method'] = $method;
         $log['key'] = $key;
         if ($value) {
-            if (!Input::shell('all')) {
+            if (!Input::shell('all') && is_array($value)) {
                 $value = count($value) . ' records';
             }
             $log['value'] = $value;
