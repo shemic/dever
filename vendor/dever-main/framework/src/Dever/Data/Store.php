@@ -575,8 +575,8 @@ class Store
         if (isset($this->sql)) {
             $value = $this->replace($value, $param);
             $this->sql($value);
-            if (!Input::shell('all') && $data && is_array($data)) {
-                //$data = count($data) . ' records';
+            if (!Input::shell('all') && is_array($data)) {
+                $data = count($data) . ' records';
             }
             Debug::log(array('sql' => $value, 'data' => $data), $this->config['type']);
         } else {
