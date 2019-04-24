@@ -425,9 +425,10 @@ class Store
 
     public function deleteCache($value, $key, $handle)
     {
-        return $handle->delete($value);
+        return $handle->delete($key);
     }
 
+    /*
     public function cache($key = false, $method = 'get', $data = false)
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
@@ -482,8 +483,8 @@ class Store
 
         return false;
     }
-    
-    /*
+    */
+
     public function cache($key = false, $method = 'get', $data = false)
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
@@ -500,9 +501,7 @@ class Store
             } elseif (!$key && $this->table) {
                 $keys = $handle->get($this->table);
                 if ($keys) {
-                    foreach ($keys as $k => $v) {
-                        $handle->delete($k);
-                    }
+                    array_walk($keys, array($this, 'deleteCache'), $handle);
                 }
             }
         }
@@ -511,15 +510,11 @@ class Store
             return false;
         }
 
-        echo 2;die;
-
         $handle = Handle::getInstance('mysql', $cache['mysql']);
         if (!$key && $this->table) {
             $keys = $handle->get($this->table);
             if ($keys) {
-                foreach ($keys as $k => $v) {
-                    $handle->delete($k);
-                }
+                array_walk($keys, array($this, 'deleteCache'), $handle);
             }
         }
 
@@ -545,8 +540,6 @@ class Store
 
         return false;
     }
-    */
-
 
     /**
      * error
