@@ -492,14 +492,14 @@ class Store
         if (isset($cache['route']) && $cache['route'] > 0 && $this->table && !isset(Config::get('base')->clearCache['route'])) {
             $handle = Handle::getInstance('route', $cache['route']);
             if ($method == 'put' && $data !== false) {
-                $keys = $handle->get($this->table);
+                $keys = $handle->get($this->table, false);
                 $route = Uri::key();
                 if (!isset($keys[$route])) {
                     $keys[$route] = 1;
-                    $handle->set($this->table, $keys);
+                    $handle->set($this->table, $keys, 0, false);
                 }
             } elseif (!$key && $this->table) {
-                $keys = $handle->get($this->table);
+                $keys = $handle->get($this->table, false);
                 if ($keys) {
                     array_walk($keys, array($this, 'deleteCache'), $handle);
                 }
@@ -512,7 +512,7 @@ class Store
 
         $handle = Handle::getInstance('mysql', $cache['mysql']);
         if (!$key && $this->table) {
-            $keys = $handle->get($this->table);
+            $keys = $handle->get($this->table, false);
             if ($keys) {
                 array_walk($keys, array($this, 'deleteCache'), $handle);
             }
@@ -528,10 +528,10 @@ class Store
         if ($method == 'put' && $data !== false) {
 
             if ($this->table) {
-                $keys = $handle->get($this->table);
+                $keys = $handle->get($this->table, false);
                 if (!isset($keys[$key])) {
                     $keys[$key] = 1;
-                    $handle->set($this->table, $keys);
+                    $handle->set($this->table, $keys, 0, false);
                 }
             }
 
