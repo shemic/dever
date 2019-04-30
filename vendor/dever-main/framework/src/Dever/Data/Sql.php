@@ -40,7 +40,7 @@ class Sql
      *
      * @return string
      */
-    public function create($table, $struct, $type = '', $partition = '')
+    public function create($table, $struct, $type = '', $partition = '', $state = false, $auto = 1)
     {
         $create = $primary = array();
 
@@ -104,8 +104,17 @@ class Sql
             }
             $create[] = $v;
         }
+
+        if ($state == -1) {
+            $sql = 'DROP TABLE IF EXISTS `' . $table . '`;CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
+        } else {
+            $sql    = 'CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
+        }
         //$sql = 'DROP TABLE IF EXISTS `' . $table . '`;CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
-        $sql    = 'CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
+
+        if ($auto) {
+            $sql .= ' AUTO_INCREMENT = ' . $auto . ';';
+        }
 
         if ($type) {
             $sql .= ' ENGINE = ' . $type . ';';

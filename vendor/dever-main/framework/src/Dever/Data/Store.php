@@ -301,7 +301,7 @@ class Store
      *
      * @return mixed
      */
-    public function create($struct, $name = '', $type = 'innodb', $partition = '', $create = false)
+    public function create($struct, $name = '', $type = 'innodb', $partition = '', $create = false, $auto = 1)
     {
         if ($this->config['link']) {
             return false;
@@ -314,13 +314,15 @@ class Store
         if (isset($this->sql) && Config::get('database')->create) {
             return false;
         }
+
+        $create = $create < 0 ? $create : Config::get('database')->create;
         $file = $this->file($name);
         if (is_file($file)) {
             return include $file;
         }
 
         if (isset($this->sql)) {
-            $sql = $this->sql->create($this->table, $struct, $type, $partition);
+            $sql = $this->sql->create($this->table, $struct, $type, $partition, $create, $auto);
 
             $this->exe($sql);
 
