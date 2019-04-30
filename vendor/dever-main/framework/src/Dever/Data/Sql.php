@@ -375,9 +375,17 @@ class Sql
      *
      * @return string
      */
-    public function insert($table)
+    public function insert($table, $num = 1)
     {
         $sql = 'INSERT INTO `' . $table . '` (' . implode(',', $this->col) . ') VALUES (' . implode(',', $this->value) . ')';
+
+        if ($num > 1) {
+            $insert = array();
+            for ($i = 1; $i < $num; $i++) {
+                $insert[] = '(' . implode(',', $this->value) . ')';
+            }
+            $sql .= ',' . implode(',', $insert);
+        }
 
         $this->init();
 
@@ -399,11 +407,11 @@ class Sql
     }
 
     /**
-     * inserts
+     * insertValues
      *
      * @return string
      */
-    public function inserts($table, $col, $value)
+    public function insertValues($table, $col, $value)
     {
         $sql = 'INSERT INTO `' . $table . '` (' . $col . ') VALUES ';
 

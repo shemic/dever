@@ -389,4 +389,18 @@ class Request
             'add' => array(),
         );
     }
+
+    /**
+     * _inserts
+     *
+     * @return mixd
+     */
+    protected function _inserts()
+    {
+        return array
+        (
+            'type' => 'inserts',
+            'add' => array(),
+        );
+    }
 }

@@ -110,10 +110,15 @@ class Store
         if (is_array($this->config['host'])) {
             $config = $this->config;
             $host = $this->config['host'];
-            $config['host'] = $host['read'];
-            $this->read = $this->connect($config);
-            $config['host'] = $host['update'];
-            $this->update = $this->connect($config);
+            if ($host['read'] != $host['update']) {
+                $config['host'] = $host['read'];
+                $this->read = $this->connect($config);
+                $config['host'] = $host['update'];
+                $this->update = $this->connect($config);
+            } else {
+                $config['host'] = $host['read'];
+                $this->read = $this->update = $this->connect($config);
+            }
         } else {
             $this->read = $this->update = $this->connect($this->config);
         }
@@ -251,7 +256,7 @@ class Store
      *
      * @return mixed
      */
-    public function inserts($value, $name = '')
+    public function insertDefault($value, $name = '')
     {
         $file = $this->file($name);
         if (!is_file($file)) {
@@ -262,7 +267,7 @@ class Store
         if (isset($value['col']) && isset($value['value'])) {
             $this->truncate();
 
-            $data = $this->getInserts($value, $data);
+            $data = $this->insertValues($value, $data);
 
             file_put_contents($file, '<?php return ' . var_export($data, true) . ';');
         }

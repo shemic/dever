@@ -148,10 +148,10 @@ class Store extends Base
      *
      * @return mixed
      */
-    public function getInserts($value, $data = array())
+    public function insertValues($value, $data = array())
     {
         $this->register();
-        $sql = $this->sql->inserts($this->table, $value['col'], $value['value']);
+        $sql = $this->sql->insertValues($this->table, $value['col'], $value['value']);
 
         try {
             $this->update->query($sql);
@@ -159,7 +159,7 @@ class Store extends Base
             $this->error($exception->getMessage(), $sql);
         }
 
-        $this->log($sql, 'inserts');
+        $this->log($sql, 'insertValues');
 
         $data['insert'] = $sql;
 
@@ -206,9 +206,9 @@ class Store extends Base
      *
      * @return int
      */
-    public function insert()
+    public function insert($num = 1)
     {
-        $sql = $this->sql->insert($this->table);
+        $sql = $this->sql->insert($this->table, $num);
 
         if ($sql) {
             try {

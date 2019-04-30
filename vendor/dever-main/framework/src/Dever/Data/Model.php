@@ -395,6 +395,10 @@ class Model
             return $result;
         }
 
+        if ($method == 'insert' && isset($param[1])) {
+            $param[0]['insert_value_num'] = $param[1];
+        }
+
         $param = $param ? $this->initParam($param[0], $method) : array();
 
         $key = $this->table . $method . md5(serialize($param));

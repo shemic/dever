@@ -81,7 +81,11 @@ class Handle
 
             $this->condition();
 
-            $data = $this->db()->$type($this->request['col']);
+            if ($type == 'insert' && isset($this->param['insert_value_num'])) {
+                $data = $this->db()->$type($this->param['insert_value_num']);
+            } else {
+                $data = $this->db()->$type($this->request['col']);
+            }
 
             if ($type == 'update' && isset($this->param['where_id'])) {
                 $data = $this->param['where_id'];
@@ -387,7 +391,7 @@ class Handle
             if ($create === true) {
                 # 写入默认值
                 if (isset($this->config['default'])) {
-                    $this->db()->inserts($this->config['default'], $this->index);
+                    $this->db()->insertDefault($this->config['default'], $this->index);
                 }
             } else {
                 if (isset($create['struct'])) {
