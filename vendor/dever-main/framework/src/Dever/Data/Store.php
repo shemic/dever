@@ -301,9 +301,13 @@ class Store
      *
      * @return mixed
      */
-    public function create($struct, $name = '', $type = 'innodb', $partition = '')
+    public function create($struct, $name = '', $type = 'innodb', $partition = '', $create = false)
     {
         if ($this->config['link']) {
+            return false;
+        }
+
+        if (isset($this->sql) && $create) {
             return false;
         }
 

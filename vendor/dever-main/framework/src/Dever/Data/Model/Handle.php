@@ -387,7 +387,7 @@ class Handle
         if (isset($this->config['struct'])) {
             $this->config['type'] = isset($this->config['type']) ? $this->config['type'] : 'innodb';
             $this->config['partition'] = isset($this->config['partition']) ? $this->config['partition'] : '';
-            $create = $this->db()->create($this->config['struct'], $this->index, $this->config['type'], $this->config['partition']);
+            $create = $this->db()->create($this->config['struct'], $this->index, $this->config['type'], $this->config['partition'], $this->config['create']);
             if ($create === true) {
                 # 写入默认值
                 if (isset($this->config['default'])) {
