@@ -307,11 +307,11 @@ class Store
             return false;
         }
 
-        if (isset($this->sql) && $create) {
+        if (isset($this->sql) && $create > 0) {
             return false;
         }
 
-        if (isset($this->sql) && Config::get('database')->create) {
+        if (isset($this->sql) && Config::get('database')->create > 0) {
             return false;
         }
 
