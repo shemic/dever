@@ -21,7 +21,7 @@ class Memcache implements Store
         if (isset($config["host"])) {
             $this->expire = $config['expire'];
 
-            $this->class->addServer($config["host"], $config["port"], $config["weight"]);
+            $this->class->addServer($config["host"], $config["port"], true, $config["weight"]);
         }
     }
 
