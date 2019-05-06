@@ -17,7 +17,7 @@ class Redis implements Store
         if (isset($config["host"])) {
             $this->expire = $config['expire'];
 
-            $this->redis->connect($config["host"], $config["port"]);
+            $this->redis->pconnect($config["host"], $config["port"]);
             if (isset($config['password']) && $config['password']) {
                 $this->redis->auth($config['password']);
             }

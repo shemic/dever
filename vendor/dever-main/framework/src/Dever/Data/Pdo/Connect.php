@@ -63,7 +63,7 @@ class Connect
         $dsnList = $type . ':' . implode(';', $dsn);
 
         try {
-            $this->handle = new \PDO($dsnList, $config['username'], $config['password']);
+            $this->handle = new \PDO($dsnList, $config['username'], $config['password'], array(\PDO::ATTR_PERSISTENT => true));
             $this->handle->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             //$this->handle->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
             $this->handle->setAttribute(\PDO::ATTR_CASE, \PDO::CASE_NATURAL);
