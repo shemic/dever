@@ -189,9 +189,12 @@ class Handle
      */
     public function set($key, $value, $expire = 0, $page = true)
     {
-        $state = $this->init($key);
-        if (!$state) {
-            return false;
+        $state = true;
+        if ($page) {
+            $state = $this->init($key);
+            if (!$state) {
+                return false;
+            }
         }
 
         if (!$this->store($key)) {
