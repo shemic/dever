@@ -159,8 +159,10 @@ class Handle
             return false;
         }
 
-        if (!$this->init($key)) {
-            return false;
+        if ($page) {
+            if (!$this->init($key)) {
+                return false;
+            }
         }
 
         if (!$this->store($key)) {
