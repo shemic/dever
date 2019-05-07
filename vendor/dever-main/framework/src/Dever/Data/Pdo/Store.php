@@ -79,8 +79,15 @@ class Store extends Base
 
     public function exe($sql, $value = array(), $method = '')
     {
-        $this->register();
-        if (stristr($sql, 'select')) {
+        $create = false;
+        if (stristr($sql, 'create')) {
+            $create = true;
+        }
+        $this->register($create);
+        
+        if ($create && isset($this->create)) {
+            $db = $this->create;
+        } elseif (stristr($sql, 'select')) {
             $db = $this->read;
         } else {
             $db = $this->update;

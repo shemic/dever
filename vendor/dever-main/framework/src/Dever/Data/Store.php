@@ -19,6 +19,13 @@ class Store
     protected $sql;
 
     /**
+     * create
+     *
+     * @var Dever\Data\Connect
+     */
+    protected $create;
+
+    /**
      * read
      *
      * @var Dever\Data\Connect
@@ -102,11 +109,16 @@ class Store
      *
      * @return mixd
      */
-    protected function register()
+    protected function register($create = false)
     {
-        if ($this->read && $this->update) {
+        if ($create) {
+            if ($this->create) {
+                return;
+            }
+        } elseif ($this->read && $this->update) {
             return;
         }
+        
         if (is_array($this->config['host'])) {
             $config = $this->config;
             $host = $this->config['host'];
@@ -118,6 +130,10 @@ class Store
             } else {
                 $config['host'] = $host['read'];
                 $this->read = $this->update = $this->connect($config);
+            }
+            if ($create && isset($host['create'])) {
+                $config['host'] = $host['create'];
+                $this->create = $this->connect($config);
             }
         } else {
             $this->read = $this->update = $this->connect($this->config);
