@@ -516,7 +516,8 @@ class Store
     {
         $cache = isset($this->config['cache']) ? $this->config['cache'] : Config::get('cache')->cAll;
 
-        if (isset($cache['route']) && $cache['route'] > 0 && $this->table && !isset(Config::get('base')->clearCache['route'])) {
+        //if (isset($cache['route']) && $cache['route'] > 0 && $this->table && !isset(Config::get('base')->clearCache['route'])) {
+        if (isset($cache['route']) && $cache['route'] > 0 && $this->table) {
             $handle = Handle::getInstance('route', $cache['route']);
             if ($method == 'put') {
                 $keys = $handle->get($this->table, false);
