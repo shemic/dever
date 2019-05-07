@@ -7,8 +7,8 @@ use Dever\Output\Export;
 use Dever\Routing\Input;
 use Dever\Loader\Config;
 use Dever\Output\Debug;
-use swoole_server as Server;
-use swoole_client as Client;
+use Swoole\Server as Server;
+use Swoole\Client as Client;
 
 class Swoole
 {
@@ -166,7 +166,7 @@ class Swoole
      */
     public function server($callback = false)
     {
-        $server = new Server($this->ip, $this->port);
+        $server = new Server($this->ip, $this->port, SWOOLE_BASE, SWOOLE_SOCK_TCP);
         $config = array
         (
             'worker_num' => 8,
