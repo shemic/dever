@@ -113,12 +113,7 @@ class Sql
         //$sql = 'DROP TABLE IF EXISTS `' . $table . '`;CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
 
         if ($auto) {
-            $sql .= ' AUTO_INCREMENT = ' . $auto;
-            if ($type) {
-                $sql .= ',';
-            } else {
-                $sql = ';';
-            }
+            $sql .= ' AUTO_INCREMENT = ' . $auto . ';';
         }
 
         if ($type) {
