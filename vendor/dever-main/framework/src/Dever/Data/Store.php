@@ -518,7 +518,7 @@ class Store
 
         if (isset($cache['route']) && $cache['route'] > 0 && $this->table && !isset(Config::get('base')->clearCache['route'])) {
             $handle = Handle::getInstance('route', $cache['route']);
-            if ($method == 'put' && $data !== false) {
+            if ($method == 'put') {
                 $keys = $handle->get($this->table, false);
                 $route = Uri::key();
                 if (!isset($keys[$route])) {
