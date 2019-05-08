@@ -743,9 +743,9 @@ class Dever
             @header('P3P: CP="CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"');
             $server = self::config('database')->session;
             if ($server) {
-                $link = 'tcp://'.$server['host'].':'.$server['port'];
+                $link = 'tcp://'.$server['host'].':'.$server['port'] . '?persistent=1&weight=1&timeout=1&retry_interval=15';
                 if (isset($server['password']) && $server['password']) {
-                    $link .= '?auth='.$server['password'];
+                    $link .= '&auth='.$server['password'];
                 }
                 @ini_set('session.save_handler', $server['type']);
                 @ini_set('session.save_path', $link);
