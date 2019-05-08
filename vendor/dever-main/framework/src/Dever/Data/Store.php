@@ -527,6 +527,9 @@ class Store
                     $handle->set($this->table, $keys, 0, false);
                 }
             } elseif (!$key && $this->table) {
+                if (Config::get('base')->after == 1) {
+                    return;
+                }
                 $keys = $handle->get($this->table, false);
                 if ($keys) {
                     array_walk($keys, array($this, 'deleteCache'), $handle);
