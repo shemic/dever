@@ -127,7 +127,7 @@ class Uri
                 }
             }
 
-            self::$key = 'route_' . $uri . '_' . sha1($url) . '_v3';
+            self::$key = 'route_' . $uri . '_' . sha1($url) . '_v4';
         }
         return self::$key;
     }
