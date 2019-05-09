@@ -388,7 +388,7 @@ class Handle
             $this->config['type'] = isset($this->config['type']) ? $this->config['type'] : 'innodb';
             $this->config['partition'] = isset($this->config['partition']) ? $this->config['partition'] : '';
             $this->config['auto'] = isset($this->config['auto']) ? $this->config['auto'] : 1;
-            $this->config['create'] = isset($this->config['create']) ? $this->config['create'] : false;
+            $this->config['create'] = isset($this->config['create']) ? $this->config['create'] : -2;
             $create = $this->db()->create($this->config['struct'], $this->index, $this->config['type'], $this->config['partition'], $this->config['create'], $this->config['auto']);
             if ($create === true) {
                 # 写入默认值

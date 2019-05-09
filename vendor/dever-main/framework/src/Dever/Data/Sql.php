@@ -105,7 +105,7 @@ class Sql
             $create[] = $v;
         }
 
-        if ($state == -1) {
+        if ($state === -1) {
             $sql = 'DROP TABLE IF EXISTS `' . $table . '`;CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
         } else {
             $sql    = 'CREATE TABLE `' . $table . '`(' . implode(',', $create) . ')';
