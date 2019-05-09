@@ -117,11 +117,15 @@ class Store extends Base
         }
     }
 
-    public function query($sql, $state = true)
+    public function query($sql, $state = false)
     {
         if (empty($this->config['shell'])) {
-            if (strpos($this->config['host'], ':') !== false) {
+            if (is_string($this->config['host']) && strpos($this->config['host'], ':') !== false) {
                 $temp = explode(':', $this->config['host']);
+                $this->config['host'] = $temp[0];
+                $this->config['port'] = $temp[1];
+            } elseif (isset($this->config['host']['read']) && strpos($this->config['host']['read'], ':') !== false) {
+                $temp = explode(':', $this->config['host']['read']);
                 $this->config['host'] = $temp[0];
                 $this->config['port'] = $temp[1];
             }

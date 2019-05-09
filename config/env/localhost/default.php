@@ -23,7 +23,7 @@ $config['base'] = array
 	'clearHeaderCache' => false,
 
 	# api文档生成是否开启，开启后，将会根据访问来生成文档。生产环境建议禁止
-	'apiDoc' => true,
+	'apiDoc' => false,
 	# api日志是否开启，开启后，将会记录所有带有_api后缀方法的请求参数和响应参数
 	'apiLog' => false,
 
@@ -63,13 +63,13 @@ $config['database'] = array
 	//'compatible' => 'model',
 
 	# 是否开启sql自动优化，将sql中的select * 转换为 select a,b形式，将sql中的where条件按照索引从左到右自动排序，必须打开上述的opt选项，数据量大时建议打开。
-	//'sql' => true,
+	//'sqlOp' => true,
 
 	# 关闭自助建表，生产环境建议开启，开启之后无法对数据表结构进行更新操作
 	//'create' => true,
 
 	# 是否开启mysql自助优化功能，开启后，会记录所有where条件和order的字段，可以方便的在后台进行分析、增加索引，必须安装manage组件
-	'opt' => true,
+	'opt' => false,
 
 	# 默认数据库配置
 	'default' => array
