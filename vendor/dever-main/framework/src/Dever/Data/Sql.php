@@ -222,6 +222,9 @@ class Sql
             }
             $result = implode(' ', $array);
         } else {
+            if (isset($this->colOrder) && $this->colOrder) {
+                $col = '`' . implode('`,`', array_keys($this->colOrder)) . '`';
+            }
             $result = $col ? $this->prefix . $col : $this->prefix . '*';
         }
 
@@ -619,6 +622,7 @@ class Sql
         }
 
         if (isset($this->colOrder)) {
+            $param[0] = trim($param[0], '`');
             if (isset($this->colOrder[$param[0]])) {
                 $this->where[$this->colOrder[$param[0]]] = $where;
             } else {

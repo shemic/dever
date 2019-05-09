@@ -160,12 +160,12 @@ class Store
 
         $this->setTable($table);
 
-        if (!$link && $state == true && isset($this->sql) && Config::get('database')->sqlOp) {
+        if (!$link && $state == true && isset($this->sql) && Config::get('database')->sql) {
             $file = $this->file($name);
 
             if (is_file($file)) {
                 $config = include $file;
-                if (isset($config['order'])) $this->sql->setColOrder($config['order']);
+                if (isset($config['struct'])) $this->sql->setColOrder($config['struct']);
             }
         }
 
