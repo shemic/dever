@@ -160,7 +160,7 @@ class Store
 
         $this->setTable($table);
 
-        if (!$link && $state == true && isset($this->sql) && Config::get('database')->sql) {
+        if (!$link && $state == true && isset($this->sql) && Config::get('database')->sqlOp) {
             $file = $this->file($name);
 
             if (is_file($file)) {
