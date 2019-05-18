@@ -179,7 +179,7 @@ class Redis implements Store
 
     private function key($key)
     {
-        return '_' . $key;
+        return 'v1_' . $key;
         return DEVER_APP_NAME . '_' . $key;
     }
 }
