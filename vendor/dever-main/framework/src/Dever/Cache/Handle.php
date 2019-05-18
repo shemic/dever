@@ -196,7 +196,7 @@ class Handle
         $data = $this->store->get($key);
         //$data = json_decode(base64_decode($data), true);
         if (strstr($data, 'serialize_')) {
-            $data = trim('serialize_', $data);
+            $data = str_replace('serialize_', '', $data);
             $data = unserialize($data);
         }
         
