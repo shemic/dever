@@ -57,7 +57,7 @@ class Handle
     {
         $cache = Config::get('cache')->cAll;
         if (empty($cache[$type])) {
-            return;
+            return false;
         }
         $handle = self::getInstance($type, $cache[$type]);
 

@@ -191,7 +191,7 @@ class Store extends Base
      *
      * @return int
      */
-    public function insert()
+    public function insert($num = 1)
     {
         $insert = array();
         foreach ($this->value['add'] as $k => $v) {
@@ -201,7 +201,14 @@ class Store extends Base
             $insert[$k] = $v;
         }
         $bulk = new BulkWrite;
-        $id = $bulk->insert($this->value['add']);
+        if ($num > 1) {
+            $data = $insert;
+            $insert = array();
+            foreach ($i = 0; $i < $num; $i++) {
+                $insert[] = $data;
+            }
+        }
+        $id = $bulk->insert($insert);
         $result = $this->connect->executeBulkWrite($this->table, $bulk);
         $this->log($this->value, 'insert');
         $this->value = array();
