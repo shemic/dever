@@ -61,6 +61,23 @@ class Memcache implements Store
         return $result;
     }
 
+    public function incr($key, $value)
+    {
+        if (!$this->class) {
+            return false;
+        }
+
+        if (!is_string($key)) {
+            return false;
+        }
+
+        $key = $this->key($key);
+
+        $result = $this->class->increment($key, $value);
+
+        return $result;
+    }
+
     public function hGet($key, $hkey = false)
     {
         return false;
@@ -102,7 +119,7 @@ class Memcache implements Store
 
     private function key($key)
     {
-        return '_' . $key;
+        return 'v1_' . $key;
         return DEVER_APP_NAME . '_' . $key;
     }
 }

@@ -61,6 +61,23 @@ class Redis implements Store
         return $result;
     }
 
+    public function incr($key, $value)
+    {
+        if (!$this->class) {
+            return false;
+        }
+
+        if (!is_string($key)) {
+            return false;
+        }
+
+        $key = $this->key($key);
+
+        $result = $this->class->incr($key, $value);
+
+        return $result;
+    }
+
     public function hGet($key, $hkey = false)
     {
         if (!$this->redis) {

@@ -70,6 +70,30 @@ class Handle
     }
 
     /**
+     * increment
+     * @param string $key
+     * @param array $data
+     * @param int $expire
+     * @param string $type
+     *
+     * @return Dever\Cache\Handle;
+     */
+    public static function increment($key = false, $data = 1)
+    {
+        $cache = Config::get('cache')->cAll;
+        if (empty($cache[$type])) {
+            return false;
+        }
+        $handle = self::getInstance($type, $cache[$type]);
+
+        $data = $handle->get($key);
+        if (!$data) {
+            return $handle->set($key, $data);
+        }
+        return $handle->incr($key, $data);
+    }
+
+    /**
      * getInstance
      *
      * @return Dever\Cache\Handle;
@@ -171,7 +195,10 @@ class Handle
 
         $data = $this->store->get($key);
         //$data = json_decode(base64_decode($data), true);
-        $data = unserialize($data);
+        if (strstr($data, 'serialize_')) {
+            $data = unserialize($data);
+        }
+        
         $this->log('get', $key, $data, $this->expire($key));
 
         $page_key = 'page_' . $key;
@@ -214,7 +241,9 @@ class Handle
         $this->expire($key, $expire);
         $this->log('set', $key, $value, $expire);
         //$value = base64_encode(json_encode($value));
-        $value = serialize($value);
+        if (is_array($value)) {
+            $value = 'serialize_' . serialize($value);
+        }
 
         if ($page && isset(Dever::$global['page']) && Dever::$global['page']) {
             $page_key = 'page_' . $key;
@@ -223,6 +252,28 @@ class Handle
         }
         
         return $this->store->set($key, $value, $expire);
+    }
+
+    /**
+     * incr
+     *
+     * @return mixd
+     */
+    public function incr($key, $value)
+    {
+        $state = true;
+        if ($page) {
+            $state = $this->init($key);
+            if (!$state) {
+                return false;
+            }
+        }
+
+        if (!$this->store($key)) {
+            return false;
+        }
+        
+        return $this->store->incr($key, $value);
     }
 
     /**

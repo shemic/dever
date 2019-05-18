@@ -90,6 +90,7 @@ class Dever
         'decode' => array('String\\Encrypt', 'decode'),
 
         'cache' => array('Cache\\Handle', 'load'),
+        'increment' => array('Cache\\Handle', 'increment'),
         'clearHeaderCache' => array('Routing\\Route', 'clearHeaderCache'),
 
         'tcp' => array('Server\\Swoole', 'getInstance'),
