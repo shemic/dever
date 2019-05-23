@@ -407,9 +407,6 @@ class Handle
      */
     protected function init($key)
     {
-        if ($this->type == 'route' && isset(Dever::config('base')->clearCache[$this->type])) {
-            return false;
-        }
         $state = 1;
 
         if (isset($this->config[$this->type . 'Key'])) {
