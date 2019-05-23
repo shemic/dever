@@ -242,6 +242,14 @@ class Handle
             }
         }
         */
+        $state = true;
+        if ($page) {
+            $state = $this->clear();
+            if (!$state) {
+                return false;
+            }
+        }
+
         $state = $this->init($key);
         if (!$state) {
             return false;
