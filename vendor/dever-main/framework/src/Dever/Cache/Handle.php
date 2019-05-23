@@ -194,6 +194,11 @@ class Handle
             }
         }
         */
+        if ($page) {
+            if (!$this->clear()) {
+                return false;
+            }
+        }
         if (!$this->init($key)) {
             return false;
         }
@@ -412,6 +417,20 @@ class Handle
         }
 
         return $state;
+    }
+
+    /**
+     * init
+     *
+     * @return mixed
+     */
+    protected function clear()
+    {
+        if ($this->type == 'route' && isset(Dever::config('base')->clearCache[$this->type])) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
