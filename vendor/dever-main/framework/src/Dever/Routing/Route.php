@@ -137,6 +137,10 @@ class Route
                 $this->cache($uri, $this->content);
             }
 
+            if (isset($this->content['end']['call'])) {
+                $this->content = Import::load($this->content['end']['call'], $this->content);
+            }
+
             $this->html = false;
 
             return true;

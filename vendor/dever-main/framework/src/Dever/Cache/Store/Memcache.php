@@ -2,7 +2,8 @@
 
 use Dever\Cache\Store;
 
-class Memcache implements Store
+//class Memcache implements Store
+class Memcache
 {
     private $class;
     private $expire;

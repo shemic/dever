@@ -29,8 +29,12 @@ class Command
                 return self::run('curl "' . $path . $interface . '"');
             } else {
                 # ?和&无法解析
+                $php = Config::get('base')->php;
+                if (isset($project['php']) && $project['php']) {
+                    $php = $project['php'];
+                }
                 $interface = str_replace(array('?', '&'), array('__', '^'), $interface);
-                return self::run('php ' . $path . $file . ' -send ' . $interface, $state);
+                return self::run($php . ' ' . $path . $file . ' -send ' . $interface, $state);
             }
         }
         return false;
@@ -155,6 +159,6 @@ class Command
 
         //self::daemon($api . '?dever_server=' . $server . '&type='.$type.'&param=' . base64_encode(json_encode($param)), $project);
 
-        //Import::load($project . '/' . $api, $param);
+        Import::load($project . '/' . $api, $param);
     }
 }

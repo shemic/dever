@@ -70,7 +70,7 @@ class Handle
     }
 
     /**
-     * increment
+     * counter
      * @param string $key
      * @param array $data
      * @param int $expire
@@ -78,7 +78,7 @@ class Handle
      *
      * @return Dever\Cache\Handle;
      */
-    public static function increment($key = false, $data = 1)
+    public static function counter($key = false, $data = false, $callback = false, $type = 'data')
     {
         $cache = Config::get('cache')->cAll;
         if (empty($cache[$type])) {
@@ -86,9 +86,16 @@ class Handle
         }
         $handle = self::getInstance($type, $cache[$type]);
 
-        $data = $handle->get($key);
-        if (!$data) {
-            return $handle->set($key, $data);
+        $value = $handle->get($key, false);
+        if ($data == false) {
+            return $value;
+        }
+        if (!$value) {
+            if ($callback) {
+                $num = $callback();
+                $data = $data + $num;
+            }
+            return $handle->set($key, $data, 0, false);
         }
         return $handle->incr($key, $data);
     }
@@ -152,10 +159,7 @@ class Handle
         }
 
         if (isset($this->config['store']) && $this->config['store']) {
-            $class = 'Dever\\Cache\\Store\\' . ucfirst($this->config['type']);
-            $this->store = new $class();
-
-            $this->log('connect', $this->config['type']);
+            $this->store = Store::getInstance($this->config['type'], $this);
 
             foreach ($this->config['store'] as $k => $v) {
                 if (empty($v['expire'])) {
@@ -183,10 +187,15 @@ class Handle
             return false;
         }
 
+        /*
         if ($page) {
             if (!$this->init($key)) {
                 return false;
             }
+        }
+        */
+        if (!$this->init($key)) {
+            return false;
         }
 
         if (!$this->store($key)) {
@@ -219,12 +228,18 @@ class Handle
      */
     public function set($key, $value, $expire = 0, $page = true)
     {
+        /*
         $state = true;
         if ($page) {
             $state = $this->init($key);
             if (!$state) {
                 return false;
             }
+        }
+        */
+        $state = $this->init($key);
+        if (!$state) {
+            return false;
         }
 
         if (!$this->store($key)) {
@@ -262,17 +277,16 @@ class Handle
      */
     public function incr($key, $value)
     {
-        $state = true;
-        if ($page) {
-            $state = $this->init($key);
-            if (!$state) {
-                return false;
-            }
+        $state = $this->init($key);
+        if (!$state) {
+            return false;
         }
 
         if (!$this->store($key)) {
             return false;
         }
+
+        $this->log('incr', $key, $value);
         
         return $this->store->incr($key, $value);
     }
@@ -446,7 +460,7 @@ class Handle
      *
      * @return mixed
      */
-    protected function log($method, $key = false, $value = false, $expire = 0)
+    public function log($method, $key = false, $value = false, $expire = 0)
     {
         $expire = $expire ? $expire : $this->expire;
         $log = array();

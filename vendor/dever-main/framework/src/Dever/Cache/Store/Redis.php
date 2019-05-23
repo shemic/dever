@@ -2,7 +2,7 @@
 
 use Dever\Cache\Store;
 
-class Redis implements Store
+class Redis
 {
     private $redis;
     private $expire;
@@ -63,7 +63,7 @@ class Redis implements Store
 
     public function incr($key, $value)
     {
-        if (!$this->class) {
+        if (!$this->redis) {
             return false;
         }
 
@@ -73,7 +73,7 @@ class Redis implements Store
 
         $key = $this->key($key);
 
-        $result = $this->class->incr($key, $value);
+        $result = $this->redis->incr($key, $value);
 
         return $result;
     }
