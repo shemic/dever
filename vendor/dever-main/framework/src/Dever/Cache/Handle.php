@@ -53,7 +53,7 @@ class Handle
      *
      * @return Dever\Cache\Handle;
      */
-    public static function load($key = false, $data = false, $expire = 0, $type = 'data')
+    public static function load($key = false, $data = false, $expire = 0, $type = 'data', $page = false)
     {
         $cache = Config::get('cache')->cAll;
         if (empty($cache[$type])) {
@@ -64,9 +64,9 @@ class Handle
         if (is_string($data) && $data == 'delete') {
             return $handle->delete($key);
         } elseif ($data) {
-            return $handle->set($key, $data, $expire);
+            return $handle->set($key, $data, $expire, $page);
         }
-        return $handle->get($key);
+        return $handle->get($key, $page);
     }
 
     /**
@@ -78,7 +78,7 @@ class Handle
      *
      * @return Dever\Cache\Handle;
      */
-    public static function counter($key = false, $data = false, $callback = false, $type = 'data')
+    public static function counter($key = false, $data = false, $callback = false, $type = 'data', $page = false)
     {
         $cache = Config::get('cache')->cAll;
         if (empty($cache[$type])) {
@@ -86,7 +86,7 @@ class Handle
         }
         $handle = self::getInstance($type, $cache[$type]);
 
-        $value = $handle->get($key, false);
+        $value = $handle->get($key, $page);
         if ($data == false) {
             return $value;
         }
@@ -95,7 +95,7 @@ class Handle
                 $num = $callback();
                 $data = $data + $num;
             }
-            return $handle->set($key, $data, 0, false);
+            return $handle->set($key, $data, 0, $page);
         }
         return $handle->incr($key, $data);
     }
