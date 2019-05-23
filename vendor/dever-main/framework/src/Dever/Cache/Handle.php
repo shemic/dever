@@ -194,11 +194,6 @@ class Handle
             }
         }
         */
-        if ($page) {
-            if (!$this->clear()) {
-                return false;
-            }
-        }
         if (!$this->init($key)) {
             return false;
         }
@@ -242,14 +237,6 @@ class Handle
             }
         }
         */
-        $state = true;
-        if ($page) {
-            $state = $this->clear();
-            if (!$state) {
-                return false;
-            }
-        }
-
         $state = $this->init($key);
         if (!$state) {
             return false;
@@ -407,6 +394,9 @@ class Handle
      */
     protected function init($key)
     {
+        if ($this->type == 'route' && isset(Dever::config('base')->clearCache[$this->type])) {
+            return false;
+        }
         $state = 1;
 
         if (isset($this->config[$this->type . 'Key'])) {
@@ -422,20 +412,6 @@ class Handle
         }
 
         return $state;
-    }
-
-    /**
-     * init
-     *
-     * @return mixed
-     */
-    protected function clear()
-    {
-        if ($this->type == 'route' && isset(Dever::config('base')->clearCache[$this->type])) {
-            return false;
-        }
-
-        return true;
     }
 
     /**

@@ -580,7 +580,7 @@ class Import
             $key .= '_p' . $page;
         }
 
-        return Cache::load($key, $data, 0, $type);
+        return Cache::load($key, $data, 0, $type, true);
     }
 
     /**

@@ -203,7 +203,7 @@ class Route
             return false;
         }
         $key = Uri::key();
-        return Cache::load($key, $data, 0, 'route');
+        return Cache::load($key, $data, 0, 'route', true);
     }
 
     /**

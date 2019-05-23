@@ -359,7 +359,7 @@ class View
      */
     private function cache($key, $data = false)
     {
-        return Cache::load($key, $data, 0, 'html');
+        return Cache::load($key, $data, 0, 'html', true);
     }
 
     /**
