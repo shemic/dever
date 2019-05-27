@@ -271,6 +271,7 @@ $config['host'] = array
 	'img' => $assets . 'img/',
 	'images' => $assets . 'images/',
 	'lib' => $assets . 'lib/',
+	'static' => $assets . 'static/',
 
 	# script组件路径
 	'script' => $host . 'dever_package/script/assets/',

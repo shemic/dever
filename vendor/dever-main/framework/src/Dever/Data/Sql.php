@@ -159,6 +159,9 @@ class Sql
 
         $sql = array();
         foreach ($config as $k => $v) {
+            if (!isset($v['default'])) {
+                $v['default'] = '';
+            }
             if (isset($v['type'])) {
                 $v = array
                     (
