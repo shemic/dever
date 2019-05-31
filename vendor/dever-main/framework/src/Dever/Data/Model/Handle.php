@@ -390,24 +390,21 @@ class Handle
             $this->config['auto'] = isset($this->config['auto']) ? $this->config['auto'] : 1;
             $this->config['create'] = isset($this->config['create']) ? $this->config['create'] : -2;
             $create = $this->db()->create($this->config['struct'], $this->index, $this->config['type'], $this->config['partition'], $this->config['create'], $this->config['auto']);
-            if ($create === true) {
+            if ($create === false) {
+                return;
+            }
+            if ($create === true && isset($this->config['default'])) {
                 # 写入默认值
-                if (isset($this->config['default'])) {
-                    $this->db()->insertDefault($this->config['default'], $this->index);
+                $this->db()->insertDefault($this->config['default'], $this->index);
+            } elseif (isset($create['struct']) && $create['struct']&& count($create['struct']) < count($this->config['struct'])) {
+                $alter = array_diff_key($this->config['struct'], $create['struct']);
+                if ($alter) {
+                    $this->db()->alter($alter, $this->config['struct'], $this->index);
                 }
-            } else {
-                if (isset($create['struct'])) {
-                    if (count($create['struct']) < count($this->config['struct'])) {
-                        $alter = array_diff_key($this->config['struct'], $create['struct']);
-                        if ($alter) {
-                            $this->db()->alter($alter, $this->config['struct'], $this->index);
-                        }
-                    }
-                }
+            }
 
-                if (isset($this->config['alter'])) {
-                    $this->db()->alter($this->config['alter'], $this->index);
-                }
+            if (isset($this->config['alter'])) {
+                $this->db()->alter($this->config['alter'], $this->index);
             }
 
             if (isset($this->config['index'])) {

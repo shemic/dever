@@ -49,7 +49,7 @@ class Store extends Base
 
         $info = $handle->fetchAll();
 
-        $this->dropIndex($info);
+        $this->dropIndex($info, $index[$version]);
 
         $sql = $this->sql->index($this->table, $index[$version]);
 
@@ -64,14 +64,15 @@ class Store extends Base
         return $data;
     }
 
-    private function dropIndex($info)
+    private function dropIndex($info, $index)
     {
         if ($info) {
             $this->register();
             foreach ($info as $k => $v) {
-                if ($v['Key_name'] != 'PRIMARY') {
+                if ($v['Key_name'] != 'PRIMARY' && !isset($index[$v['Key_name']])) {
                     $sql = $this->sql->dropIndex($this->table, $v['Key_name']);
                     $this->update->query($sql);
+                    $index[$v['Key_name']] = true;
                 }
             }
         }
