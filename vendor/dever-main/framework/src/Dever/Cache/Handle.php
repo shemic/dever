@@ -187,16 +187,18 @@ class Handle
             return false;
         }
 
-        /*
+
         if ($page) {
             if (!$this->init($key)) {
                 return false;
             }
         }
-        */
+
+        /*
         if (!$this->init($key)) {
             return false;
         }
+        */
 
         if (!$this->store($key)) {
             return false;
@@ -228,7 +230,6 @@ class Handle
      */
     public function set($key, $value, $expire = 0, $page = true)
     {
-        /*
         $state = true;
         if ($page) {
             $state = $this->init($key);
@@ -236,11 +237,12 @@ class Handle
                 return false;
             }
         }
-        */
+        /*
         $state = $this->init($key);
         if (!$state) {
             return false;
         }
+        */
 
         if (!$this->store($key)) {
             return false;
