@@ -422,7 +422,7 @@ class Handle
         }
 
         if (!$state && strstr($key, 'route_')) {
-            Dever::config('base')->clearCache = array($this->type => 1);
+            Dever::config('base')->setArray('clearCache', $this->type, 1);
         }
 
         return $state;

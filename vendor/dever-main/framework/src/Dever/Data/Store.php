@@ -541,30 +541,33 @@ class Store
 
         $handle = Handle::getInstance('mysql', $cache['mysql']);
         if (!$key && $this->table) {
+            if (Config::get('base')->after == 1) {
+                return;
+            }
             $keys = $handle->get($this->table, false);
             if ($keys) {
                 array_walk($keys, array($this, 'deleteCache'), $handle);
             }
-        }
-
-        if ($method == 'get') {
-            if (DEVER_APP_NAME == 'manage') {
-                return false;
-            }
-            return $handle->get($key);
-        }
-
-        if ($method == 'put' && $data !== false) {
-
-            if ($this->table) {
-                $keys = $handle->get($this->table, false);
-                if (!isset($keys[$key])) {
-                    $keys[$key] = 1;
-                    $handle->set($this->table, $keys, 0, false);
+        } else {
+            if ($method == 'get') {
+                if (DEVER_APP_NAME == 'manage') {
+                    return false;
                 }
+                return $handle->get($key);
             }
 
-            return $handle->set($key, $data);
+            if ($method == 'put' && $data !== false) {
+
+                if ($this->table) {
+                    $keys = $handle->get($this->table, false);
+                    if (!isset($keys[$key])) {
+                        $keys[$key] = 1;
+                        $handle->set($this->table, $keys, 0, false);
+                    }
+                }
+
+                return $handle->set($key, $data);
+            }
         }
 
         return false;
