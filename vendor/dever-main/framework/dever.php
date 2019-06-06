@@ -888,7 +888,7 @@ class Dever
             $key = self::config('base')->top;
         }
         $auth = self::auth();
-        if ($auth['top'] != 'all') {
+        if ($auth && $auth['top'] != 'all') {
             $key = str_replace('/', '-', $key);
             $auth['top'] = str_replace($key . '_', '', $auth['top']);
             return $auth['top'];
