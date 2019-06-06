@@ -46,6 +46,17 @@ class Config
     }
 
     /**
+     * set
+     */
+    public function setArray($name, $key, $value)
+    {
+        if (!isset($this->cData[$this->cKey][$name])) {
+            $this->cData[$this->cKey][$name] = array();
+        }
+        $this->cData[$this->cKey][$name][$key] = $value;
+    }
+
+    /**
      * __get
      */
     public function __get($name)

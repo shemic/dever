@@ -187,6 +187,10 @@ class Handle
             return false;
         }
 
+        $cache = Config::get('base')->cacheGetData;
+        if (isset($cache[$key])) {
+            return $cache[$key];
+        }
 
         if ($page) {
             if (!$this->init($key)) {
@@ -220,6 +224,8 @@ class Handle
             $this->log('get', $page_key, $page_data, $this->expire($page_key));
         }
 
+        Config::get('base')->setArray('cacheGetData', $key, $data);
+
         return $data;
     }
 
@@ -230,6 +236,11 @@ class Handle
      */
     public function set($key, $value, $expire = 0, $page = true)
     {
+        $cache = Config::get('base')->cacheSetData;
+        if (isset($cache[$key])) {
+            return $cache[$key];
+        }
+
         $state = true;
         if ($page) {
             $state = $this->init($key);
@@ -269,6 +280,7 @@ class Handle
             $this->log('set', $page_key, Dever::$global['page'], $expire);
         }
         
+        Config::get('base')->setArray('cacheSetData', $key, true);
         return $this->store->set($key, $value, $expire);
     }
 
