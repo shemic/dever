@@ -352,7 +352,9 @@ class Compile
 
         @chmod($this->file, 0755);
 
-        system('chmod -R ' . $this->file . ' 777');
+        if (function_exists('system')) {
+            system('chmod -R ' . $this->file . ' 777');
+        }
     }
 
     /**

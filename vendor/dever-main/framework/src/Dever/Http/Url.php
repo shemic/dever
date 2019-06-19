@@ -420,7 +420,7 @@ class Url
      *
      * @return mixed
      */
-    public function https($url)
+    public static function https($url)
     {
         if (Input::$command) {
             return $url;

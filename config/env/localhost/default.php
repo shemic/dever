@@ -41,6 +41,8 @@ $config['base'] = array
 
 	# php命令行的路径
 	'php' => 'php',
+	#sessionPath
+	'sessionPath' => '/tmp/',
 );
 
 # 模板配置

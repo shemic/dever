@@ -750,8 +750,8 @@ class Dever
                 }
                 @ini_set('session.save_handler', $server['type']);
                 @ini_set('session.save_path', $link);
-            } else {
-                @ini_set('session.save_path', '/tmp/');
+            } elseif (self::config('base')->sessionPath) {
+                @ini_set('session.save_path', self::config('base')->sessionPath);
             }
             @ini_set('session.gc_maxlifetime', 86400);
             @session_start();
@@ -848,7 +848,7 @@ class Dever
     /**
      * 获取refer和设置refer
      */
-    public function refer($project = 'main', $method = 'set')
+    public static function refer($project = 'main', $method = 'set')
     {
         if ($method == 'set') {
             return 'refer=' . self::encode(self::url(false, $project));
@@ -871,7 +871,7 @@ class Dever
     /**
      * 获取后台的项目权限
      */
-    public function top($key = false)
+    public static function top($key = false)
     {
         if (!$key) {
             $key = self::config('base')->top;
@@ -882,7 +882,7 @@ class Dever
     /**
      * 获取后台的项目权限
      */
-    public function tops($key = false)
+    public static function tops($key = false)
     {
         if (!$key) {
             $key = self::config('base')->top;
@@ -899,7 +899,7 @@ class Dever
     /**
      * 获取后台的项目权限
      */
-    public function auth()
+    public static function auth()
     {
         return self::load('manage/auth.data');
     }
