@@ -148,12 +148,12 @@ class Library
     public function import($source, $lower, $path)
     {
         $file = $path . $lower . '.php';
-        $common = 'common/';
+        $common = 'common' . DIRECTORY_SEPARATOR;
         if (substr($path, 0, strlen($common)) === $common) {
             $include = get_include_path();
             if (strpos($include, ':')) {
                 $temp = explode(':', $include);
-                $path = $temp[1] . '/' . $path;
+                $path = $temp[1] . DIRECTORY_SEPARATOR . $path;
             }
         }
         
@@ -180,7 +180,7 @@ class Library
      */
     public function includeSrc($source, $lower, $path)
     {
-        $file = $path . self::DEFAULT_SRC . '/' . $lower . '.php';
+        $file = $path . self::DEFAULT_SRC . DIRECTORY_SEPARATOR . $lower . '.php';
         if (is_file($file)) {
             $this->includeFile($file);
             return true;
@@ -188,7 +188,7 @@ class Library
             $temp = explode('\\', $source);
             unset($temp[0]);
             $source = implode('/', $temp);
-            $file = $path . self::DEFAULT_SRC . '/' . $source . '.php';
+            $file = $path . self::DEFAULT_SRC . DIRECTORY_SEPARATOR . $source . '.php';
             if (is_file($file)) {
                 $this->includeFile($file);
             } else {

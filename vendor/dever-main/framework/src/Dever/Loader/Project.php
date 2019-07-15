@@ -21,7 +21,7 @@ class Project
      */
     public static function content($update = false)
     {
-        $file = Path::get(Config::data() . 'project/', DEVER_PROJECT . '.php');
+        $file = Path::get(Config::data() . 'project' . DIRECTORY_SEPARATOR, DEVER_PROJECT . '.php');
 
         if (self::$content && $update == false) {
             return $file;

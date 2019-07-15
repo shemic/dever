@@ -16,7 +16,7 @@ class Path
         $dir1 = substr($suid, 0, 3);
         $dir2 = substr($suid, 3, 2);
         $dir3 = substr($suid, 5, 2);
-        return $dir1 . '/' . $dir2 . '/' . $dir3 . '/' . substr($uid, -2) . '/';
+        return $dir1 . DIRECTORY_SEPARATOR . $dir2 . DIRECTORY_SEPARATOR . $dir3 . DIRECTORY_SEPARATOR . substr($uid, -2) . DIRECTORY_SEPARATOR;
     }
 
     /**

@@ -107,7 +107,7 @@ class Config
      */
     public static function data()
     {
-        return isset(self::get('base')->data) ? self::get('base')->data : DEVER_PATH . 'data/';
+        return isset(self::get('base')->data) ? self::get('base')->data : DEVER_PATH . 'data' . DIRECTORY_SEPARATOR;
     }
 
     /**
@@ -162,7 +162,7 @@ class Config
             $this->cData[$name] = array();
 
             foreach ($config as $k => $v) {
-                $this->assign($name, $v, $path . '/', $name, $k);
+                $this->assign($name, $v, $path . DIRECTORY_SEPARATOR, $name, $k);
             }
         }
 
@@ -254,14 +254,14 @@ class Config
             $config[] = $name;
         }
 
-        $env = self::ENV . '/';
+        $env = self::ENV . DIRECTORY_SEPARATOR;
         if ($index == 0 && defined('DEVER_ENV_PATH')) {
             $base = DEVER_ENV_PATH;
             $env = '';
         }
 
         foreach ($config as $k => $v) {
-            $this->assign($v, $base, $path . $env . $_SERVER['DEVER_SERVER'] . '/');
+            $this->assign($v, $base, $path . $env . $_SERVER['DEVER_SERVER'] . DIRECTORY_SEPARATOR);
         }
     }
 
@@ -278,8 +278,8 @@ class Config
             $base = ini_get('include_path');
             $temp = explode(':', $base);
             foreach ($temp as $k => $v) {
-                if (strpos($v, '/') !== false) {
-                    $base = '/' . $v . '/';
+                if (strpos($v, DIRECTORY_SEPARATOR) !== false) {
+                    $base = DIRECTORY_SEPARATOR . $v . DIRECTORY_SEPARATOR;
                     break;
                 }
             }
