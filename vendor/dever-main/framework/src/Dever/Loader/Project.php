@@ -97,8 +97,8 @@ class Project
     {
         self::init();
         file_put_contents($file, '<?php $project = ' . var_export(self::$content, true) . ';');
-        if (self::load('manage') && Import::load('Manage\Src\Auth.data')) {
-            Import::load('Manage\Src\Menu.load');
+        if (self::load('manage') && Import::load('manage/auth.data')) {
+            Import::load('manage/menu.load');
         }
     }
 

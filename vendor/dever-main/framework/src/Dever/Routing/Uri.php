@@ -180,7 +180,7 @@ class Uri
     private static function info()
     {
         self::$pathinfo = -1;
-        if (isset($_SERVER['PATH_INFO'])) {
+        if (isset($_SERVER['PATH_INFO']) && $_SERVER['PATH_INFO']) {
             self::$pathinfo = $_SERVER['PATH_INFO'];
         } elseif (isset($_SERVER['ORIG_PATH_INFO'])) {
             self::$pathinfo = $_SERVER['ORIG_PATH_INFO'];

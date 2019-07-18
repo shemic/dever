@@ -683,6 +683,7 @@ class Dever
             return $key;
         }
         if (!$data) {
+            self::$global['dyna'][$key] = $config[$key];
             return $config[$key];
         }
 

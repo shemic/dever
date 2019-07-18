@@ -28,7 +28,7 @@ class Config
      *
      * @var array
      */
-    private $setting = array('base', 'host', 'database', 'debug', 'cache', 'template');
+    private static $setting = array('base', 'host', 'database', 'debug', 'cache', 'template');
 
     /**
      * instance
@@ -123,7 +123,12 @@ class Config
         if (!$app) {
             $app = DEVER_APP_NAME;
         }
-        $key = $app . '_' . $path;
+        if (in_array($name, self::$setting)) {
+            $key = 'base' . '_' . $app . '_' . $path;
+        } else {
+            $key = $name . '_' . $app . '_' . $path;
+        }
+        
         if (empty(self::$instance[$key])) {
             self::$instance[$key] = new self();
         }
@@ -177,7 +182,7 @@ class Config
      */
     protected function base($name)
     {
-        if (in_array($name, $this->setting)) {
+        if (in_array($name, self::$setting)) {
             $name = 'base';
         }
 
@@ -225,7 +230,7 @@ class Config
     protected function server()
     {
         if (empty($_SERVER['DEVER_SERVER'])) {
-            if (isset($_SERVER['SERVER_NAME'])) {
+            if (isset($_SERVER['SERVER_NAME']) && $_SERVER['SERVER_NAME'] != '127.0.0.1') {
                 $_SERVER['DEVER_SERVER'] = $_SERVER['SERVER_NAME'];
             } else {
                 $_SERVER['DEVER_SERVER'] = 'localhost';

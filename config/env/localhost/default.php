@@ -247,6 +247,7 @@ $host = 'http://'.$local . '/';
 # 定义assets的域名
 $assets = DEVER_APP_HOST . 'assets/';
 
+//$project_host = str_replace(DEVER_APP_NAME . '/', '', DEVER_APP_HOST);
 $project_host = $host . '' . DEVER_PROJECT . '/';
 
 # 定义data域名
