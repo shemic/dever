@@ -471,6 +471,12 @@ class Model
             if ($method == 'list' && isset($this->config['manage']['list_type']) && $this->config['manage']['list_type']) {
                 $this->config['request']['list']['page'][0] = 50000;
             }
+        } else {
+            if (isset($param['option']) && $param['option']) {
+                foreach ($param['option'] as $k => $v) {
+                    $this->config['request'][$method]['option'][$k] = $v;
+                }
+            }
         }
     }
 
