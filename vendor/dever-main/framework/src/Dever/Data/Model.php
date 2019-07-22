@@ -84,13 +84,13 @@ class Model
      *
      * @return mixed
      */
-    public static function load($table = '', $param = '')
+    public static function load($table = '', $param = '', $key = '')
     {
         if (is_array($table)) {
             print_r($table);die;
         }
         list($table, $index, $method) = self::table($table);
-        $key = $table . '_' . $index;
+        $key = $table . '_' . $index . '_' . $key;
         if (empty(static::$instance[$key])) {
             static::$instance[$key] = new static($table, $index);
         }
@@ -470,12 +470,6 @@ class Model
 
             if ($method == 'list' && isset($this->config['manage']['list_type']) && $this->config['manage']['list_type']) {
                 $this->config['request']['list']['page'][0] = 50000;
-            }
-        } else {
-            if (isset($param['option']) && $param['option']) {
-                foreach ($param['option'] as $k => $v) {
-                    $this->config['request'][$method]['option'][$k] = $v;
-                }
             }
         }
     }
