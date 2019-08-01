@@ -95,7 +95,7 @@ class Project
     private static function initFile($file)
     {
         self::init();
-        $this->updateContent($file);
+        self::updateContent($file);
         if (self::load('manage') && Import::load('manage/auth.data')) {
             Import::load('manage/menu.load');
         }
