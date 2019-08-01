@@ -259,6 +259,10 @@ if (DEVER_APP_NAME == 'manage') {
 # host 设置
 $config['host'] = array
 (
+	# 是否更新当前的url和跟目录路径到系统中，当一个系统有多个
+	'sync_path' => true,
+	'sync_url' => true,
+
 	# 跟域名
 	'base' 	=> DEVER_APP_HOST,
 

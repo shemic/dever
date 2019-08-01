@@ -60,8 +60,7 @@ class Project
 
         if (empty(self::$content[DEVER_APP_NAME])) {
             self::initFile($file);
-        } elseif (isset(self::$content[DEVER_APP_NAME])
-            && self::$content[DEVER_APP_NAME]['path'] != DEVER_APP_PATH) {
+        } elseif (isset(self::$content[DEVER_APP_NAME])) {
             self::updateFile();
         }
     }
@@ -73,18 +72,18 @@ class Project
      */
     private static function updateFile()
     {
-        //self::update(DEVER_APP_NAME, 'path', DEVER_APP_PATH);
-
-        if (Config::get('host')->base) {
-            //self::update(DEVER_APP_NAME, 'url', Config::get('host')->base);
-        }
-
-        if (defined('DEVER_APP_SETUP')) {
-            self::update(DEVER_APP_NAME, 'setup', DEVER_APP_SETUP);
+        # 是否同步更新不同的path和url
+        if (Config::get('host')->sync_path && self::$content[DEVER_APP_NAME]['path'] != DEVER_APP_PATH) {
             self::update(DEVER_APP_NAME, 'path', DEVER_APP_PATH);
         }
 
-        self::content(true);
+        if (defined('DEVER_APP_SETUP') && Config::get('host')->sync_path && self::$content[DEVER_APP_NAME]['setup'] != DEVER_APP_SETUP) {
+            self::update(DEVER_APP_NAME, 'setup', DEVER_APP_SETUP);
+        }
+
+        if (Config::get('host')->sync_url && Config::get('host')->base && self::$content[DEVER_APP_NAME]['url'] != Config::get('host')->base) {
+            self::update(DEVER_APP_NAME, 'url', Config::get('host')->base);
+        }
     }
 
     /**
@@ -96,7 +95,7 @@ class Project
     private static function initFile($file)
     {
         self::init();
-        file_put_contents($file, '<?php $project = ' . var_export(self::$content, true) . ';');
+        $this->updateContent($file);
         if (self::load('manage') && Import::load('manage/auth.data')) {
             Import::load('manage/menu.load');
         }
@@ -210,8 +209,21 @@ class Project
         if (isset(self::$content[$key])) {
             self::$content[$key][$index] = $value;
 
-            file_put_contents($file, '<?php $project = ' . var_export(self::$content, true) . ';');
+            self::updateContent($file);
         }
+    }
+
+    /**
+     * update
+     * @param  string $key
+     * @param  string $index
+     * @param  string $value
+     *
+     * @return mixed
+     */
+    public static function updateContent($file)
+    {
+        file_put_contents($file, '<?php $project = ' . var_export(self::$content, true) . ';');
     }
 
     /**
