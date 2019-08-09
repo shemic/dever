@@ -178,7 +178,7 @@ class Route
 
         if (Debug::init()) {
             Debug::out();
-        } elseif ($this->html || Config::get('template')->view) {
+        } elseif ($this->content && is_string($this->content) && ($this->html || Config::get('template')->view)) {
             echo Url::https(Url::uploadRes($this->content));
         } else {
             Export::out($this->content);

@@ -203,7 +203,7 @@ class Url
         if (Input::$command) {
             return $content;
         }
-        if (Config::get('host')->uploadRes && $content) {
+        if (Config::get('host')->uploadRes && $content && is_string($content)) {
             $host = Config::get('host')->uploadRes;
             if (is_array(Config::get('host')->uploadRes)) {
                 $index = array_rand(Config::get('host')->uploadRes);

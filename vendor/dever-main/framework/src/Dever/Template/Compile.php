@@ -368,19 +368,32 @@ class Compile
         if (Config::get('template')->replace && is_array(Config::get('template')->replace)) {
             foreach (Config::get('template')->replace as $k => $v) {
                 if (Config::get('host')->$k) {
-                    if (!Config::get('host')->merge && Config::get('template')->domain) {
-                        $script = $this->parsing->script('echo Dever::config("host")->' . $k . '');
-                        if ($k . '/' == $v) {
-                            $content = $this->parsing->replace('"' . $v, '"' . $script , $content);
-                        } else {
-                            $content = $this->parsing->replace($v, $script, $content);
+                    if (is_array($v)) {
+                        foreach ($v as $k1 => $v1) {
+                            $content = $this->assetsReplace($content, $k, $v1);
                         }
-                        
                     } else {
-                        $content = $this->parsing->replace($v, Config::get('host')->$k, $content);
+                        $content = $this->assetsReplace($content, $k, $v);
                     }
                 }
             }
+        }
+
+        return $content;
+    }
+
+    private function assetsReplace($content, $k, $v)
+    {
+        if (!Config::get('host')->merge && Config::get('template')->domain) {
+            $script = $this->parsing->script('echo Dever::config("host")->' . $k . '');
+            if ($k . '/' == $v) {
+                $content = $this->parsing->replace('"' . $v, '"' . $script , $content);
+            } else {
+                $content = $this->parsing->replace($v, $script, $content);
+            }
+            
+        } else {
+            $content = $this->parsing->replace($v, Config::get('host')->$k, $content);
         }
 
         return $content;
