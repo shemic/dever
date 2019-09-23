@@ -139,7 +139,7 @@ class Parsing
             return explode('@', $type);
         }
         # include database|model
-        elseif (strpos($type, 'http://') === false && strpos($type, '/') !== false && (strpos($type, '.') !== false || strpos($type, '-') !== false || strpos($type, '!') !== false)) {
+        elseif (strpos($type, 'http') === false && strpos($type, '/') !== false && (strpos($type, '.') !== false || strpos($type, '-') !== false || strpos($type, '!') !== false)) {
             $key = $type;
             if (strpos($type, '|') !== false) {
                 if (strpos($type, '!') !== false) {

@@ -171,6 +171,12 @@ class Excel
                         foreach ($temp as $ck => $cv) {
                             $objDrawing[$ck] = new \PHPExcel_Worksheet_Drawing();
                             if (Dever::project('upload')) {
+                                if (Dever::config('host')->project && isset(Dever::config('host')->project['upload'])) {
+                                    $project = Dever::config('host')->project;
+                                    $project['upload'] = array();
+                                    Dever::config('host')->project = $project;
+                                }
+                                
                                 $cv = str_replace('.jpg', '_t1.jpg', $cv);
                                 $cv = str_replace('.png', '_t1.png', $cv);
                                 $cv = Dever::load('upload/view')->get($cv);
