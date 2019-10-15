@@ -4,6 +4,7 @@ use Dever;
 use Dever\Loader\Lang;
 use Dever\Pagination\Paginator;
 use Dever\Routing\Input;
+use Dever\Routing\Uri;
 use Dever\Http\Url;
 
 class Export
@@ -260,11 +261,38 @@ class Export
     private static function success($status, &$result)
     {
         if ($status == 1) {
+            if (!isset($result['data'])) {
+                $result['data'] = array();
+            }
             $result['code'] = 0;
             if ($page = self::page()) {
                 $result['page'] = $page;
             }
+            if ($ad = self::ad($result['data'])) {
+                $result['ad'] = $ad;
+            }
         }
+    }
+
+    /**
+     * success
+     * @param string $status
+     * @param array $result
+     *
+     * @return mixed
+     */
+    private static function ad($data)
+    {
+        if (Dever::project('ad') && DEVER_APP_NAME != 'manage' && DEVER_APP_NAME != 'ad') {
+            $uri = Dever::input('ad');
+            if (!$uri) {
+                $uri = DEVER_APP_NAME . '/'. Uri::get();
+            }
+            
+            return Dever::load('ad/lib/data')->get($uri, $data);
+        }
+
+        return false;
     }
 
     /**
