@@ -152,9 +152,12 @@ class Oper
 
     private static function getFileName($type, $day = '')
     {
-        $root = Path::month('logs');
-        $file = $day ? $day : date('Y_m_d');
-        
+        $file = $day ? $day : date('Y_m_d_H');
+        if (strstr($file, '-')) {
+            $file = str_replace('-', '_', $file);
+        }
+        $root = Path::day('logs', true, $file);
+
         if ($type == 1) {
             $prefix = 'debug';
         } elseif ($type == 2) {
@@ -166,13 +169,12 @@ class Oper
         }
 
         if (strstr($type, '/')) {
-            $path = $prefix . '/';
+            $path = rtrim($prefix, '/') . '/';
             $file = $file . '.log';
         } else {
             $path = '';
             $file = $prefix . '_' . $file . '.log';
         }
-
         return array($root, $path, $file);
     }
 }

@@ -25,9 +25,16 @@ class Path
      *
      * @return array
      */
-    public static function month($path, $project = true)
+    public static function month($path, $project = true, $time = false)
     {
-        $date = explode('-', date("Y-m-d"));
+        if (!$time) {
+            $time = time();
+        }
+        if (is_numeric($time)) {
+            $time = date('Y_m_d', $time);
+        }
+        $date = explode('_', $time);
+
         if ($project) {
             $path .= DIRECTORY_SEPARATOR . DEVER_PROJECT . DIRECTORY_SEPARATOR;
         } else {
@@ -44,9 +51,15 @@ class Path
      *
      * @return array
      */
-    public static function day($path, $project = true)
+    public static function day($path, $project = true, $time = false)
     {
-        $date = explode('-', date("Y-m-d"));
+        if (!$time) {
+            $time = time();
+        }
+        if (is_numeric($time)) {
+            $time = date('Y_m_d', $time);
+        }
+        $date = explode('_', $time);
         if ($project) {
             $path .= DIRECTORY_SEPARATOR . DEVER_PROJECT . DIRECTORY_SEPARATOR;
         } else {
