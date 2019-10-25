@@ -610,8 +610,10 @@ class Sql
                 }
                 $instr = 'instr('.$concat.', ' . $param[1] . ')';
                 $where = $param[3] . ' ' . $instr . ' > 0' . $where;
-                $this->orderBy = 'order by col_score desc';
-                $this->score[] = 'IF('.$instr.', IF(' . $param[0] . '=' . $param[1] . ', 1000*'.$value.', (100-'.$instr.')*'.$value.'), 0)';
+                if ($param[2] == 'like_score') {
+                    $this->orderBy = 'order by col_score desc';
+                    $this->score[] = 'IF('.$instr.', IF(' . $param[0] . '=' . $param[1] . ', 1000*'.$value.', (100-'.$instr.')*'.$value.'), 0)';
+                }
             }
             
             //$this->as[] = ' CONCAT("<em class=\"dever_highlight\">",' . $param[0] . ',"</em>") as ' . $col;
