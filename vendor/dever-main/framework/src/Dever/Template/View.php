@@ -8,6 +8,7 @@ use Dever\Cache\Handle as Cache;
 use Dever\Support\Path;
 use Dever\Routing\Uri;
 use Dever\Support\Env;
+use Dever\Http\Url;
 
 class View
 {
@@ -297,6 +298,9 @@ class View
         } elseif (Config::get('template')->assets) {
             if (is_array(Config::get('template')->assets)) {
                 $this->path = Env::mobile() ? Config::get('template')->assets[1] : Config::get('template')->assets[0];
+                if (strstr($this->path, 'http')) {
+                    Url::location($this->path);
+                }
             } else {
                 $this->path = Config::get('template')->assets;
             }
