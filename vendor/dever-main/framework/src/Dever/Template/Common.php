@@ -158,7 +158,7 @@ class Common
         if (!$type) {
             $type = pathinfo($value, PATHINFO_EXTENSION);
         }
-        return Config::get('host')->$type . $value . '?v=' . self::version();
+        return Url::https(Config::get('host')->$type . $value . '?v=' . self::version());
     }
 
     /**
