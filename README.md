@@ -206,6 +206,98 @@ go run ./dever/cmd/dever init
 
 `main.go` 会调用 `data.RegisterRoutes`，因此只要重新生成路由并启动服务，新的 API 即可生效。
 
+## Redis 原子扣减组件
+
+- 在 `config/setting.json` 配置 `redis` 段，设置连接地址、认证信息、连接池参数及统一前缀。
+- 启动阶段调用 `lock.Configure` 即可记录配置，真正的 Redis 连接会在首次 `lock.Dec/lock.Inc` 触发时建立，业务层直接使用 `github.com/shemic/dever/lock` 包：
+
+```go
+balance, err := lock.Dec(ctx, "merchant:123:balance", 100, lock.WithFloor(0))
+if errors.Is(err, lock.ErrInsufficient) {
+    // 余额不足，给出提示或降级处理
+}
+
+// 下单失败后恢复额度
+_, _ = lock.Inc(ctx, "merchant:123:balance", 100)
+```
+
+- `lock.Dec`/`lock.Inc` 使用 Lua 脚本保证 Redis 内部原子性，支持 `WithFloor`、`WithCeiling`、`WithTTL` 等选项，适合余额扣减、库存变更、活动预约等高并发场景。
+
+## 事务、锁与一致性策略
+
+- **事务**：使用 `orm.Transaction` 包裹需要原子性的业务逻辑；函数会自动判断上下文中是否已有事务并复用，出现 panic 将回滚：
+
+  ```go
+  err := orm.Transaction(ctx, func(txCtx context.Context) error {
+      userModel := model.NewUserModel()
+      profile := userModel.Find(txCtx, map[string]any{"id": uid}, nil)
+      if len(profile) == 0 {
+          return fmt.Errorf("用户不存在")
+      }
+      userModel.Update(txCtx,
+          map[string]any{"id": uid},
+          map[string]any{"status": 1},
+      )
+      return nil
+  })
+  ```
+
+- **乐观锁**：为表结构增加 `version` 字段后，调用 `Update` 时将第四个参数设为 `true`，框架会自动比较版本并自增；冲突时抛出 `orm.ErrVersionConflict`：
+
+  ```go
+  if err := orm.Transaction(ctx, func(txCtx context.Context) error {
+      _, err := userModel.Update(txCtx,
+          map[string]any{"id": uid, "version": version},
+          map[string]any{"status": 2},
+          true,
+      )
+      return err
+  }); err != nil {
+      if orm.IsVersionConflict(err) {
+          // 根据业务需要重试或提示用户
+      }
+  }
+  ```
+
+- **悲观锁**：`Model.Select` 的第四个可选参数为 `true` 时会在查询末尾追加 `FOR UPDATE`，配合事务使用即可锁定读取的行：
+
+  ```go
+  err := orm.Transaction(ctx, func(txCtx context.Context) error {
+      userModel := model.NewUserModel()
+      records := userModel.Select(txCtx,
+          map[string]any{"main.id": uid},
+          map[string]any{"page": 1, "pageSize": 1},
+          true, // 开启悲观锁
+      )
+      if len(records) == 0 {
+          return fmt.Errorf("用户不存在")
+      }
+      // 在同一事务中继续写操作
+      userModel.Update(txCtx, map[string]any{"id": uid}, map[string]any{"status": 2})
+      return nil
+  })
+  ```
+
+  若需更灵活的 SQL，可仍然通过 `orm.Tx(ctx)` 获取底层 `*sqlx.Tx` 手写语句。悲观锁应尽量缩短持有时间；跨进程/跨服务场景推荐使用 Redis 分布式锁。
+
+- **Redis 原子扣减与补偿**：`lock.Dec`/`lock.Inc` 提供原子增减操作，可结合 `defer` 实现失败补偿：
+
+  ```go
+  quota, err := lock.Dec(ctx, "coupon:123", 1, lock.WithFloor(0))
+  if err != nil {
+      return err
+  }
+  success := false
+  defer func() {
+      if !success {
+          _, _ = lock.Inc(ctx, "coupon:123", 1)
+      }
+  }()
+  // 执行业务逻辑，成功后将 success 置为 true
+  ```
+
+  可使用 `lock.WithCeiling` 设置上限、`lock.WithTTL` 控制过期时间；若需与数据库保持一致，可结合事务或异步补偿机制。
+
 ## 常见开发流程回顾
 
 1. 在 `config/setting.json` 更新数据库、HTTP、日志等配置，并按环境区分。

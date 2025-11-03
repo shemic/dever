@@ -56,6 +56,7 @@ type App struct {
 	Log      Log      `json:"log"`
 	HTTP     HTTP     `json:"http"`
 	Database Database `json:"database"`
+	Redis    Redis    `json:"redis"`
 }
 
 // Log 表示日志相关配置。
@@ -179,6 +180,24 @@ type DBConf struct {
 	ConnMaxLifetime   Duration          `json:"connMaxLifetime"`
 	ConnMaxIdleTime   Duration          `json:"connMaxIdleTime"`
 	HealthCheckPeriod Duration          `json:"healthCheckPeriod"`
+}
+
+// Redis 表示 Redis 相关配置。
+type Redis struct {
+	Enable       bool     `json:"enable"`
+	Addr         string   `json:"addr"`
+	Username     string   `json:"username"`
+	Password     string   `json:"password"`
+	DB           int      `json:"db"`
+	Prefix       string   `json:"prefix"`
+	PoolSize     int      `json:"poolSize"`
+	MinIdleConns int      `json:"minIdleConns"`
+	MaxRetries   int      `json:"maxRetries"`
+	DialTimeout  Duration `json:"dialTimeout"`
+	ReadTimeout  Duration `json:"readTimeout"`
+	WriteTimeout Duration `json:"writeTimeout"`
+	PingTimeout  Duration `json:"pingTimeout"`
+	UseTLS       bool     `json:"useTLS"`
 }
 
 // Load 从指定路径读取配置。

@@ -15,6 +15,7 @@ import (
 
 	dever "github.com/shemic/dever"
 	"github.com/shemic/dever/config"
+	"github.com/shemic/dever/lock"
 	dlog "github.com/shemic/dever/log"
 	"github.com/shemic/dever/orm"
 	"github.com/shemic/dever/server"
@@ -57,6 +58,8 @@ func Run(register func(server.Server)) error {
 			_ = orm.CloseAll()
 		}()
 	}
+
+	lock.Configure(makeLockConfig(cfg.Redis))
 
 	dlog.Configure(cfg.Log)
 
@@ -194,5 +197,24 @@ func makeORMConfig(dbCfg config.DBConf) orm.Config {
 		ConnMaxLifetime:   dbCfg.ConnMaxLifetime.Duration(),
 		ConnMaxIdleTime:   dbCfg.ConnMaxIdleTime.Duration(),
 		HealthCheckPeriod: dbCfg.HealthCheckPeriod.Duration(),
+	}
+}
+
+func makeLockConfig(redisCfg config.Redis) lock.Config {
+	return lock.Config{
+		Enable:       redisCfg.Enable,
+		Addr:         redisCfg.Addr,
+		Username:     redisCfg.Username,
+		Password:     redisCfg.Password,
+		DB:           redisCfg.DB,
+		Prefix:       redisCfg.Prefix,
+		PoolSize:     redisCfg.PoolSize,
+		MinIdleConns: redisCfg.MinIdleConns,
+		MaxRetries:   redisCfg.MaxRetries,
+		DialTimeout:  redisCfg.DialTimeout.Duration(),
+		ReadTimeout:  redisCfg.ReadTimeout.Duration(),
+		WriteTimeout: redisCfg.WriteTimeout.Duration(),
+		PingTimeout:  redisCfg.PingTimeout.Duration(),
+		UseTLS:       redisCfg.UseTLS,
 	}
 }
