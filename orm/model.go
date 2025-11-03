@@ -2,6 +2,7 @@ package orm
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -23,6 +24,8 @@ type Model struct {
 	dbCached     *sqlx.DB
 	dbErr        error
 	defaultOrder string
+	versionOnce  sync.Once
+	hasVersion   bool
 }
 
 var (
@@ -161,8 +164,9 @@ func (m *Model) Select(ctx context.Context, filters any, options map[string]any,
 	if len(lock) > 0 {
 		lockFlag = lock[0]
 	}
-	db, err := m.db()
+	baseDB, err := m.db()
 	panicOnError(err)
+	exec := newExecutor(ctx, baseDB)
 
 	fields := "main.*"
 	joinClause := ""
@@ -205,14 +209,14 @@ func (m *Model) Select(ctx context.Context, filters any, options map[string]any,
 		query += " FOR UPDATE"
 	}
 
-	query = db.Rebind(query)
+	query = exec.rebind(query)
 	if into != nil {
 		panicOnError(ensureIntoDest(into))
-		panicOnError(db.SelectContext(ctx, into, query, args...))
+		panicOnError(exec.selectContext(ctx, into, query, args...))
 		return []map[string]any{}
 	}
 
-	rows, err := db.QueryxContext(ctx, query, args...)
+	rows, err := exec.queryxContext(ctx, query, args...)
 	panicOnError(err)
 	defer rows.Close()
 
@@ -234,8 +238,9 @@ func (m *Model) Find(ctx context.Context, filters any, options ...map[string]any
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db, err := m.db()
+	baseDB, err := m.db()
 	panicOnError(err)
+	exec := newExecutor(ctx, baseDB)
 
 	fields := "main.*"
 	joinClause := ""
@@ -258,9 +263,9 @@ func (m *Model) Find(ctx context.Context, filters any, options ...map[string]any
 		query += " WHERE " + whereClause
 	}
 	query += " LIMIT 1"
-	query = db.Rebind(query)
+	query = exec.rebind(query)
 
-	row := db.QueryRowxContext(ctx, query, args...)
+	row := exec.queryRowxContext(ctx, query, args...)
 	record := make(map[string]any)
 	if err := row.MapScan(record); err != nil {
 		err = normalizeError(err)
@@ -278,11 +283,12 @@ func (m *Model) Insert(ctx context.Context, data map[string]any) int64 {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db, err := m.db()
+	baseDB, err := m.db()
 	panicOnError(err)
+	exec := newExecutor(ctx, baseDB)
 	query, payload, err := buildInsertQuery(m.table, data)
 	panicOnError(err)
-	res, err := db.NamedExecContext(ctx, query, payload)
+	res, err := exec.namedExecContext(ctx, query, payload)
 	panicOnError(err)
 	if id, err := res.LastInsertId(); err == nil {
 		return id
@@ -291,16 +297,51 @@ func (m *Model) Insert(ctx context.Context, data map[string]any) int64 {
 }
 
 // Update 根据条件更新数据。
-func (m *Model) Update(ctx context.Context, filters any, data map[string]any) int64 {
+func (m *Model) Update(ctx context.Context, filters any, data map[string]any, optimistic ...bool) int64 {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db, err := m.db()
+	baseDB, err := m.db()
 	panicOnError(err)
-	if len(data) == 0 {
+	exec := newExecutor(ctx, baseDB)
+
+	useOptimistic := len(optimistic) > 0 && optimistic[0]
+	if len(data) == 0 && !useOptimistic {
 		panic(fmt.Errorf("orm: update %s requires at least one column", m.table))
 	}
-	setKeys := sortedKeys(data)
+
+	var updates map[string]any
+	if data != nil {
+		updates = data
+	}
+	if useOptimistic {
+		if !m.ensureVersionColumn() {
+			panic(fmt.Errorf("orm: table %s missing version column for optimistic lock", m.table))
+		}
+		if len(data) > 0 {
+			needCopy := false
+			for key := range data {
+				if strings.EqualFold(key, "version") {
+					needCopy = true
+					break
+				}
+			}
+			if needCopy {
+				updates = make(map[string]any, len(data)-1)
+				for k, v := range data {
+					if strings.EqualFold(k, "version") {
+						continue
+					}
+					updates[k] = v
+				}
+			}
+		}
+	}
+	if len(updates) == 0 && !useOptimistic {
+		panic(fmt.Errorf("orm: update %s requires at least one column", m.table))
+	}
+
+	setKeys := sortedKeys(updates)
 	args := make([]any, 0, len(setKeys))
 	var setBuilder strings.Builder
 	for i, key := range setKeys {
@@ -310,7 +351,13 @@ func (m *Model) Update(ctx context.Context, filters any, data map[string]any) in
 		}
 		setBuilder.WriteString(key)
 		setBuilder.WriteString(" = ?")
-		args = append(args, data[key])
+		args = append(args, updates[key])
+	}
+	if useOptimistic {
+		if setBuilder.Len() > 0 {
+			setBuilder.WriteString(", ")
+		}
+		setBuilder.WriteString("version = version + 1")
 	}
 	whereClause, whereArgs := buildWhereClause(filters)
 	if strings.TrimSpace(whereClause) == "" {
@@ -318,11 +365,14 @@ func (m *Model) Update(ctx context.Context, filters any, data map[string]any) in
 	}
 	args = append(args, whereArgs...)
 	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", m.table, setBuilder.String(), whereClause)
-	query = db.Rebind(query)
-	res, err := db.ExecContext(ctx, query, args...)
+	query = exec.rebind(query)
+	res, err := exec.execContext(ctx, query, args...)
 	panicOnError(err)
 	affected, err := res.RowsAffected()
 	panicOnError(err)
+	if useOptimistic && affected == 0 {
+		panic(ErrVersionConflict)
+	}
 	return affected
 }
 
@@ -331,15 +381,16 @@ func (m *Model) Delete(ctx context.Context, filters any) int64 {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db, err := m.db()
+	baseDB, err := m.db()
 	panicOnError(err)
+	exec := newExecutor(ctx, baseDB)
 	whereClause, whereArgs := buildWhereClause(filters)
 	if strings.TrimSpace(whereClause) == "" {
 		panic(fmt.Errorf("orm: delete %s requires filter conditions", m.table))
 	}
 	query := fmt.Sprintf("DELETE FROM %s WHERE %s", m.table, whereClause)
-	query = db.Rebind(query)
-	res, err := db.ExecContext(ctx, query, whereArgs...)
+	query = exec.rebind(query)
+	res, err := exec.execContext(ctx, query, whereArgs...)
 	panicOnError(err)
 	affected, err := res.RowsAffected()
 	panicOnError(err)
@@ -351,6 +402,73 @@ func (m *Model) db() (*sqlx.DB, error) {
 		m.dbCached, m.dbErr = Get(m.dbName)
 	})
 	return m.dbCached, m.dbErr
+}
+
+func (m *Model) ensureVersionColumn() bool {
+	m.versionOnce.Do(func() {
+		if m.schema == nil {
+			return
+		}
+		for _, col := range m.schema.Columns {
+			if strings.EqualFold(col.Name, "version") {
+				m.hasVersion = true
+				return
+			}
+		}
+	})
+	return m.hasVersion
+}
+
+type executor struct {
+	db *sqlx.DB
+	tx *sqlx.Tx
+}
+
+func newExecutor(ctx context.Context, db *sqlx.DB) executor {
+	exec := executor{db: db}
+	if tx := txFromContext(ctx); tx != nil {
+		exec.tx = tx
+	}
+	return exec
+}
+
+func (e executor) rebind(query string) string {
+	return e.db.Rebind(query)
+}
+
+func (e executor) selectContext(ctx context.Context, dest any, query string, args ...any) error {
+	if e.tx != nil {
+		return e.tx.SelectContext(ctx, dest, query, args...)
+	}
+	return e.db.SelectContext(ctx, dest, query, args...)
+}
+
+func (e executor) queryxContext(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+	if e.tx != nil {
+		return e.tx.QueryxContext(ctx, query, args...)
+	}
+	return e.db.QueryxContext(ctx, query, args...)
+}
+
+func (e executor) queryRowxContext(ctx context.Context, query string, args ...any) *sqlx.Row {
+	if e.tx != nil {
+		return e.tx.QueryRowxContext(ctx, query, args...)
+	}
+	return e.db.QueryRowxContext(ctx, query, args...)
+}
+
+func (e executor) execContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	if e.tx != nil {
+		return e.tx.ExecContext(ctx, query, args...)
+	}
+	return e.db.ExecContext(ctx, query, args...)
+}
+
+func (e executor) namedExecContext(ctx context.Context, query string, arg any) (sql.Result, error) {
+	if e.tx != nil {
+		return e.tx.NamedExecContext(ctx, query, arg)
+	}
+	return e.db.NamedExecContext(ctx, query, arg)
 }
 
 func buildWhereClause(filters any) (string, []any) {

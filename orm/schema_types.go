@@ -20,9 +20,9 @@ type indexDef struct {
 }
 
 type tableSchema struct {
-	Table     string      `json:"table"`
-	Columns   []columnDef `json:"columns"`
-	Indexes   []indexDef  `json:"indexes,omitempty"`
+	Table     string           `json:"table"`
+	Columns   []columnDef      `json:"columns"`
+	Indexes   []indexDef       `json:"indexes,omitempty"`
 	Seeds     []map[string]any `json:"seeds,omitempty"`
-	UpdatedAt time.Time   `json:"updatedAt"`
+	UpdatedAt time.Time        `json:"updatedAt"`
 }
