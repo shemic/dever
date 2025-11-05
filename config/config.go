@@ -64,6 +64,19 @@ type Log struct {
 	Level       string `json:"level"`
 	Encoding    string `json:"encoding"`
 	Development bool   `json:"development"`
+	Enabled     *bool  `json:"enabled,omitempty"`
+	Output      string `json:"output"`
+	FilePath    string `json:"filePath"`
+	SuccessFile string `json:"successFile"`
+	ErrorFile   string `json:"errorFile"`
+	Access      *LogTarget `json:"access,omitempty"`
+	Error       *LogTarget `json:"error,omitempty"`
+}
+
+// LogTarget 表示访问或错误日志的输出目标。
+type LogTarget struct {
+	Output   string `json:"output"`
+	FilePath string `json:"filePath"`
 }
 
 // HTTP 表示 HTTP 服务配置。
@@ -225,6 +238,18 @@ func Load(path string) (*App, error) {
 }
 
 func (c *App) applyDefaults() {
+	if strings.TrimSpace(c.Log.Output) == "" {
+		c.Log.Output = "stdout"
+	}
+	if strings.TrimSpace(c.Log.SuccessFile) == "" {
+		c.Log.SuccessFile = filepath.Join("log", "access.log")
+	}
+	if strings.TrimSpace(c.Log.ErrorFile) == "" {
+		c.Log.ErrorFile = filepath.Join("log", "error.log")
+	}
+	if strings.TrimSpace(c.Log.FilePath) == "" {
+		c.Log.FilePath = c.Log.SuccessFile
+	}
 	if c.HTTP.Port == 0 {
 		c.HTTP.Port = 8080
 	}

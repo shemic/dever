@@ -4,12 +4,12 @@ import (
     "flag"
     "fmt"
     "log"
-    "os"
-    "os/exec"
-    "path/filepath"
-    "strings"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
-    devercmd "github.com/shemic/dever/cmd"
+	devercmd "github.com/shemic/dever/cmd"
 )
 
 func main() {
@@ -25,6 +25,10 @@ func main() {
 		runInit(os.Args[2:])
 	case "routes":
 		runRoutes(os.Args[2:])
+	case "service":
+		runService(os.Args[2:])
+	case "model":
+		runModel(os.Args[2:])
 	case "migrate":
 		runMigrate(os.Args[2:])
 	default:
@@ -39,6 +43,8 @@ func printUsage() {
 Usage:
     dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成路由
     dever routes [--project-root=.]               # 仅生成路由
+    dever service [--project-root=.]              # 仅生成 service 注册
+    dever model [--project-root=.]                # 仅生成 model 注册
     dever migrate [--project-root=.] <database>   # 应用 data/table 中记录的表结构到目标数据库
 `)
 }
@@ -61,6 +67,12 @@ func runInit(args []string) {
 	if err := devercmd.GenerateRoutes(root); err != nil {
 		log.Fatalf("路由生成失败: %v", err)
 	}
+	if err := devercmd.GenerateServices(root); err != nil {
+		log.Fatalf("service 生成失败: %v", err)
+	}
+	if err := devercmd.GenerateModels(root); err != nil {
+		log.Fatalf("model 生成失败: %v", err)
+	}
 }
 
 func runRoutes(args []string) {
@@ -72,6 +84,30 @@ func runRoutes(args []string) {
 	root := resolveProjectRoot(*projectRoot)
 	if err := devercmd.GenerateRoutes(root); err != nil {
 		log.Fatalf("路由生成失败: %v", err)
+	}
+}
+
+func runService(args []string) {
+	fs := flag.NewFlagSet("service", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("service 参数解析失败: %v", err)
+	}
+	root := resolveProjectRoot(*projectRoot)
+	if err := devercmd.GenerateServices(root); err != nil {
+		log.Fatalf("service 生成失败: %v", err)
+	}
+}
+
+func runModel(args []string) {
+	fs := flag.NewFlagSet("model", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("model 参数解析失败: %v", err)
+	}
+	root := resolveProjectRoot(*projectRoot)
+	if err := devercmd.GenerateModels(root); err != nil {
+		log.Fatalf("model 生成失败: %v", err)
 	}
 }
 

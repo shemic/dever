@@ -22,7 +22,11 @@ go run .
   "log": {
     "level": "info",            // 支持 debug/info/warn/error
     "encoding": "console",      // console 或 json
-    "development": false        // 开发模式输出更详细的 caller
+    "development": false,       // 开发模式输出更详细的 caller
+    "enabled": true,            // 关闭日志可设为 false
+    "output": "file",           // stdout / stderr / file / off
+    "successFile": "data/log/access.log", // 可指定成功访问日志文件
+    "errorFile": "data/log/error.log"     // 可指定错误日志文件
   },
   "http": {
     "host": "127.0.0.1",        // 监听地址，0.0.0.0 对外开放
@@ -54,6 +58,13 @@ go run .
 建议做法：
 - 不同环境可通过覆盖 `config/` 下的 JSON 文件实现差异化配置。
 - 开发环境保留 `create=true` 以便自动迁移；生产环境通常关闭自动建表，但可保留 `persist`、`migrationLog` 等选项，将结构持久化后手动执行。
+
+日志相关配置与行为：
+- `enabled=false` 时关闭所有框架日志输出。
+- `output="stdout"` / `"stderr"` 分别写入标准输出或错误流，设置为 `"file"` 时访问日志写入 `filePath`，可通过 `successFile` 独立指定访问日志路径，通过 `errorFile` 指定错误日志路径（常见为 `access.log` 与 `error.log`）。若目录不存在框架会自动创建。
+- 若仍使用旧版 `access`/`error` 嵌套配置也能兼容，新字段优先级更高。
+- `output="off"` 与 `enabled=false` 效果一致，可用于兼容旧配置。
+- 默认内置两个中间件：访问日志和异常捕获。项目侧只需在 `middleware/init.go` 中调用 `coremiddleware.UseGlobal(coremiddleware.Init())` 即可挂载，它会根据上述配置分别写入访问与错误日志。
 
 ## 新建业务模块（以 user 为例）
 

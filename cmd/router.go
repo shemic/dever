@@ -39,7 +39,7 @@ func GenerateRoutes(projectRoot string) error {
 
 	// ✅ 检测 server.Server 方法风格（Get 还是 GET）
 	methodStyle := detectServerMethodStyle(filepath.Join(rootPath, "dever", "server"))
-	fmt.Println("✅ 检测到 Server 方法风格:", methodStyle)
+	//fmt.Println("✅ 检测到 Server 方法风格:", methodStyle)
 
 	var routes []routeEntry
 	importAliases := make(map[string]string)
@@ -159,7 +159,7 @@ func RegisterRoutes(r server.Server) {
 
 import (
     "%s"
-    "%s"
+    %s
 %s
 )
 
@@ -231,7 +231,7 @@ func buildAlias(relDir string) string {
 	if len(aliasParts) == 0 {
 		aliasParts = append(aliasParts, "api")
 	}
-	alias := "api_" + strings.Join(aliasParts, "_")
+	alias := strings.Join(aliasParts, "_")
 	return normalizeIdentifier(alias)
 }
 
