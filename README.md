@@ -13,6 +13,46 @@ go run .
 
 主函数会调用 `data.RegisterRoutes`，加载自动生成的路由并启动 Fiber 服务器。终端可以通过 `Ctrl+C` 触发优雅停机。
 
+## 与 AI 协作开发
+
+为了让 AI 在收到业务需求后即可自动编写代码，请在发起请求时提供最小但充分的上下文，并引用 `dever/AI_GUIDE.md` 作为系统提示词。
+
+### 需求输入建议
+
+- 背景：说明业务目标、触发端（API、World 页面、定时任务等）与成功判定方式。
+- 影响范围：列出涉及的模块/文件，例如 `module/user/api/test.go`、`module/user/world/manage/list.json`、`config/setting.json`。
+- 数据契约：请求/响应字段、需要访问的模型或数据源、World `data`/`flows` 标识。
+- 约束：性能、安全、兼容性、是否允许调整数据库/配置。
+
+推荐模板：
+
+```text
+# 背景
+<业务场景与目标>
+
+# 功能需求
+- <需求 1>
+- <需求 2>
+
+# 影响范围
+- 模块：module/<name>/...
+- 配置/依赖：config/...，dever/...
+- 数据/流程：model/service/world ...
+
+# 验收标准
+- API/World 路径与 HTTP 方法
+- 请求/响应示例或字段校验
+- 需要的脚本/命令（如 go test、dever routes）
+```
+
+### AI 输出期望
+
+- 先列 3~5 步计划再执行，实现过程中遵循 KISS / YAGNI / SOLID / DRY 并给出必要中文注释。
+- 精准点出修改的文件与行号，必要时附关键代码段。
+- 对新增 World JSON、服务或配置给出复用策略，避免硬编码环境。
+- 更新完毕后提示需要执行的命令（如 `go run ./dever/cmd/dever routes`、`go test ./...`），无法执行时说明原因。
+- 若需求存在歧义，先列关键假设并等待确认。
+
 ## 在 config 目录编写配置
 
 统一配置文件位于 `config/setting.json`，包含日志、HTTP 服务与数据库等模块化配置。下面示例节选了默认内容，并说明各字段含义：

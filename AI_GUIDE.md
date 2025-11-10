@@ -7,6 +7,57 @@
 - 项目使用 Go 1.25+、Fiber Web 框架以及 Dever 内置的 ORM/Server 中间层。
 - 优先保持与现有代码一致的编码风格：包路径以 `myproject/...` 开头，使用 map[string]any 作为动态入参。
 
+## 核心工程原则与质量守则
+- **KISS（保持简单）**：能用配置/复用抽象解决时不引入新结构；避免无谓的通用化。
+- **YAGNI（按需实现）**：仅实现当前确认的功能，未来扩展以 TODO 说明而非提前编码。
+- **SOLID**：API、Service、Model 各自关注输入解析、业务编排、数据访问；新增接口优先通过组合而非修改旧逻辑。
+- **DRY（消除重复）**：共用过滤条件/响应格式统一封装，World JSON 中复用 `data` 与 `flows`。
+- **可靠性与可运维性**：所有新增功能需说明验证方式、失败路径与日志输出，必要时增加参数校验。
+
+> 交付前自查：是否存在重复代码、是否引入未被需求驱动的扩展、是否仍保持模块职责单一、是否遗漏日志/错误处理。
+
+## AI 工作流与交付标准
+1. **理解与澄清**：阅读需求并列出假设，如缺少模块/字段信息须先询问。
+2. **规划**：输出 3~5 步执行计划，描述要修改的目录、预期风险与验证方式。
+3. **实现**：按计划依次提交变更，优先使用 `apply_patch`，必要时添加简洁中文注释解释关键逻辑。
+4. **验证**：列出需要运行的命令（如 `go test ./...`、`go run ./dever/cmd/dever routes`、`npm run build`），若无法执行需说明原因与补充手动检查方法。
+5. **汇报**：概述修改点、关联文件/行、潜在风险与推荐后续动作，确保能追溯到需求。
+
+### 推荐澄清问题
+- 是否允许改动数据库结构或配置文件？如允许，目标库/环境是哪一套。
+- World 组件是否已有 ID、布局要求或需要复用现有数据源。
+- 是否需要补充单元测试/集成测试、Mock 数据或演示脚本。
+- 是否存在并行需求会导致冲突（例如同名 API、同一流程的多入口）。
+
+## 需求输入与 AI 输出模板
+
+### 需求输入模板（供请求方参考）
+
+```text
+# 背景
+<业务动机、触发角色、期望改善的指标>
+
+# 功能需求
+- <必须实现的行为 1>
+- <必须实现的行为 2>
+
+# 影响范围
+- 模块/文件：module/<name>/..., data/router.go, config/...
+- 数据：涉及的 model/service/world 数据源、表名
+- 外部依赖：Redis、第三方 API、消息队列等
+
+# 验收标准
+- 接口路径/方法、入参校验、返回字段
+- World 组件 ID、布局、数据绑定要求
+- 需要执行的命令或测试（go test、dever routes、前端构建等）
+```
+
+### AI 输出结构
+- **计划**：罗列步骤、预估风险与需确认事项。
+- **实现**：按文件汇总修改点，必要时给出代码片段与说明。
+- **验证**：建议的命令或人工检查方法，注明当前执行状态。
+- **后续建议**：潜在优化、待确认事项、部署提醒。
+
 ## 项目入口与启动
 - 主程序位于 `main.go`，调用 `dever/cmd` 下的 `dever.Run`，并传入 `data.RegisterRoutes`。
 - `go run .` 即可启动 HTTP 服务，自动加载 `data/router.go` 注册的路由。
@@ -68,6 +119,36 @@ go run ./dever/cmd/dever init
 5. 在 API 层解析请求参数、调用 service，并返回 JSON。
 6. 运行 `go run ./dever/cmd/dever routes` 刷新路由，再 `go run .` 验证功能。
 7. 若需高并发扣减/限额控制，可在 `config/setting.json` 配置 `redis`，启动时调用 `lock.Configure` 记录配置，业务侧通过 `lock.Dec/lock.Inc` + `lock.WithFloor`/`lock.WithCeiling` 完成原子增减。
+
+## 常见任务速查
+
+### 新增 REST API
+1. 在 `module/<name>/model` 定义/更新模型与索引（如无表结构改动可复用现有模型）。
+2. 在 `module/<name>/service` 编写业务函数（`func Xxx(ctx context.Context, params map[string]any) any`），封装 ORM 调用并做必要的参数转换/错误处理。
+3. 在 `module/<name>/api` 新增以 HTTP 动词开头的函数，使用 `c.Input` 校验入参并调用 service。
+4. 运行 `go run ./dever/cmd/dever routes` 生成路由，再通过 `go run .` 或测试验证。
+
+### 扩展 Service 或 Model
+- 共用过滤条件时抽出 `buildFilters` 方法，避免重复。
+- 对涉及事务的场景使用 `orm.Transaction`，在闭包中传递 `txCtx`。
+- 更新模型字段后，说明是否需要执行 `go run ./dever/cmd/dever migrate` 或持久化结构。
+
+### World 组件/流程
+1. 在 `module/<name>/world/<path>.json` 中更新 `page.layout`（UI）、`data`（数据源）、`flows`（流程）。
+2. 数据源 `type` 可为 `service/model/static`，`use` 填写 `module.ServiceFunc`。
+3. `flows` 通过节点描述事件链，`submitFlow`/`event` 触发，节点可串联服务或模型。
+4. 修改后可使用 `/world/main/get` 或 `/world/main/run` 结合 `locator` 调试。
+
+### 配置与依赖变更
+- 所有配置位于 `config/*.json`，调整后描述影响的环境与安全注意事项。
+- 引入新依赖需更新 `go.mod` 并运行 `go mod tidy`，同时在 README 中记录用途。
+
+## 验收与测试清单
+- 是否更新了路由或 World JSON？若是，提供重新生成/调试命令。
+- 是否有新的模型/字段？说明迁移步骤与默认数据。
+- 是否添加/更改配置？标注默认值与环境变量依赖。
+- 是否可通过 `go test ./module/<name>/...` 或 `go run .` 本地验证？若不能需说明阻塞项与替代检查。
+- 是否存在安全/性能风险（如未限制分页、缺少鉴权）？需在总结中提示。
 
 ## 额外注意事项
 - 代码注释以简洁中文或英文说明核心逻辑；避免冗余解释。

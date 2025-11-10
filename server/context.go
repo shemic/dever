@@ -105,7 +105,9 @@ func (c *Context) JSONWithStatus(status int, data any) error {
 		return errors.New("JSON: nil context")
 	}
 
-	if handled, err := callJSONAdapters(c.Raw, status, data); handled {
+	payload := normalizePayload(status, data)
+
+	if handled, err := callJSONAdapters(c.Raw, status, payload); handled {
 		return err
 	}
 
@@ -113,12 +115,12 @@ func (c *Context) JSONWithStatus(status int, data any) error {
 
 	switch ctx := c.Raw.(type) {
 	case interface{ JSON(any) error }:
-		return ctx.JSON(data)
+		return ctx.JSON(payload)
 	case interface{ JSON(int, any) error }:
-		return ctx.JSON(status, data)
+		return ctx.JSON(status, payload)
 	}
 
-	if err := callJSONReflect(c.Raw, status, data); err != nil {
+	if err := callJSONReflect(c.Raw, status, payload); err != nil {
 		if errors.Is(err, errNoJSONMethod) {
 			return errors.New("JSON: not supported framework")
 		}
@@ -134,10 +136,112 @@ func (c *Context) Error(err error, code ...int) error {
 		status = code[0]
 	}
 
-	if jErr := c.JSONWithStatus(status, map[string]any{"error": err.Error()}); jErr != nil {
+	payload := normalizeErrorPayload(status, err)
+	if jErr := c.JSONWithStatus(status, payload); jErr != nil {
 		return jErr
 	}
 	return nil
+}
+
+func normalizePayload(status int, data any) any {
+	if status < http.StatusOK || status >= http.StatusMultipleChoices {
+		if data == nil {
+			return map[string]any{
+				"code":   status,
+				"status": 2,
+				"msg":    http.StatusText(status),
+				"data":   nil,
+			}
+		}
+		return data
+	}
+
+	if data == nil {
+		return map[string]any{
+			"code":   status,
+			"status": 1,
+			"msg":    "success",
+			"data":   nil,
+		}
+	}
+
+	if envelope, ok := tryCloneMap(data); ok {
+		if looksLikeEnvelope(envelope) {
+			if _, exists := envelope["code"]; !exists {
+				envelope["code"] = status
+			}
+			if _, exists := envelope["status"]; !exists {
+				envelope["status"] = 1
+			}
+			if _, exists := envelope["msg"]; !exists {
+				envelope["msg"] = "success"
+			}
+			if _, exists := envelope["data"]; !exists {
+				envelope["data"] = nil
+			}
+			return envelope
+		}
+		return map[string]any{
+			"code":   status,
+			"status": 1,
+			"msg":    "success",
+			"data":   envelope,
+		}
+	}
+
+	return map[string]any{
+		"code":   status,
+		"status": 1,
+		"msg":    "success",
+		"data":   data,
+	}
+}
+
+func normalizeErrorPayload(status int, err error) map[string]any {
+	msg := http.StatusText(status)
+	if err != nil && err.Error() != "" {
+		msg = err.Error()
+	}
+	return map[string]any{
+		"code":   status,
+		"status": 2,
+		"msg":    msg,
+		"data":   nil,
+	}
+}
+
+func tryCloneMap(data any) (map[string]any, bool) {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	if len(m) == 0 {
+		return map[string]any{}, true
+	}
+	cloned := make(map[string]any, len(m))
+	for k, v := range m {
+		cloned[k] = v
+	}
+	return cloned, true
+}
+
+func looksLikeEnvelope(m map[string]any) bool {
+	if m == nil {
+		return false
+	}
+	if _, ok := m["code"]; ok {
+		return true
+	}
+	if _, ok := m["status"]; ok {
+		return true
+	}
+	if _, ok := m["msg"]; ok {
+		return true
+	}
+	if _, ok := m["data"]; ok {
+		return true
+	}
+	return false
 }
 
 // Input 统一读取请求参数，按路径参数→查询参数→表单参数的顺序查找。

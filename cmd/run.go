@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/mattn/go-runewidth"
@@ -101,7 +102,14 @@ func Run(register func(server.Server)) error {
 
 		if err := app.Shutdown(shutdownCtx); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				return fmt.Errorf("HTTP 服务优雅停机超时: %w", err)
+				fmt.Println("HTTP 服务优雅停机超时，尝试强制退出...")
+				go func() {
+					select {
+					case <-serverErrCh:
+					case <-time.After(3 * time.Second):
+					}
+				}()
+				return nil
 			}
 			if !errors.Is(err, context.Canceled) {
 				return fmt.Errorf("HTTP 服务优雅停机失败: %w", err)

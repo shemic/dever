@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 
 	"github.com/shemic/dever/middleware"
 	"github.com/shemic/dever/server"
@@ -36,6 +37,11 @@ func New() server.Server {
 // NewWithConfig 创建一个自定义配置的 Fiber Server，并加载通过 server.Auto 注册的路由配置。
 func NewWithConfig(conf fiber.Config) server.Server {
 	app := fiber.New(conf)
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders: "*",
+	}))
 	srv := &fiberServer{
 		app:    app,
 		router: app,
