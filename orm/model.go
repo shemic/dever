@@ -159,6 +159,9 @@ func (m *Model) Select(ctx context.Context, filters any, options map[string]any,
 	if filters == nil {
 		filters = map[string]any{}
 	}
+	if filters != nil {
+		filters = m.normalizeFilters(filters)
+	}
 	var into any
 	lockFlag := false
 	if len(lock) > 0 {
@@ -186,6 +189,7 @@ func (m *Model) Select(ctx context.Context, filters any, options map[string]any,
 	if joinClause != "" {
 		query += " " + joinClause
 	}
+	filters = m.normalizeFilters(filters)
 	whereClause, args := buildWhereClause(filters)
 	if whereClause != "" {
 		query += " WHERE " + whereClause
@@ -283,6 +287,9 @@ func (m *Model) Insert(ctx context.Context, data map[string]any) int64 {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if len(data) > 0 {
+		data = m.normalizeColumns(data)
+	}
 	baseDB, err := m.db()
 	panicOnError(err)
 	exec := newExecutor(ctx, baseDB)
@@ -340,6 +347,9 @@ func (m *Model) Update(ctx context.Context, filters any, data map[string]any, op
 	if len(updates) == 0 && !useOptimistic {
 		panic(fmt.Errorf("orm: update %s requires at least one column", m.table))
 	}
+	if len(updates) > 0 {
+		updates = m.normalizeColumns(updates)
+	}
 
 	setKeys := sortedKeys(updates)
 	args := make([]any, 0, len(setKeys))
@@ -359,6 +369,7 @@ func (m *Model) Update(ctx context.Context, filters any, data map[string]any, op
 		}
 		setBuilder.WriteString("version = version + 1")
 	}
+	filters = m.normalizeFilters(filters)
 	whereClause, whereArgs := buildWhereClause(filters)
 	if strings.TrimSpace(whereClause) == "" {
 		panic(fmt.Errorf("orm: update %s requires filter conditions", m.table))
@@ -384,6 +395,7 @@ func (m *Model) Delete(ctx context.Context, filters any) int64 {
 	baseDB, err := m.db()
 	panicOnError(err)
 	exec := newExecutor(ctx, baseDB)
+	filters = m.normalizeFilters(filters)
 	whereClause, whereArgs := buildWhereClause(filters)
 	if strings.TrimSpace(whereClause) == "" {
 		panic(fmt.Errorf("orm: delete %s requires filter conditions", m.table))
@@ -662,6 +674,69 @@ func valueSlice(value any) ([]any, bool) {
 	return result, true
 }
 
+func (m *Model) normalizeColumns(data map[string]any) map[string]any {
+	if len(data) == 0 || m.schema == nil {
+		return data
+	}
+	m.schema.ensureLookup()
+	normalized := make(map[string]any, len(data))
+	for key, val := range data {
+		if col, ok := m.schema.resolveColumn(key); ok {
+			normalized[col] = val
+		} else {
+			normalized[key] = val
+		}
+	}
+	return normalized
+}
+
+func (m *Model) normalizeFilters(filters any) any {
+	if filters == nil || m.schema == nil {
+		return filters
+	}
+	switch val := filters.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(val))
+		for key, v := range val {
+			lower := strings.ToLower(strings.TrimSpace(key))
+			switch lower {
+			case "and", "or", "&&", "||":
+				result[key] = m.normalizeFilters(v)
+				continue
+			}
+			newKey := key
+			if !strings.Contains(key, ".") {
+				if col, ok := m.schema.resolveColumn(key); ok {
+					newKey = col
+				}
+			}
+			result[newKey] = v
+		}
+		return result
+	case []map[string]any:
+		result := make([]map[string]any, 0, len(val))
+		for _, item := range val {
+			if item == nil {
+				continue
+			}
+			if normalized, ok := m.normalizeFilters(item).(map[string]any); ok {
+				result = append(result, normalized)
+			} else {
+				result = append(result, item)
+			}
+		}
+		return result
+	case []any:
+		result := make([]any, 0, len(val))
+		for _, item := range val {
+			result = append(result, m.normalizeFilters(item))
+		}
+		return result
+	default:
+		return filters
+	}
+}
+
 func appendLimit(query string, options map[string]any) string {
 	if options == nil {
 		return query
@@ -696,9 +771,25 @@ func getInt(v any) (int, bool) {
 }
 
 func normalizeMap(record map[string]any) {
-	for k, v := range record {
-		if b, ok := v.([]byte); ok {
+	if len(record) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(record))
+	for k := range record {
+		keys = append(keys, k)
+	}
+	for _, k := range keys {
+		if b, ok := record[k].([]byte); ok {
 			record[k] = string(b)
+		}
+	}
+	for _, k := range keys {
+		snake := toSnake(k)
+		if snake == "" || snake == k {
+			continue
+		}
+		if _, exists := record[snake]; !exists {
+			record[snake] = record[k]
 		}
 	}
 }

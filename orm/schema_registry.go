@@ -290,13 +290,15 @@ func buildSchema(table string, model any, indexModels []any, seeds []map[string]
 		indexes = append(indexes, *idx)
 	}
 
-	return &tableSchema{
+	schema := &tableSchema{
 		Table:     table,
 		Columns:   columns,
 		Indexes:   indexes,
 		Seeds:     cloneSeedRows(seeds),
 		UpdatedAt: time.Now(),
-	}, nil
+	}
+	schema.ensureLookup()
+	return schema, nil
 }
 
 func parseIndexModels(table string, columns []columnDef, indexModels ...any) ([]indexDef, error) {
@@ -425,7 +427,7 @@ func parseField(table string, field reflect.StructField) (columnDef, []indexDef,
 		columnName = colName
 	}
 	if columnName == "" {
-		columnName = toSnake(field.Name)
+		columnName = field.Name
 	}
 	if err := ensureIdentifier(columnName); err != nil {
 		return empty, nil, false, err
@@ -664,6 +666,7 @@ func loadSchemaForTable(table string) (*tableSchema, error) {
 		if strings.TrimSpace(schema.Table) == "" {
 			schema.Table = table
 		}
+		schema.ensureLookup()
 		return &schema, nil
 	}
 	return nil, os.ErrNotExist
@@ -701,6 +704,7 @@ func listRecordedSchemas() ([]*tableSchema, error) {
 				continue
 			}
 			schema.Table = strings.TrimSpace(schema.Table)
+			schema.ensureLookup()
 			seen[tableName] = struct{}{}
 			schemaCopy := schema
 			schemas = append(schemas, &schemaCopy)
