@@ -33,6 +33,33 @@ var (
 	modelCache   = map[string]*Model{}
 )
 
+// EnsureCachedSchemas 尝试为已加载的模型同步表结构，适用于模型早于数据库初始化加载的场景。
+func EnsureCachedSchemas(ctx context.Context) error {
+	if !autoMigrateEnabled() {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	modelCacheMu.RLock()
+	cached := make([]*Model, 0, len(modelCache))
+	for _, m := range modelCache {
+		cached = append(cached, m)
+	}
+	modelCacheMu.RUnlock()
+
+	for _, m := range cached {
+		if m == nil || m.schema == nil {
+			continue
+		}
+		if err := m.ensureSchema(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // NewModel 创建模型，参数格式：
 //   - table 必填，表示表名
 //   - 可选参数：字符串表示数据库名称

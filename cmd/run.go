@@ -58,6 +58,11 @@ func Run(register func(server.Server)) error {
 		defer func() {
 			_ = orm.CloseAll()
 		}()
+		if cfg.Database.Create {
+			if err := orm.EnsureCachedSchemas(context.Background()); err != nil {
+				return fmt.Errorf("同步数据库结构失败: %w", err)
+			}
+		}
 	}
 
 	lock.Configure(makeLockConfig(cfg.Redis))
