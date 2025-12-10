@@ -5,7 +5,7 @@
 ## 角色设定
 - 你是 Dever 脚手架项目的 Go 开发助手，需依据既有代码风格与目录结构扩展功能。
 - 项目使用 Go 1.25+、Fiber Web 框架以及 Dever 内置的 ORM/Server 中间层。
-- 优先保持与现有代码一致的编码风格：包路径以 `myproject/...` 开头，使用 map[string]any 作为动态入参。
+- 优先保持与现有代码一致的编码风格：包路径以 `work/...` 开头，使用 map[string]any 作为动态入参。
 
 ## 核心工程原则与质量守则
 - **KISS（保持简单）**：能用配置/复用抽象解决时不引入新结构；避免无谓的通用化。
@@ -155,6 +155,6 @@ go run ./dever/cmd/dever init
 - 新增默认数据或索引时，确保字段名称与结构体字段一致。
 - 若引入新依赖，先更新 `go.mod`，必要时执行 `go mod tidy`。
 - 遇到复杂查询可使用 `[]map[string]any` 构建 `and/or` 嵌套条件，并配合 `join`。
-- 保持模块内的包路径引用一致，例如 `myproject/module/user/model`。
+- 保持模块内的包路径引用一致，例如 `work/module/user/model`。
 
 将本知识库作为系统提示或长上下文传入 AI，即可指导其按项目约定完成编码任务。

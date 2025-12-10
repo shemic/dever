@@ -75,7 +75,7 @@ go run .
     "appName": "测试应用",        // 启动横幅显示名称
     "prefork": false,           // 是否启用多进程
     "enableTuning": true,       // 是否开启 Fiber 性能调优
-    "serverHeader": "myproject" // HTTP Server 响应头
+    "serverHeader": "work" // HTTP Server 响应头
   },
   "database": {
     "create": true,             // 启动时自动根据模型建表/迁移
@@ -173,7 +173,7 @@ package user
 import (
 	"context"
 
-	"myproject/module/user/model"
+	"work/module/user/model"
 )
 
 func GetInfo(ctx context.Context, params map[string]any) any {
@@ -220,7 +220,7 @@ API 层位于 `module/user/api/`，函数签名统一为 `(c *server.Context) er
 package user
 
 import (
-	userservice "myproject/module/user/service"
+userservice "work/module/user/service"
 
 	"github.com/shemic/dever/server"
 )
