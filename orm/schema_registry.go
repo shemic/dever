@@ -394,10 +394,13 @@ func buildCustomIndexName(table string, field reflect.StructField, unique bool) 
 	override := strings.TrimSpace(field.Tag.Get("name"))
 	if override != "" {
 		if candidate := normalizeIndexName(override); candidate != "" {
-			return candidate
+			return toSnake(candidate)
 		}
 	}
 	base := normalizeIndexName(field.Name)
+	if base != "" {
+		base = toSnake(base)
+	}
 	if base == "" {
 		base = toSnake(field.Name)
 	}
@@ -427,7 +430,7 @@ func parseField(table string, field reflect.StructField) (columnDef, []indexDef,
 		columnName = colName
 	}
 	if columnName == "" {
-		columnName = field.Name
+		columnName = toSnake(field.Name)
 	}
 	if err := ensureIdentifier(columnName); err != nil {
 		return empty, nil, false, err

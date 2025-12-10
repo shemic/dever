@@ -51,7 +51,7 @@ func syncTableSchema(ctx context.Context, db *sqlx.DB, driver, table string, sch
 		if stmt != "" {
 			statements = append(statements, stmt)
 		}
-		seedStmt, err := applySeedData(ctx, db, table, schema.Seeds)
+		seedStmt, err := applySeedData(ctx, db, driver, table, schema.Seeds)
 		if err != nil {
 			return nil, err
 		}
@@ -286,16 +286,19 @@ func buildRenameColumnStatement(driver, table, oldName, newName string) string {
 	}
 }
 
-func applySeedData(ctx context.Context, db *sqlx.DB, table string, seeds []map[string]any) ([]string, error) {
+func applySeedData(ctx context.Context, db *sqlx.DB, driver, table string, seeds []map[string]any) ([]string, error) {
 	if len(seeds) == 0 {
 		return nil, nil
+	}
+	quoter := func(name string) string {
+		return quoteIdentifier(driver, name)
 	}
 	statements := make([]string, 0, len(seeds))
 	for _, row := range seeds {
 		if len(row) == 0 {
 			continue
 		}
-		query, payload, err := buildInsertQuery(table, row)
+		query, payload, err := buildInsertQuery(table, row, quoter)
 		if err != nil {
 			return nil, err
 		}

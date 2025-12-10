@@ -19,6 +19,7 @@ type Model struct {
 	table        string
 	primaryKey   string
 	dbName       string
+	driverName   string
 	schema       *tableSchema
 	dbOnce       sync.Once
 	dbCached     *sqlx.DB
@@ -147,6 +148,10 @@ func NewModel(table string, args ...any) (*Model, error) {
 
 // LoadModel 返回缓存的模型实例，若不存在则创建并缓存。
 func LoadModel(table string, args ...any) (*Model, error) {
+	if err := ensureDatabaseInitialized(); err != nil {
+		return nil, err
+	}
+
 	key := modelCacheKey(table, args...)
 	modelCacheMu.RLock()
 	if cached, ok := modelCache[key]; ok {
@@ -197,6 +202,7 @@ func (m *Model) Select(ctx context.Context, filters any, options map[string]any,
 	baseDB, err := m.db()
 	panicOnError(err)
 	exec := newExecutor(ctx, baseDB)
+	quoter := m.identifierQuoter()
 
 	fields := "main.*"
 	joinClause := ""
@@ -212,12 +218,13 @@ func (m *Model) Select(ctx context.Context, filters any, options map[string]any,
 		}
 	}
 
-	query := fmt.Sprintf("SELECT %s FROM %s AS main", fields, m.table)
+	tableName := quoteWith(m.table, quoter)
+	query := fmt.Sprintf("SELECT %s FROM %s AS main", fields, tableName)
 	if joinClause != "" {
 		query += " " + joinClause
 	}
 	filters = m.normalizeFilters(filters)
-	whereClause, args := buildWhereClause(filters)
+	whereClause, args := buildWhereClauseWithQuoter(filters, quoter)
 	if whereClause != "" {
 		query += " WHERE " + whereClause
 	}
@@ -272,6 +279,7 @@ func (m *Model) Find(ctx context.Context, filters any, options ...map[string]any
 	baseDB, err := m.db()
 	panicOnError(err)
 	exec := newExecutor(ctx, baseDB)
+	quoter := m.identifierQuoter()
 
 	fields := "main.*"
 	joinClause := ""
@@ -285,11 +293,12 @@ func (m *Model) Find(ctx context.Context, filters any, options ...map[string]any
 		}
 	}
 
-	query := fmt.Sprintf("SELECT %s FROM %s AS main", fields, m.table)
+	tableName := quoteWith(m.table, quoter)
+	query := fmt.Sprintf("SELECT %s FROM %s AS main", fields, tableName)
 	if joinClause != "" {
 		query += " " + joinClause
 	}
-	whereClause, args := buildWhereClause(filters)
+	whereClause, args := buildWhereClauseWithQuoter(filters, quoter)
 	if whereClause != "" {
 		query += " WHERE " + whereClause
 	}
@@ -320,7 +329,8 @@ func (m *Model) Insert(ctx context.Context, data map[string]any) int64 {
 	baseDB, err := m.db()
 	panicOnError(err)
 	exec := newExecutor(ctx, baseDB)
-	query, payload, err := buildInsertQuery(m.table, data)
+	quoter := m.identifierQuoter()
+	query, payload, err := buildInsertQuery(m.table, data, quoter)
 	panicOnError(err)
 	res, err := exec.namedExecContext(ctx, query, payload)
 	panicOnError(err)
@@ -338,6 +348,7 @@ func (m *Model) Update(ctx context.Context, filters any, data map[string]any, op
 	baseDB, err := m.db()
 	panicOnError(err)
 	exec := newExecutor(ctx, baseDB)
+	quoter := m.identifierQuoter()
 
 	useOptimistic := len(optimistic) > 0 && optimistic[0]
 	if len(data) == 0 && !useOptimistic {
@@ -386,7 +397,7 @@ func (m *Model) Update(ctx context.Context, filters any, data map[string]any, op
 		if i > 0 {
 			setBuilder.WriteString(", ")
 		}
-		setBuilder.WriteString(key)
+		setBuilder.WriteString(quoteWith(key, quoter))
 		setBuilder.WriteString(" = ?")
 		args = append(args, updates[key])
 	}
@@ -397,12 +408,12 @@ func (m *Model) Update(ctx context.Context, filters any, data map[string]any, op
 		setBuilder.WriteString("version = version + 1")
 	}
 	filters = m.normalizeFilters(filters)
-	whereClause, whereArgs := buildWhereClause(filters)
+	whereClause, whereArgs := buildWhereClauseWithQuoter(filters, quoter)
 	if strings.TrimSpace(whereClause) == "" {
 		panic(fmt.Errorf("orm: update %s requires filter conditions", m.table))
 	}
 	args = append(args, whereArgs...)
-	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", m.table, setBuilder.String(), whereClause)
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", quoteWith(m.table, quoter), setBuilder.String(), whereClause)
 	query = exec.rebind(query)
 	res, err := exec.execContext(ctx, query, args...)
 	panicOnError(err)
@@ -422,12 +433,13 @@ func (m *Model) Delete(ctx context.Context, filters any) int64 {
 	baseDB, err := m.db()
 	panicOnError(err)
 	exec := newExecutor(ctx, baseDB)
+	quoter := m.identifierQuoter()
 	filters = m.normalizeFilters(filters)
-	whereClause, whereArgs := buildWhereClause(filters)
+	whereClause, whereArgs := buildWhereClauseWithQuoter(filters, quoter)
 	if strings.TrimSpace(whereClause) == "" {
 		panic(fmt.Errorf("orm: delete %s requires filter conditions", m.table))
 	}
-	query := fmt.Sprintf("DELETE FROM %s WHERE %s", m.table, whereClause)
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s", quoteWith(m.table, quoter), whereClause)
 	query = exec.rebind(query)
 	res, err := exec.execContext(ctx, query, whereArgs...)
 	panicOnError(err)
@@ -439,8 +451,18 @@ func (m *Model) Delete(ctx context.Context, filters any) int64 {
 func (m *Model) db() (*sqlx.DB, error) {
 	m.dbOnce.Do(func() {
 		m.dbCached, m.dbErr = Get(m.dbName)
+		if m.dbErr == nil && m.dbCached != nil {
+			m.driverName = normalizeDriver(m.dbCached.DriverName())
+		}
 	})
 	return m.dbCached, m.dbErr
+}
+
+func (m *Model) identifierQuoter() func(string) string {
+	driver := m.driverName
+	return func(name string) string {
+		return quoteIdentifier(driver, name)
+	}
 }
 
 func (m *Model) ensureVersionColumn() bool {
@@ -511,31 +533,35 @@ func (e executor) namedExecContext(ctx context.Context, query string, arg any) (
 }
 
 func buildWhereClause(filters any) (string, []any) {
+	return buildWhereClauseWithQuoter(filters, nil)
+}
+
+func buildWhereClauseWithQuoter(filters any, quoter func(string) string) (string, []any) {
 	if filters == nil {
 		return "", nil
 	}
-	clause, args := parseCondition(filters, "AND")
+	clause, args := parseCondition(filters, "AND", quoter)
 	return clause, args
 }
 
-func parseCondition(filters any, glue string) (string, []any) {
+func parseCondition(filters any, glue string, quoter func(string) string) (string, []any) {
 	switch v := filters.(type) {
 	case map[string]any:
-		return parseConditionMap(v, glue)
+		return parseConditionMap(v, glue, quoter)
 	case []map[string]any:
-		return parseConditionSliceMap(v, glue)
+		return parseConditionSliceMap(v, glue, quoter)
 	case []any:
-		return parseConditionSlice(v, glue)
+		return parseConditionSlice(v, glue, quoter)
 	default:
 		return "", nil
 	}
 }
 
-func parseConditionSliceMap(items []map[string]any, glue string) (string, []any) {
+func parseConditionSliceMap(items []map[string]any, glue string, quoter func(string) string) (string, []any) {
 	clauses := make([]string, 0, len(items))
 	var args []any
 	for _, item := range items {
-		clause, subArgs := parseConditionMap(item, glue)
+		clause, subArgs := parseConditionMap(item, glue, quoter)
 		if clause == "" {
 			continue
 		}
@@ -545,11 +571,11 @@ func parseConditionSliceMap(items []map[string]any, glue string) (string, []any)
 	return joinClauses(clauses, glue), args
 }
 
-func parseConditionSlice(items []any, glue string) (string, []any) {
+func parseConditionSlice(items []any, glue string, quoter func(string) string) (string, []any) {
 	clauses := make([]string, 0, len(items))
 	var args []any
 	for _, item := range items {
-		clause, subArgs := parseCondition(item, glue)
+		clause, subArgs := parseCondition(item, glue, quoter)
 		if clause == "" {
 			continue
 		}
@@ -559,7 +585,7 @@ func parseConditionSlice(items []any, glue string) (string, []any) {
 	return joinClauses(clauses, glue), args
 }
 
-func parseConditionMap(m map[string]any, glue string) (string, []any) {
+func parseConditionMap(m map[string]any, glue string, quoter func(string) string) (string, []any) {
 	if len(m) == 0 {
 		return "", nil
 	}
@@ -575,19 +601,19 @@ func parseConditionMap(m map[string]any, glue string) (string, []any) {
 		value := m[key]
 		switch lower {
 		case "and", "&&":
-			clause, subArgs := parseCondition(value, "AND")
+			clause, subArgs := parseCondition(value, "AND", quoter)
 			if clause != "" {
 				clauses = append(clauses, fmt.Sprintf("(%s)", clause))
 				args = append(args, subArgs...)
 			}
 		case "or", "||":
-			clause, subArgs := parseCondition(value, "OR")
+			clause, subArgs := parseCondition(value, "OR", quoter)
 			if clause != "" {
 				clauses = append(clauses, fmt.Sprintf("(%s)", clause))
 				args = append(args, subArgs...)
 			}
 		default:
-			clause, subArgs := parseFieldCondition(key, value)
+			clause, subArgs := parseFieldCondition(key, value, quoter)
 			if clause == "" {
 				continue
 			}
@@ -598,7 +624,7 @@ func parseConditionMap(m map[string]any, glue string) (string, []any) {
 	return joinClauses(clauses, glue), args
 }
 
-func parseFieldCondition(field string, value any) (string, []any) {
+func parseFieldCondition(field string, value any, quoter func(string) string) (string, []any) {
 	if err := ensureQualifiedIdentifier(field); err != nil {
 		return "", nil
 	}
@@ -615,7 +641,7 @@ func parseFieldCondition(field string, value any) (string, []any) {
 		clauses := make([]string, 0, len(ops))
 		var args []any
 		for _, op := range ops {
-			clause, subArgs := buildComparisonClause(field, op, val[op])
+			clause, subArgs := buildComparisonClause(field, op, val[op], quoter)
 			if clause == "" {
 				continue
 			}
@@ -624,19 +650,20 @@ func parseFieldCondition(field string, value any) (string, []any) {
 		}
 		return joinClauses(clauses, "AND"), args
 	case []any:
-		clause, args := buildComparisonClause(field, "in", val)
+		clause, args := buildComparisonClause(field, "in", val, quoter)
 		return clause, args
 	default:
-		clause, args := buildComparisonClause(field, "=", val)
+		clause, args := buildComparisonClause(field, "=", val, quoter)
 		return clause, args
 	}
 }
 
-func buildComparisonClause(field, op string, value any) (string, []any) {
+func buildComparisonClause(field, op string, value any, quoter func(string) string) (string, []any) {
 	op = strings.TrimSpace(strings.ToUpper(op))
 	if op == "" {
 		op = "="
 	}
+	quotedField := quoteQualified(field, quoter)
 	switch op {
 	case "IN", "NOT IN":
 		slice, ok := valueSlice(value)
@@ -645,31 +672,31 @@ func buildComparisonClause(field, op string, value any) (string, []any) {
 		}
 		placeholders := strings.Repeat("?,", len(slice))
 		placeholders = placeholders[:len(placeholders)-1]
-		return fmt.Sprintf("%s %s (%s)", field, op, placeholders), slice
+		return fmt.Sprintf("%s %s (%s)", quotedField, op, placeholders), slice
 	case "BETWEEN":
 		slice, ok := valueSlice(value)
 		if !ok || len(slice) != 2 {
 			return "", nil
 		}
-		return fmt.Sprintf("%s BETWEEN ? AND ?", field), slice
+		return fmt.Sprintf("%s BETWEEN ? AND ?", quotedField), slice
 	case "LIKE", "NOT LIKE":
-		return fmt.Sprintf("%s %s ?", field, op), []any{value}
+		return fmt.Sprintf("%s %s ?", quotedField, op), []any{value}
 	case "IS", "IS NOT":
 		valStr := strings.TrimSpace(fmt.Sprint(value))
 		if strings.EqualFold(valStr, "null") || value == nil {
-			return fmt.Sprintf("%s %s NULL", field, op), nil
+			return fmt.Sprintf("%s %s NULL", quotedField, op), nil
 		}
-		return fmt.Sprintf("%s %s %s", field, op, valStr), nil
+		return fmt.Sprintf("%s %s %s", quotedField, op, valStr), nil
 	default:
 		if value == nil {
 			if op == "=" {
-				return fmt.Sprintf("%s IS NULL", field), nil
+				return fmt.Sprintf("%s IS NULL", quotedField), nil
 			}
 			if op == "<>" || op == "!=" {
-				return fmt.Sprintf("%s IS NOT NULL", field), nil
+				return fmt.Sprintf("%s IS NOT NULL", quotedField), nil
 			}
 		}
-		return fmt.Sprintf("%s %s ?", field, op), []any{value}
+		return fmt.Sprintf("%s %s ?", quotedField, op), []any{value}
 	}
 }
 
@@ -959,6 +986,24 @@ func ensureQualifiedIdentifier(name string) error {
 		return nil
 	}
 	return ensureIdentifier(name)
+}
+
+func quoteWith(ident string, quoter func(string) string) string {
+	if quoter == nil {
+		return ident
+	}
+	return quoter(ident)
+}
+
+func quoteQualified(ident string, quoter func(string) string) string {
+	if quoter == nil {
+		return ident
+	}
+	parts := strings.Split(ident, ".")
+	for i, part := range parts {
+		parts[i] = quoter(part)
+	}
+	return strings.Join(parts, ".")
 }
 
 func modelCacheKey(table string, args ...any) string {

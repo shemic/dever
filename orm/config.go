@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/shemic/dever/config"
 )
 
 // Config 描述数据库连接的通用配置。
@@ -23,6 +25,29 @@ type Config struct {
 	ConnMaxLifetime   time.Duration     `mapstructure:"connMaxLifetime"`
 	ConnMaxIdleTime   time.Duration     `mapstructure:"connMaxIdleTime"`
 	HealthCheckPeriod time.Duration     `mapstructure:"healthCheckPeriod"`
+}
+
+// ConfigFromDBConf 将配置文件中的 DBConf 转换为 orm.Config。
+func ConfigFromDBConf(dbCfg config.DBConf) Config {
+	params := map[string]string{}
+	for k, v := range dbCfg.Params {
+		params[k] = v
+	}
+	return Config{
+		Driver:            dbCfg.Driver,
+		Host:              dbCfg.Host,
+		User:              dbCfg.User,
+		Password:          dbCfg.Pwd,
+		DBName:            dbCfg.DBName,
+		Path:              dbCfg.Path,
+		Params:            params,
+		DSN:               "",
+		MaxOpenConns:      dbCfg.MaxOpenConns,
+		MaxIdleConns:      dbCfg.MaxIdleConns,
+		ConnMaxLifetime:   dbCfg.ConnMaxLifetime.Duration(),
+		ConnMaxIdleTime:   dbCfg.ConnMaxIdleTime.Duration(),
+		HealthCheckPeriod: dbCfg.HealthCheckPeriod.Duration(),
+	}
 }
 
 func (c Config) driverName() string {

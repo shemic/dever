@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func buildInsertQuery(table string, data map[string]any) (string, map[string]any, error) {
+func buildInsertQuery(table string, data map[string]any, quoter func(string) string) (string, map[string]any, error) {
 	if err := ensureIdentifier(table); err != nil {
 		return "", nil, err
 	}
@@ -25,14 +25,15 @@ func buildInsertQuery(table string, data map[string]any) (string, map[string]any
 			colBuilder.WriteString(", ")
 			placeholderBuilder.WriteString(", ")
 		}
-		colBuilder.WriteString(key)
+		colBuilder.WriteString(quoteWith(key, quoter))
 		placeholderBuilder.WriteByte(':')
 		placeholderBuilder.WriteString(key)
 	}
 	var queryBuilder strings.Builder
-	queryBuilder.Grow(len(table) + colBuilder.Len() + placeholderBuilder.Len() + 32)
+	quotedTable := quoteWith(table, quoter)
+	queryBuilder.Grow(len(quotedTable) + colBuilder.Len() + placeholderBuilder.Len() + 32)
 	queryBuilder.WriteString("INSERT INTO ")
-	queryBuilder.WriteString(table)
+	queryBuilder.WriteString(quotedTable)
 	queryBuilder.WriteString(" (")
 	queryBuilder.WriteString(colBuilder.String())
 	queryBuilder.WriteString(") VALUES (")
@@ -41,7 +42,7 @@ func buildInsertQuery(table string, data map[string]any) (string, map[string]any
 	return queryBuilder.String(), data, nil
 }
 
-func buildUpdateQueryWithFilters(table string, data map[string]any, filters map[string]any) (string, []any, error) {
+func buildUpdateQueryWithFilters(table string, data map[string]any, filters map[string]any, quoter func(string) string) (string, []any, error) {
 	if err := ensureIdentifier(table); err != nil {
 		return "", nil, err
 	}
@@ -58,19 +59,20 @@ func buildUpdateQueryWithFilters(table string, data map[string]any, filters map[
 		if i > 0 {
 			setBuilder.WriteString(", ")
 		}
-		setBuilder.WriteString(key)
+		setBuilder.WriteString(quoteWith(key, quoter))
 		setBuilder.WriteString(" = ?")
 		args = append(args, data[key])
 	}
-	whereClause, whereArgs := buildWhereClause(filters)
+	whereClause, whereArgs := buildWhereClauseWithQuoter(filters, quoter)
 	if whereClause == "" {
 		return "", nil, fmt.Errorf("orm: update %s requires filter conditions", table)
 	}
 	args = append(args, whereArgs...)
 	var queryBuilder strings.Builder
-	queryBuilder.Grow(len(table) + setBuilder.Len() + len(whereClause) + 16)
+	quotedTable := quoteWith(table, quoter)
+	queryBuilder.Grow(len(quotedTable) + setBuilder.Len() + len(whereClause) + 16)
 	queryBuilder.WriteString("UPDATE ")
-	queryBuilder.WriteString(table)
+	queryBuilder.WriteString(quotedTable)
 	queryBuilder.WriteString(" SET ")
 	queryBuilder.WriteString(setBuilder.String())
 	queryBuilder.WriteString(" WHERE ")
@@ -78,15 +80,15 @@ func buildUpdateQueryWithFilters(table string, data map[string]any, filters map[
 	return queryBuilder.String(), args, nil
 }
 
-func buildDeleteQuery(table string, filters map[string]any) (string, []any, error) {
+func buildDeleteQuery(table string, filters map[string]any, quoter func(string) string) (string, []any, error) {
 	if err := ensureIdentifier(table); err != nil {
 		return "", nil, err
 	}
-	whereClause, args := buildWhereClause(filters)
+	whereClause, args := buildWhereClauseWithQuoter(filters, quoter)
 	if whereClause == "" {
 		return "", nil, fmt.Errorf("orm: delete %s requires filter conditions", table)
 	}
-	query := fmt.Sprintf("DELETE FROM %s WHERE %s", table, whereClause)
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s", quoteWith(table, quoter), whereClause)
 	return query, args, nil
 }
 
