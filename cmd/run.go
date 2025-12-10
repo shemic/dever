@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"github.com/shemic/dever/config"
 	"github.com/shemic/dever/lock"
 	dlog "github.com/shemic/dever/log"
-	"github.com/shemic/dever/orm"
 	"github.com/shemic/dever/server"
 	serverhttp "github.com/shemic/dever/server/http"
 )
@@ -28,41 +26,6 @@ func Run(register func(server.Server)) error {
 	cfg, err := config.Load("")
 	if err != nil {
 		return fmt.Errorf("读取配置失败: %w", err)
-	}
-
-	orm.SetDefaultDatabase(cfg.Database.Default)
-	orm.EnableAutoMigrate(cfg.Database.Create)
-	orm.EnableSchemaPersistence(cfg.Database.Persist)
-	orm.EnableMigrationLog(cfg.Database.MigrationLog)
-
-	dbInitialized := false
-	if len(cfg.Database.Connections) > 0 {
-		names := make([]string, 0, len(cfg.Database.Connections))
-		for name := range cfg.Database.Connections {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, rawName := range names {
-			conn := cfg.Database.Connections[rawName]
-			target := strings.TrimSpace(rawName)
-			if target == "" {
-				target = cfg.Database.Default
-			}
-			if _, err := orm.Init(target, makeORMConfig(conn)); err != nil {
-				return fmt.Errorf("初始化数据库 %q 失败: %w", target, err)
-			}
-			dbInitialized = true
-		}
-	}
-	if dbInitialized {
-		defer func() {
-			_ = orm.CloseAll()
-		}()
-		if cfg.Database.Create {
-			if err := orm.EnsureCachedSchemas(context.Background()); err != nil {
-				return fmt.Errorf("同步数据库结构失败: %w", err)
-			}
-		}
 	}
 
 	lock.Configure(makeLockConfig(cfg.Redis))
@@ -189,28 +152,6 @@ func printStartupBanner(appName, addr string) {
 		fmt.Printf("│ %s%s │\n", line, strings.Repeat(" ", padding))
 	}
 	fmt.Printf("└%s┘\n", border)
-}
-
-func makeORMConfig(dbCfg config.DBConf) orm.Config {
-	params := map[string]string{}
-	for k, v := range dbCfg.Params {
-		params[k] = v
-	}
-	return orm.Config{
-		Driver:            dbCfg.Driver,
-		Host:              dbCfg.Host,
-		User:              dbCfg.User,
-		Password:          dbCfg.Pwd,
-		DBName:            dbCfg.DBName,
-		Path:              dbCfg.Path,
-		Params:            params,
-		DSN:               "",
-		MaxOpenConns:      dbCfg.MaxOpenConns,
-		MaxIdleConns:      dbCfg.MaxIdleConns,
-		ConnMaxLifetime:   dbCfg.ConnMaxLifetime.Duration(),
-		ConnMaxIdleTime:   dbCfg.ConnMaxIdleTime.Duration(),
-		HealthCheckPeriod: dbCfg.HealthCheckPeriod.Duration(),
-	}
 }
 
 func makeLockConfig(redisCfg config.Redis) lock.Config {

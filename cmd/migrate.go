@@ -39,7 +39,7 @@ func RunMigrations(projectRoot, target string) error {
 		connCfg.DBName = target
 	}
 
-	cfgMap := makeORMConfig(connCfg)
+	cfgMap := orm.ConfigFromDBConf(connCfg)
 	if _, err := orm.Init(target, cfgMap); err != nil {
 		return fmt.Errorf("初始化数据库连接失败: %w", err)
 	}

@@ -20,6 +20,8 @@ type JSONAdapter func(raw any, status int, data any) (handled bool, err error)
 var (
 	jsonAdapters   []JSONAdapter
 	jsonAdapterMux sync.RWMutex
+
+	validatorCache sync.Map
 )
 
 // RegisterJSONAdapter 注册自定义 JSON 输出的扩展逻辑，例如 Fiber、Gin 等。
@@ -130,13 +132,25 @@ func (c *Context) JSONWithStatus(status int, data any) error {
 }
 
 // Error 将错误信息以 JSON 输出，默认状态码 400，可自定义。
-func (c *Context) Error(err error, code ...int) error {
+func (c *Context) Error(err any, code ...int) error {
 	status := http.StatusBadRequest
 	if len(code) > 0 {
 		status = code[0]
 	}
 
-	payload := normalizeErrorPayload(status, err)
+	var e error
+	switch v := err.(type) {
+	case nil:
+		e = errors.New(http.StatusText(status))
+	case error:
+		e = v
+	case string:
+		e = errors.New(v)
+	default:
+		e = fmt.Errorf("%v", v)
+	}
+
+	payload := normalizeErrorPayload(status, e)
 	if jErr := c.JSONWithStatus(status, payload); jErr != nil {
 		return jErr
 	}
@@ -165,21 +179,22 @@ func normalizePayload(status int, data any) any {
 		}
 	}
 
-	if envelope, ok := tryCloneMap(data); ok {
+	if envelope, ok := data.(map[string]any); ok {
 		if looksLikeEnvelope(envelope) {
-			if _, exists := envelope["code"]; !exists {
-				envelope["code"] = status
+			envelopeCopy := cloneMap(envelope)
+			if _, exists := envelopeCopy["code"]; !exists {
+				envelopeCopy["code"] = status
 			}
-			if _, exists := envelope["status"]; !exists {
-				envelope["status"] = 1
+			if _, exists := envelopeCopy["status"]; !exists {
+				envelopeCopy["status"] = 1
 			}
-			if _, exists := envelope["msg"]; !exists {
-				envelope["msg"] = "success"
+			if _, exists := envelopeCopy["msg"]; !exists {
+				envelopeCopy["msg"] = "success"
 			}
-			if _, exists := envelope["data"]; !exists {
-				envelope["data"] = nil
+			if _, exists := envelopeCopy["data"]; !exists {
+				envelopeCopy["data"] = nil
 			}
-			return envelope
+			return envelopeCopy
 		}
 		return map[string]any{
 			"code":   status,
@@ -210,19 +225,15 @@ func normalizeErrorPayload(status int, err error) map[string]any {
 	}
 }
 
-func tryCloneMap(data any) (map[string]any, bool) {
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
+func cloneMap(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return map[string]any{}
 	}
-	if len(m) == 0 {
-		return map[string]any{}, true
-	}
-	cloned := make(map[string]any, len(m))
-	for k, v := range m {
+	cloned := make(map[string]any, len(src))
+	for k, v := range src {
 		cloned[k] = v
 	}
-	return cloned, true
+	return cloned
 }
 
 func looksLikeEnvelope(m map[string]any) bool {
@@ -468,15 +479,36 @@ func callStringMethod(method reflect.Value, key string, defaultValue ...string) 
 	return ""
 }
 
+type validatorCacheEntry struct {
+	re  *regexp.Regexp
+	err error
+}
+
 func compileValidator(rule string) (*regexp.Regexp, error) {
-	switch strings.ToLower(strings.TrimSpace(rule)) {
+	trimmed := strings.TrimSpace(rule)
+	var pattern string
+	var cacheKey string
+
+	switch strings.ToLower(trimmed) {
 	case "is_string":
-		return regexp.Compile(`^[\p{L}\p{N}_\-\s]+$`)
+		cacheKey = "is_string"
+		pattern = `^[\p{L}\p{N}_\-\s]+$`
 	case "is_number":
-		return regexp.Compile(`^-?\d+(?:\.\d+)?$`)
+		cacheKey = "is_number"
+		pattern = `^-?\d+(?:\.\d+)?$`
 	default:
-		return regexp.Compile(rule)
+		cacheKey = trimmed
+		pattern = trimmed
 	}
+
+	if cached, ok := validatorCache.Load(cacheKey); ok {
+		entry := cached.(validatorCacheEntry)
+		return entry.re, entry.err
+	}
+
+	re, err := regexp.Compile(pattern)
+	validatorCache.Store(cacheKey, validatorCacheEntry{re: re, err: err})
+	return re, err
 }
 
 func (c *Context) abort(err error) {

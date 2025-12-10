@@ -15,10 +15,16 @@ import (
 type serviceEntry struct {
 	Module      string
 	SubSegments []string
-	FuncName    string
+	TypeName    string
 	ImportAlias string
 	ImportPath  string
 	Relative    string
+}
+
+type providerEntry struct {
+	serviceEntry
+	Method  string
+	Pointer bool
 }
 
 // GenerateServices 扫描项目 service 目录，生成统一的 service 注册文件。
@@ -32,7 +38,7 @@ func GenerateServices(projectRoot string) error {
 	}
 
 	moduleRoot := filepath.Join(rootPath, "module")
-	output := filepath.Join(rootPath, "data", "service.go")
+	output := filepath.Join(rootPath, "data", "load", "service.go")
 
 	moduleName := readModuleName(filepath.Join(rootPath, "go.mod"))
 	if moduleName == "" {
@@ -40,11 +46,12 @@ func GenerateServices(projectRoot string) error {
 	}
 
 	var entries []serviceEntry
+	var providerEntries []providerEntry
 	importAliases := make(map[string]string)
 	aliasUsage := make(map[string]int)
 
 	if _, err := os.Stat(moduleRoot); err == nil {
-		if walkErr := filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {
+		walkErr := filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
 				return nil
 			}
@@ -61,13 +68,19 @@ func GenerateServices(projectRoot string) error {
 				return nil
 			}
 
-			entryList, err := analyzeServiceFile(moduleName, relPath, path, importAliases, aliasUsage)
+			entry, providers, err := analyzeServiceFile(moduleName, relPath, path, importAliases, aliasUsage)
 			if err != nil {
 				return err
 			}
-			entries = append(entries, entryList...)
+			if entry != nil {
+				entries = append(entries, *entry)
+			}
+			if len(providers) > 0 {
+				providerEntries = append(providerEntries, providers...)
+			}
 			return nil
-		}); walkErr != nil {
+		})
+		if walkErr != nil {
 			return walkErr
 		}
 	} else if !os.IsNotExist(err) {
@@ -77,89 +90,79 @@ func GenerateServices(projectRoot string) error {
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].Module == entries[j].Module {
 			if strings.Join(entries[i].SubSegments, ".") == strings.Join(entries[j].SubSegments, ".") {
-				if entries[i].FuncName == entries[j].FuncName {
+				if entries[i].TypeName == entries[j].TypeName {
 					return entries[i].Relative < entries[j].Relative
 				}
-				return entries[i].FuncName < entries[j].FuncName
+				return entries[i].TypeName < entries[j].TypeName
 			}
 			return strings.Join(entries[i].SubSegments, ".") < strings.Join(entries[j].SubSegments, ".")
 		}
 		return entries[i].Module < entries[j].Module
 	})
 
-	code, err := buildServiceFile(entries, importAliases)
+	sort.Slice(providerEntries, func(i, j int) bool {
+		return computeProviderName(providerEntries[i]) < computeProviderName(providerEntries[j])
+	})
+
+	code, err := buildServiceFile(entries, providerEntries, importAliases)
 	if err != nil {
 		return err
 	}
 
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
-		return fmt.Errorf("创建 data 目录失败: %w", err)
+		return fmt.Errorf("创建 data/load 目录失败: %w", err)
 	}
 	if err := os.WriteFile(output, []byte(code), 0o644); err != nil {
 		return fmt.Errorf("写入 service.go 失败: %w", err)
 	}
 
-	if len(entries) == 0 {
-		fmt.Println("⚠️ 未检测到 service 函数，已生成空的 data/service.go")
+	if len(entries) == 0 && len(providerEntries) == 0 {
+		fmt.Println("⚠️ 未检测到 service 类，已生成空的 data/load/service.go")
 	} else {
 		fmt.Println("✅ Services generated successfully → " + output)
 	}
 	return nil
 }
 
-func analyzeServiceFile(moduleName, relPath, fullPath string, importAliases map[string]string, aliasUsage map[string]int) ([]serviceEntry, error) {
+func analyzeServiceFile(moduleName, relPath, fullPath string, importAliases map[string]string, aliasUsage map[string]int) (*serviceEntry, []providerEntry, error) {
+	parts := strings.Split(relPath, string(os.PathSeparator))
+	serviceIndex := indexOf(parts, "service")
+	if serviceIndex <= 0 {
+		return nil, nil, nil
+	}
+	module := sanitizePathSegment(parts[serviceIndex-1])
+
+	var subSegments []string
+	for i := serviceIndex + 1; i < len(parts)-1; i++ {
+		subSegments = append(subSegments, sanitizePathSegment(parts[i]))
+	}
+
+	importPath := moduleName + "/" + strings.Join(parts[:len(parts)-1], "/")
+
 	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, fullPath, nil, parser.SkipObjectResolution)
+	fileNode, err := parser.ParseFile(fset, fullPath, nil, parser.SkipObjectResolution)
 	if err != nil {
-		return nil, fmt.Errorf("解析文件 %s 失败: %w", relPath, err)
+		return nil, nil, fmt.Errorf("解析文件 %s 失败: %w", fullPath, err)
 	}
 
-	var entries []serviceEntry
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Recv != nil || fn.Name == nil || !fn.Name.IsExported() {
-			continue
-		}
-
-		parts := strings.Split(relPath, string(os.PathSeparator))
-		serviceIndex := indexOf(parts, "service")
-		if serviceIndex <= 0 {
-			continue
-		}
-		module := sanitizePathSegment(parts[serviceIndex-1])
-
-		var subSegments []string
-		for i := serviceIndex + 1; i < len(parts)-1; i++ {
-			subSegments = append(subSegments, sanitizePathSegment(parts[i]))
-		}
-
-		importPath := moduleName + "/" + strings.Join(parts[:len(parts)-1], "/")
-		alias := ensureAlias(importAliases, aliasUsage, importPath, filepath.Dir(relPath))
-
-		entries = append(entries, serviceEntry{
-			Module:      module,
-			SubSegments: subSegments,
-			FuncName:    fn.Name.Name,
-			ImportAlias: alias,
-			ImportPath:  importPath,
-			Relative:    relPath,
-		})
+	providerMethods := findProviderMethods(fileNode)
+	if len(providerMethods) == 0 {
+		return nil, nil, nil
 	}
-	return entries, nil
+
+	alias := ensureAlias(importAliases, aliasUsage, importPath, filepath.Dir(relPath))
+	providers := collectProviderEntries(providerMethods, module, subSegments, alias, importPath, relPath)
+	return nil, providers, nil
 }
 
-func buildServiceFile(entries []serviceEntry, importAliases map[string]string) (string, error) {
+func buildServiceFile(entries []serviceEntry, providers []providerEntry, importAliases map[string]string) (string, error) {
 	header := fmt.Sprintf(`// Code generated by dever; DO NOT EDIT.
 // Generated at: %s
-// Description: 自动注册 service，扫描 module/*/service/*.go，并将其接入 dever/core。
+// Description: 自动注册 service 类，扫描 module/*/service/*.go，并将其接入 dever/load
 `, time.Now().Format("2006-01-02 15:04:05"))
 
-	if len(entries) == 0 {
-		return fmt.Sprintf(`%spackage data
-
-import (
-    "github.com/shemic/dever/core"
-)
+	if len(entries) == 0 && len(providers) == 0 {
+		return fmt.Sprintf(`%spackage load
 
 func init() {
     registerServices()
@@ -172,7 +175,7 @@ func registerServices() {
 
 	builder := &strings.Builder{}
 	builder.WriteString(header)
-	builder.WriteString("package data\n\n")
+	builder.WriteString("package load\n\n")
 
 	builder.WriteString("import (\n")
 	moduleImports := make([]string, 0, len(importAliases))
@@ -187,46 +190,139 @@ func registerServices() {
 	if len(moduleImports) > 0 {
 		builder.WriteString("\n")
 	}
-	builder.WriteString("    \"github.com/shemic/dever/core\"\n")
+	builder.WriteString("    load \"github.com/shemic/dever/load\"\n")
 	builder.WriteString(")\n\n")
 
 	builder.WriteString("func init() {\n")
 	builder.WriteString("    registerServices()\n")
 	builder.WriteString("}\n\n")
 
-builder.WriteString("// registerServices 自动注册所有业务\n")
-builder.WriteString("func registerServices() {\n")
+	builder.WriteString("// registerServices 自动注册所有业务类\n")
+	builder.WriteString("func registerServices() {\n")
 
-seen := make(map[string]struct{})
-unique := make([]serviceEntry, 0, len(entries))
-for _, entry := range entries {
-    name := computeServiceName(entry)
-    if _, ok := seen[name]; ok {
-        continue
-    }
-    seen[name] = struct{}{}
-    unique = append(unique, entry)
+	uniqueProviders := uniqueProviderEntries(providers)
+
+	if len(uniqueProviders) == 0 {
+		builder.WriteString("}\n")
+		return builder.String(), nil
+	}
+
+	builder.WriteString("    load.RegisterMany(map[string]any{\n")
+	for _, provider := range uniqueProviders {
+		name := computeProviderName(provider)
+		builder.WriteString(fmt.Sprintf("        \"%s\": %s,\n", name, providerReference(provider)))
+	}
+	builder.WriteString("    })\n")
+	builder.WriteString("}\n")
+	return builder.String(), nil
 }
 
-if len(unique) == 0 {
-    builder.WriteString("}\n")
-    return builder.String(), nil
+func uniqueProviderEntries(entries []providerEntry) []providerEntry {
+	seen := make(map[string]struct{})
+	unique := make([]providerEntry, 0, len(entries))
+	for _, entry := range entries {
+		name := computeProviderName(entry)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		unique = append(unique, entry)
+	}
+	sort.Slice(unique, func(i, j int) bool {
+		return computeProviderName(unique[i]) < computeProviderName(unique[j])
+	})
+	return unique
 }
 
-builder.WriteString("    core.RegisterMany(map[string]any{\n")
-for _, entry := range unique {
-    name := computeServiceName(entry)
-    builder.WriteString(fmt.Sprintf("        \"%s\": %s.%s,\n", name, entry.ImportAlias, entry.FuncName))
-}
-builder.WriteString("    })\n")
-builder.WriteString("}\n")
-return builder.String(), nil
-}
-
-func computeServiceName(entry serviceEntry) string {
+func computeProviderName(entry providerEntry) string {
 	base := entry.Module
 	if len(entry.SubSegments) > 0 {
 		base = base + "." + strings.Join(entry.SubSegments, ".")
 	}
-	return fmt.Sprintf("%s.%s", base, entry.FuncName)
+	if entry.TypeName == "" || entry.Method == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s.%s", base, entry.TypeName, entry.Method)
+}
+
+func providerReference(entry providerEntry) string {
+	if entry.TypeName == "" || entry.Method == "" {
+		return "nil"
+	}
+	receiver := fmt.Sprintf("%s.%s{}", entry.ImportAlias, entry.TypeName)
+	if entry.Pointer {
+		receiver = fmt.Sprintf("&%s.%s{}", entry.ImportAlias, entry.TypeName)
+	}
+	return fmt.Sprintf("(%s).Provider%s", receiver, entry.Method)
+}
+
+type providerMethod struct {
+	TypeName string
+	Method   string
+	Pointer  bool
+}
+
+func collectProviderEntries(methods []providerMethod, module string, subSegments []string, alias, importPath, relPath string) []providerEntry {
+	if len(methods) == 0 {
+		return nil
+	}
+	entries := make([]providerEntry, 0, len(methods))
+	for _, method := range methods {
+		entry := providerEntry{
+			serviceEntry: serviceEntry{
+				Module:      module,
+				SubSegments: append([]string(nil), subSegments...),
+				TypeName:    method.TypeName,
+				ImportAlias: alias,
+				ImportPath:  importPath,
+				Relative:    relPath,
+			},
+			Method:  method.Method,
+			Pointer: method.Pointer,
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func findProviderMethods(file *ast.File) []providerMethod {
+	var methods []providerMethod
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name == nil || !strings.HasPrefix(fn.Name.Name, "Provider") {
+			continue
+		}
+		if fn.Recv == nil || len(fn.Recv.List) == 0 {
+			continue
+		}
+		typeName, pointer := parseReceiverType(fn.Recv.List[0].Type)
+		if typeName == "" || !ast.IsExported(typeName) {
+			continue
+		}
+		suffix := strings.TrimPrefix(fn.Name.Name, "Provider")
+		if suffix == "" {
+			continue
+		}
+		methods = append(methods, providerMethod{
+			TypeName: typeName,
+			Method:   suffix,
+			Pointer:  pointer,
+		})
+	}
+	return methods
+}
+
+func parseReceiverType(expr ast.Expr) (string, bool) {
+	switch v := expr.(type) {
+	case *ast.StarExpr:
+		if ident, ok := v.X.(*ast.Ident); ok {
+			return ident.Name, true
+		}
+	case *ast.Ident:
+		return v.Name, false
+	}
+	return "", false
 }

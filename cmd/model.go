@@ -1,165 +1,161 @@
 package cmd
 
 import (
-    "fmt"
-    "go/ast"
-    "go/parser"
-    "go/token"
-    "os"
-    "path/filepath"
-    "sort"
-    "strings"
-    "time"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 )
 
 type modelEntry struct {
-    Module      string
-    SubSegments []string
-    FuncName    string
-    ImportAlias string
-    ImportPath  string
-    Relative    string
+	Module      string
+	SubSegments []string
+	FuncName    string
+	ImportAlias string
+	ImportPath  string
+	Relative    string
 }
 
 // GenerateModels 扫描项目 model 目录，生成统一的模型注册文件。
 func GenerateModels(projectRoot string) error {
-    if projectRoot == "" {
-        projectRoot = "."
-    }
-    rootPath, err := filepath.Abs(projectRoot)
-    if err != nil {
-        return fmt.Errorf("解析项目根目录失败: %w", err)
-    }
+	if projectRoot == "" {
+		projectRoot = "."
+	}
+	rootPath, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return fmt.Errorf("解析项目根目录失败: %w", err)
+	}
 
-    moduleRoot := filepath.Join(rootPath, "module")
-    output := filepath.Join(rootPath, "data", "model.go")
+	moduleRoot := filepath.Join(rootPath, "module")
+	output := filepath.Join(rootPath, "data", "load", "model.go")
 
-    moduleName := readModuleName(filepath.Join(rootPath, "go.mod"))
-    if moduleName == "" {
-        return fmt.Errorf("无法从 go.mod 读取 module 名，请检查文件")
-    }
+	moduleName := readModuleName(filepath.Join(rootPath, "go.mod"))
+	if moduleName == "" {
+		return fmt.Errorf("无法从 go.mod 读取 module 名，请检查文件")
+	}
 
-    var entries []modelEntry
-    importAliases := make(map[string]string)
-    aliasUsage := make(map[string]int)
+	var entries []modelEntry
+	importAliases := make(map[string]string)
+	aliasUsage := make(map[string]int)
 
-    if _, err := os.Stat(moduleRoot); err == nil {
-        if walkErr := filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {
-            if err != nil || info.IsDir() {
-                return nil
-            }
-            if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-                return nil
-            }
-            if !strings.Contains(path, string(os.PathSeparator)+"model"+string(os.PathSeparator)) &&
-                !strings.HasSuffix(filepath.Dir(path), string(os.PathSeparator)+"model") {
-                return nil
-            }
+	if _, err := os.Stat(moduleRoot); err == nil {
+		if walkErr := filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			if !strings.Contains(path, string(os.PathSeparator)+"model"+string(os.PathSeparator)) &&
+				!strings.HasSuffix(filepath.Dir(path), string(os.PathSeparator)+"model") {
+				return nil
+			}
 
-            relPath, err := filepath.Rel(rootPath, path)
-            if err != nil {
-                return nil
-            }
+			relPath, err := filepath.Rel(rootPath, path)
+			if err != nil {
+				return nil
+			}
 
-            entryList, err := analyzeModelFile(moduleName, relPath, path, importAliases, aliasUsage)
-            if err != nil {
-                return err
-            }
-            entries = append(entries, entryList...)
-            return nil
-        }); walkErr != nil {
-            return walkErr
-        }
-    } else if !os.IsNotExist(err) {
-        return fmt.Errorf("访问 module 目录失败: %w", err)
-    }
+			entryList, err := analyzeModelFile(moduleName, relPath, path, importAliases, aliasUsage)
+			if err != nil {
+				return err
+			}
+			entries = append(entries, entryList...)
+			return nil
+		}); walkErr != nil {
+			return walkErr
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("访问 module 目录失败: %w", err)
+	}
 
-    sort.Slice(entries, func(i, j int) bool {
-        if entries[i].Module == entries[j].Module {
-            if strings.Join(entries[i].SubSegments, ".") == strings.Join(entries[j].SubSegments, ".") {
-                if entries[i].FuncName == entries[j].FuncName {
-                    return entries[i].Relative < entries[j].Relative
-                }
-                return entries[i].FuncName < entries[j].FuncName
-            }
-            return strings.Join(entries[i].SubSegments, ".") < strings.Join(entries[j].SubSegments, ".")
-        }
-        return entries[i].Module < entries[j].Module
-    })
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Module == entries[j].Module {
+			if strings.Join(entries[i].SubSegments, ".") == strings.Join(entries[j].SubSegments, ".") {
+				if entries[i].FuncName == entries[j].FuncName {
+					return entries[i].Relative < entries[j].Relative
+				}
+				return entries[i].FuncName < entries[j].FuncName
+			}
+			return strings.Join(entries[i].SubSegments, ".") < strings.Join(entries[j].SubSegments, ".")
+		}
+		return entries[i].Module < entries[j].Module
+	})
 
-    code, err := buildModelFile(entries, importAliases)
-    if err != nil {
-        return err
-    }
+	code, err := buildModelFile(entries, importAliases)
+	if err != nil {
+		return err
+	}
 
-    if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
-        return fmt.Errorf("创建 data 目录失败: %w", err)
-    }
-    if err := os.WriteFile(output, []byte(code), 0o644); err != nil {
-        return fmt.Errorf("写入 model.go 失败: %w", err)
-    }
+	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+		return fmt.Errorf("创建 data/load 目录失败: %w", err)
+	}
+	if err := os.WriteFile(output, []byte(code), 0o644); err != nil {
+		return fmt.Errorf("写入 model.go 失败: %w", err)
+	}
 
-    if len(entries) == 0 {
-        fmt.Println("⚠️ 未检测到 model 函数，已生成空的 data/model.go")
-    } else {
-        fmt.Println("✅ Models generated successfully → " + output)
-    }
-    return nil
+	if len(entries) == 0 {
+		fmt.Println("⚠️ 未检测到 model 函数，已生成空的 data/load/model.go")
+	} else {
+		fmt.Println("✅ Models generated successfully → " + output)
+	}
+	return nil
 }
 
 func analyzeModelFile(moduleName, relPath, fullPath string, importAliases map[string]string, aliasUsage map[string]int) ([]modelEntry, error) {
-    fset := token.NewFileSet()
-    file, err := parser.ParseFile(fset, fullPath, nil, parser.SkipObjectResolution)
-    if err != nil {
-        return nil, fmt.Errorf("解析文件 %s 失败: %w", relPath, err)
-    }
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, fullPath, nil, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, fmt.Errorf("解析文件 %s 失败: %w", relPath, err)
+	}
 
-    var entries []modelEntry
-    for _, decl := range file.Decls {
-        fn, ok := decl.(*ast.FuncDecl)
-        if !ok || fn.Recv != nil || fn.Name == nil || !fn.Name.IsExported() {
-            continue
-        }
+	var entries []modelEntry
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name == nil || !fn.Name.IsExported() {
+			continue
+		}
 
-        parts := strings.Split(relPath, string(os.PathSeparator))
-        modelIndex := indexOf(parts, "model")
-        if modelIndex <= 0 {
-            continue
-        }
-        module := sanitizePathSegment(parts[modelIndex-1])
+		parts := strings.Split(relPath, string(os.PathSeparator))
+		modelIndex := indexOf(parts, "model")
+		if modelIndex <= 0 {
+			continue
+		}
+		module := sanitizePathSegment(parts[modelIndex-1])
 
-        var subSegments []string
-        for i := modelIndex + 1; i < len(parts)-1; i++ {
-            subSegments = append(subSegments, sanitizePathSegment(parts[i]))
-        }
+		var subSegments []string
+		for i := modelIndex + 1; i < len(parts)-1; i++ {
+			subSegments = append(subSegments, sanitizePathSegment(parts[i]))
+		}
 
-        importPath := moduleName + "/" + strings.Join(parts[:len(parts)-1], "/")
-        alias := ensureAlias(importAliases, aliasUsage, importPath, filepath.Dir(relPath))
+		importPath := moduleName + "/" + strings.Join(parts[:len(parts)-1], "/")
+		alias := ensureAlias(importAliases, aliasUsage, importPath, filepath.Dir(relPath))
 
-        entries = append(entries, modelEntry{
-            Module:      module,
-            SubSegments: subSegments,
-            FuncName:    fn.Name.Name,
-            ImportAlias: alias,
-            ImportPath:  importPath,
-            Relative:    relPath,
-        })
-    }
-    return entries, nil
+		entries = append(entries, modelEntry{
+			Module:      module,
+			SubSegments: subSegments,
+			FuncName:    fn.Name.Name,
+			ImportAlias: alias,
+			ImportPath:  importPath,
+			Relative:    relPath,
+		})
+	}
+	return entries, nil
 }
 
 func buildModelFile(entries []modelEntry, importAliases map[string]string) (string, error) {
-    header := fmt.Sprintf(`// Code generated by dever; DO NOT EDIT.
+	header := fmt.Sprintf(`// Code generated by dever; DO NOT EDIT.
 // Generated at: %s
-// Description: 自动注册 model，扫描 module/*/model/*.go，并将其接入 dever/core。
+// Description: 自动注册 model，扫描 module/*/model/*.go，并将其接入 dever/load
 `, time.Now().Format("2006-01-02 15:04:05"))
 
-    if len(entries) == 0 {
-        return fmt.Sprintf(`%spackage data
-
-import (
-    "github.com/shemic/dever/core"
-)
+	if len(entries) == 0 {
+		return fmt.Sprintf(`%spackage load
 
 func init() {
     registerModels()
@@ -168,66 +164,65 @@ func init() {
 func registerModels() {
 }
 `, header), nil
-    }
+	}
 
-    builder := &strings.Builder{}
-    builder.WriteString(header)
-    builder.WriteString("package data\n\n")
+	builder := &strings.Builder{}
+	builder.WriteString(header)
+	builder.WriteString("package load\n\n")
 
-    builder.WriteString("import (\n")
-    moduleImports := make([]string, 0, len(importAliases))
-    for path := range importAliases {
-        moduleImports = append(moduleImports, path)
-    }
-    sort.Strings(moduleImports)
-    for _, path := range moduleImports {
-        alias := importAliases[path]
-        builder.WriteString(fmt.Sprintf("    %s \"%s\"\n", alias, path))
-    }
-    if len(moduleImports) > 0 {
-        builder.WriteString("\n")
-    }
-    builder.WriteString("    \"github.com/shemic/dever/core\"\n")
-    builder.WriteString(")\n\n")
+	builder.WriteString("import (\n")
+	moduleImports := make([]string, 0, len(importAliases))
+	for path := range importAliases {
+		moduleImports = append(moduleImports, path)
+	}
+	sort.Strings(moduleImports)
+	for _, path := range moduleImports {
+		alias := importAliases[path]
+		builder.WriteString(fmt.Sprintf("    %s \"%s\"\n", alias, path))
+	}
+	if len(moduleImports) > 0 {
+		builder.WriteString("\n")
+	}
+builder.WriteString("    load \"github.com/shemic/dever/load\"\n")
+	builder.WriteString(")\n\n")
 
-    builder.WriteString("func init() {\n")
-    builder.WriteString("    registerModels()\n")
-    builder.WriteString("}\n\n")
+	builder.WriteString("func init() {\n")
+	builder.WriteString("    registerModels()\n")
+	builder.WriteString("}\n\n")
 
-    builder.WriteString("// registerModels 自动注册所有模型\n")
-    builder.WriteString("func registerModels() {\n")
+	builder.WriteString("// registerModels 自动注册所有模型\n")
+	builder.WriteString("func registerModels() {\n")
 
-    seen := make(map[string]struct{})
-    unique := make([]modelEntry, 0, len(entries))
-    for _, entry := range entries {
-        name := computeModelName(entry)
-        if _, ok := seen[name]; ok {
-            continue
-        }
-        seen[name] = struct{}{}
-        unique = append(unique, entry)
-    }
+	seen := make(map[string]struct{})
+	unique := make([]modelEntry, 0, len(entries))
+	for _, entry := range entries {
+		name := computeModelName(entry)
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		unique = append(unique, entry)
+	}
 
-    if len(unique) == 0 {
-        builder.WriteString("}\n")
-        return builder.String(), nil
-    }
+	if len(unique) == 0 {
+		builder.WriteString("}\n")
+		return builder.String(), nil
+	}
 
-    builder.WriteString("    core.RegisterMany(map[string]any{\n")
-    for _, entry := range unique {
-        name := computeModelName(entry)
-        builder.WriteString(fmt.Sprintf("        \"%s\": %s.%s,\n", name, entry.ImportAlias, entry.FuncName))
-    }
-    builder.WriteString("    })\n")
-    builder.WriteString("}\n")
-    return builder.String(), nil
+builder.WriteString("    load.RegisterMany(map[string]any{\n")
+for _, entry := range unique {
+    name := computeModelName(entry)
+    builder.WriteString(fmt.Sprintf("        \"%s\": %s.%s,\n", name, entry.ImportAlias, entry.FuncName))
+}
+	builder.WriteString("    })\n")
+	builder.WriteString("}\n")
+	return builder.String(), nil
 }
 
 func computeModelName(entry modelEntry) string {
-    base := entry.Module
-    if len(entry.SubSegments) > 0 {
-        base = base + "." + strings.Join(entry.SubSegments, ".")
-    }
-    return fmt.Sprintf("%s.%s", base, entry.FuncName)
+	base := entry.Module
+	if len(entry.SubSegments) > 0 {
+		base = base + "." + strings.Join(entry.SubSegments, ".")
+	}
+	return fmt.Sprintf("%s.%s", base, entry.FuncName)
 }
-
