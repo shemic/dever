@@ -271,6 +271,40 @@ func (m *Model) Select(ctx context.Context, filters any, options map[string]any,
 	return result
 }
 
+// Count 根据过滤条件统计满足条件的行数，可选传入 join 等选项（同 Select）。
+func (m *Model) Count(ctx context.Context, filters any, options ...map[string]any) int64 {
+	var opt map[string]any
+	if len(options) > 0 {
+		opt = options[0]
+	}
+	expr := "COUNT(*)"
+	if opt != nil {
+		if field, ok := opt["field"].(string); ok && strings.TrimSpace(field) != "" {
+			expr = field
+		}
+	}
+	return m.aggregateInt(ctx, expr, filters, opt)
+}
+
+// Sum 返回指定字段的求和结果，column 支持表达式，可结合 join/where 选项。
+func (m *Model) Sum(ctx context.Context, column string, filters any, options ...map[string]any) float64 {
+	trimmed := strings.TrimSpace(column)
+	if trimmed == "" {
+		panic("orm: Sum column cannot be empty")
+	}
+	var opt map[string]any
+	if len(options) > 0 {
+		opt = options[0]
+	}
+	expr := fmt.Sprintf("SUM(%s)", trimmed)
+	if opt != nil {
+		if field, ok := opt["field"].(string); ok && strings.TrimSpace(field) != "" {
+			expr = field
+		}
+	}
+	return m.aggregateFloat(ctx, expr, filters, opt)
+}
+
 // Find 查询单条记录。
 func (m *Model) Find(ctx context.Context, filters any, options ...map[string]any) map[string]any {
 	if ctx == nil {
@@ -446,6 +480,80 @@ func (m *Model) Delete(ctx context.Context, filters any) int64 {
 	affected, err := res.RowsAffected()
 	panicOnError(err)
 	return affected
+}
+
+func (m *Model) aggregateInt(ctx context.Context, expr string, filters any, options map[string]any) int64 {
+	row := m.aggregateRow(ctx, expr, filters, options)
+	var result sql.NullInt64
+	if err := row.Scan(&result); err != nil {
+		err = normalizeError(err)
+		if errors.Is(err, ErrNotFound) {
+			return 0
+		}
+		panic(err)
+	}
+	if result.Valid {
+		return result.Int64
+	}
+	return 0
+}
+
+func (m *Model) aggregateFloat(ctx context.Context, expr string, filters any, options map[string]any) float64 {
+	row := m.aggregateRow(ctx, expr, filters, options)
+	var result sql.NullFloat64
+	if err := row.Scan(&result); err != nil {
+		err = normalizeError(err)
+		if errors.Is(err, ErrNotFound) {
+			return 0
+		}
+		panic(err)
+	}
+	if result.Valid {
+		return result.Float64
+	}
+	return 0
+}
+
+func (m *Model) aggregateRow(ctx context.Context, expr string, filters any, options map[string]any) *sqlx.Row {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if filters == nil {
+		filters = map[string]any{}
+	}
+	if filters != nil {
+		filters = m.normalizeFilters(filters)
+	}
+	baseDB, err := m.db()
+	panicOnError(err)
+	exec := newExecutor(ctx, baseDB)
+	quoter := m.identifierQuoter()
+
+	joinClause := ""
+	if options != nil {
+		if joinRaw, ok := options["join"]; ok {
+			joinClause = buildJoinClause(joinRaw)
+		}
+	}
+
+	query := fmt.Sprintf("SELECT %s FROM %s AS main", wrapAggregateExpression(expr), quoteWith(m.table, quoter))
+	if joinClause != "" {
+		query += " " + joinClause
+	}
+	whereClause, args := buildWhereClauseWithQuoter(filters, quoter)
+	if whereClause != "" {
+		query += " WHERE " + whereClause
+	}
+	query = exec.rebind(query)
+	return exec.queryRowxContext(ctx, query, args...)
+}
+
+func wrapAggregateExpression(expr string) string {
+	trimmed := strings.TrimSpace(expr)
+	if trimmed == "" {
+		trimmed = "0"
+	}
+	return fmt.Sprintf("COALESCE(%s, 0)", trimmed)
 }
 
 func (m *Model) db() (*sqlx.DB, error) {

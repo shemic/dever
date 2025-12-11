@@ -157,102 +157,34 @@ func (c *Context) Error(err any, code ...int) error {
 	return nil
 }
 
-func normalizePayload(status int, data any) any {
+func normalizePayload(status int, data any) map[string]any {
+	payloadStatus := 1
+	message := "success"
 	if status < http.StatusOK || status >= http.StatusMultipleChoices {
-		if data == nil {
-			return map[string]any{
-				"code":   status,
-				"status": 2,
-				"msg":    http.StatusText(status),
-				"data":   nil,
-			}
-		}
-		return data
-	}
-
-	if data == nil {
-		return map[string]any{
-			"code":   status,
-			"status": 1,
-			"msg":    "success",
-			"data":   nil,
+		payloadStatus = 2
+		if txt := http.StatusText(status); txt != "" {
+			message = txt
+		} else {
+			message = "error"
 		}
 	}
-
-	if envelope, ok := data.(map[string]any); ok {
-		if looksLikeEnvelope(envelope) {
-			envelopeCopy := cloneMap(envelope)
-			if _, exists := envelopeCopy["code"]; !exists {
-				envelopeCopy["code"] = status
-			}
-			if _, exists := envelopeCopy["status"]; !exists {
-				envelopeCopy["status"] = 1
-			}
-			if _, exists := envelopeCopy["msg"]; !exists {
-				envelopeCopy["msg"] = "success"
-			}
-			if _, exists := envelopeCopy["data"]; !exists {
-				envelopeCopy["data"] = nil
-			}
-			return envelopeCopy
-		}
-		return map[string]any{
-			"code":   status,
-			"status": 1,
-			"msg":    "success",
-			"data":   envelope,
-		}
-	}
-
 	return map[string]any{
 		"code":   status,
-		"status": 1,
-		"msg":    "success",
+		"status": payloadStatus,
+		"msg":    message,
 		"data":   data,
 	}
 }
 
 func normalizeErrorPayload(status int, err error) map[string]any {
-	msg := http.StatusText(status)
+	payload := normalizePayload(status, nil)
+	payload["status"] = 2
 	if err != nil && err.Error() != "" {
-		msg = err.Error()
+		payload["msg"] = err.Error()
+	} else if txt := http.StatusText(status); txt != "" {
+		payload["msg"] = txt
 	}
-	return map[string]any{
-		"code":   status,
-		"status": 2,
-		"msg":    msg,
-		"data":   nil,
-	}
-}
-
-func cloneMap(src map[string]any) map[string]any {
-	if len(src) == 0 {
-		return map[string]any{}
-	}
-	cloned := make(map[string]any, len(src))
-	for k, v := range src {
-		cloned[k] = v
-	}
-	return cloned
-}
-
-func looksLikeEnvelope(m map[string]any) bool {
-	if m == nil {
-		return false
-	}
-	if _, ok := m["code"]; ok {
-		return true
-	}
-	if _, ok := m["status"]; ok {
-		return true
-	}
-	if _, ok := m["msg"]; ok {
-		return true
-	}
-	if _, ok := m["data"]; ok {
-		return true
-	}
-	return false
+	return payload
 }
 
 // Input 统一读取请求参数，按路径参数→查询参数→表单参数的顺序查找。
