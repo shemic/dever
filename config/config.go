@@ -57,18 +57,19 @@ type App struct {
 	HTTP     HTTP     `json:"http"`
 	Database Database `json:"database"`
 	Redis    Redis    `json:"redis"`
+	Task     Task     `json:"task"`
 }
 
 // Log 表示日志相关配置。
 type Log struct {
-	Level       string `json:"level"`
-	Encoding    string `json:"encoding"`
-	Development bool   `json:"development"`
-	Enabled     *bool  `json:"enabled,omitempty"`
-	Output      string `json:"output"`
-	FilePath    string `json:"filePath"`
-	SuccessFile string `json:"successFile"`
-	ErrorFile   string `json:"errorFile"`
+	Level       string     `json:"level"`
+	Encoding    string     `json:"encoding"`
+	Development bool       `json:"development"`
+	Enabled     *bool      `json:"enabled,omitempty"`
+	Output      string     `json:"output"`
+	FilePath    string     `json:"filePath"`
+	SuccessFile string     `json:"successFile"`
+	ErrorFile   string     `json:"errorFile"`
 	Access      *LogTarget `json:"access,omitempty"`
 	Error       *LogTarget `json:"error,omitempty"`
 }
@@ -112,11 +113,11 @@ func (h HTTP) Addr() string {
 
 // Database 表示数据库集合配置。
 type Database struct {
-	Create      bool              `json:"create"`
-	Default     string            `json:"default"`
-	Connections map[string]DBConf `json:"connections"`
-	Persist     bool              `json:"persist"`
-	MigrationLog bool             `json:"migrationLog"`
+	Create       bool              `json:"create"`
+	Default      string            `json:"default"`
+	Connections  map[string]DBConf `json:"connections"`
+	Persist      bool              `json:"persist"`
+	MigrationLog bool              `json:"migrationLog"`
 }
 
 func (d *Database) UnmarshalJSON(data []byte) error {
@@ -211,6 +212,28 @@ type Redis struct {
 	WriteTimeout Duration `json:"writeTimeout"`
 	PingTimeout  Duration `json:"pingTimeout"`
 	UseTLS       bool     `json:"useTLS"`
+}
+
+// Task 描述任务系统相关配置。
+type Task struct {
+	RecipesDir string      `json:"recipesDir"`
+	ComfyUI    TaskComfyUI `json:"comfyui"`
+	LLM        TaskLLM     `json:"llm"`
+}
+
+// TaskComfyUI 定义 ComfyUI 执行器配置。
+type TaskComfyUI struct {
+	BaseURL        string   `json:"baseUrl"`
+	Timeout        Duration `json:"timeout"`
+	PollInterval   Duration `json:"pollInterval"`
+	RequestTimeout Duration `json:"requestTimeout"`
+}
+
+// TaskLLM 定义 LLM 执行器配置。
+type TaskLLM struct {
+	BaseURL string   `json:"baseUrl"`
+	APIKey  string   `json:"apiKey"`
+	Timeout Duration `json:"timeout"`
 }
 
 // Load 从指定路径读取配置。
@@ -312,6 +335,27 @@ func (c *App) applyDefaults() {
 			conf.Host = "127.0.0.1:3306"
 		}
 		c.Database.Connections[name] = conf
+	}
+	if strings.TrimSpace(c.Task.RecipesDir) == "" {
+		c.Task.RecipesDir = filepath.Join("module", "task", "recipes")
+	}
+	if strings.TrimSpace(c.Task.ComfyUI.BaseURL) == "" {
+		c.Task.ComfyUI.BaseURL = "http://127.0.0.1:8188"
+	}
+	if c.Task.ComfyUI.Timeout <= 0 {
+		c.Task.ComfyUI.Timeout = Duration(30 * time.Minute)
+	}
+	if c.Task.ComfyUI.PollInterval <= 0 {
+		c.Task.ComfyUI.PollInterval = Duration(2 * time.Second)
+	}
+	if c.Task.ComfyUI.RequestTimeout <= 0 {
+		c.Task.ComfyUI.RequestTimeout = Duration(15 * time.Second)
+	}
+	if strings.TrimSpace(c.Task.LLM.BaseURL) == "" {
+		c.Task.LLM.BaseURL = "http://127.0.0.1:9000/v1/chat/completions"
+	}
+	if c.Task.LLM.Timeout <= 0 {
+		c.Task.LLM.Timeout = Duration(2 * time.Minute)
 	}
 }
 
