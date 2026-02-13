@@ -2,9 +2,9 @@ package load
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
-	"github.com/shemic/dever/orm"
 	"github.com/shemic/dever/server"
 )
 
@@ -70,13 +70,6 @@ func adaptHandler(fn any) *binding {
 				return h()
 			},
 		}
-	case func() *orm.Model:
-		return &binding{
-			handler: func(map[string]any) (any, error) {
-				return h(), nil
-			},
-			modelFn: h,
-		}
 	case func() any:
 		return &binding{
 			handler: func(map[string]any) (any, error) {
@@ -106,6 +99,13 @@ func adaptHandler(fn any) *binding {
 			provider: h,
 		}
 	default:
+		if v := reflect.ValueOf(fn); v.Kind() == reflect.Func && v.Type().NumIn() == 0 && v.Type().NumOut() == 1 {
+			return &binding{
+				handler: func(map[string]any) (any, error) {
+					return v.Call(nil)[0].Interface(), nil
+				},
+			}
+		}
 		panic(fmt.Sprintf("load: unsupported handler type %T", fn))
 	}
 }

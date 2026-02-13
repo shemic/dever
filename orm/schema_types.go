@@ -2,6 +2,7 @@ package orm
 
 import (
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -24,12 +25,17 @@ type indexDef struct {
 }
 
 type tableSchema struct {
-	Table     string           `json:"table"`
-	Columns   []columnDef      `json:"columns"`
-	Indexes   []indexDef       `json:"indexes,omitempty"`
-	Seeds     []map[string]any `json:"seeds,omitempty"`
-	UpdatedAt time.Time        `json:"updatedAt"`
-	columnLookup map[string]string `json:"-"`
+	Table           string               `json:"table"`
+	Columns         []columnDef          `json:"columns"`
+	Indexes         []indexDef           `json:"indexes,omitempty"`
+	Seeds           []map[string]any     `json:"seeds,omitempty"`
+	UpdatedAt       time.Time            `json:"updatedAt"`
+	columnLookup    map[string]string    `json:"-"`
+	columnDefLookup map[string]columnDef `json:"-"`
+	aliasMu         sync.RWMutex         `json:"-"`
+	aliasDefLookup  map[string]columnDef `json:"-"`
+	aliasKeyLookup  map[string]string    `json:"-"`
+	aliasMiss       map[string]struct{}  `json:"-"`
 }
 
 func (s *tableSchema) ensureLookup() {
@@ -37,10 +43,14 @@ func (s *tableSchema) ensureLookup() {
 		return
 	}
 	lookup := make(map[string]string, len(s.Columns))
+	defLookup := make(map[string]columnDef, len(s.Columns))
 	for _, col := range s.Columns {
-		lookup[normalizeColumnKey(col.Name)] = col.Name
+		key := normalizeColumnKey(col.Name)
+		lookup[key] = col.Name
+		defLookup[key] = col
 	}
 	s.columnLookup = lookup
+	s.columnDefLookup = defLookup
 }
 
 func (s *tableSchema) resolveColumn(name string) (string, bool) {
@@ -51,6 +61,70 @@ func (s *tableSchema) resolveColumn(name string) (string, bool) {
 	key := normalizeColumnKey(name)
 	val, ok := s.columnLookup[key]
 	return val, ok
+}
+
+func (s *tableSchema) resolveColumnDef(name string) (columnDef, bool) {
+	if s == nil {
+		return columnDef{}, false
+	}
+	s.ensureLookup()
+	key := normalizeColumnKey(name)
+	val, ok := s.columnDefLookup[key]
+	return val, ok
+}
+
+func (s *tableSchema) resolveColumnDefWithAlias(name string) (columnDef, string, bool) {
+	if s == nil || name == "" {
+		return columnDef{}, "", false
+	}
+	s.aliasMu.RLock()
+	if s.aliasDefLookup != nil {
+		if col, ok := s.aliasDefLookup[name]; ok {
+			key := name
+			if s.aliasKeyLookup != nil {
+				if mapped, ok := s.aliasKeyLookup[name]; ok {
+					key = mapped
+				}
+			}
+			s.aliasMu.RUnlock()
+			return col, key, true
+		}
+		if s.aliasMiss != nil {
+			if _, ok := s.aliasMiss[name]; ok {
+				s.aliasMu.RUnlock()
+				return columnDef{}, "", false
+			}
+		}
+	}
+	s.aliasMu.RUnlock()
+
+	col, ok := s.resolveColumnDef(name)
+	lookupKey := name
+	if !ok && strings.Contains(name, ".") {
+		if idx := strings.LastIndex(name, "."); idx != -1 && idx+1 < len(name) {
+			lookupKey = name[idx+1:]
+			col, ok = s.resolveColumnDef(lookupKey)
+		}
+	}
+
+	s.aliasMu.Lock()
+	if s.aliasDefLookup == nil {
+		s.aliasDefLookup = map[string]columnDef{}
+		s.aliasKeyLookup = map[string]string{}
+		s.aliasMiss = map[string]struct{}{}
+	}
+	if ok {
+		s.aliasDefLookup[name] = col
+		s.aliasKeyLookup[name] = lookupKey
+	} else {
+		s.aliasMiss[name] = struct{}{}
+	}
+	s.aliasMu.Unlock()
+
+	if ok {
+		return col, lookupKey, true
+	}
+	return columnDef{}, "", false
 }
 
 func normalizeColumnKey(name string) string {

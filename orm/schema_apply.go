@@ -12,7 +12,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-func (m *Model) ensureSchema(ctx context.Context) error {
+func (m *modelCore) ensureSchema(ctx context.Context) error {
 	if m.schema == nil {
 		return fmt.Errorf("orm: schema for table %s not registered", m.table)
 	}

@@ -5,7 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/shemic/dever/orm"
 	"github.com/shemic/dever/server"
 )
 
@@ -20,9 +19,9 @@ type binding struct {
 	fastSrv  func(*server.Context) (any, error)
 	provider func(*server.Context, []any) any
 
-	modelFn     func() *orm.Model
+	modelFn     func() any
 	modelOnce   sync.Once
-	modelCached *orm.Model
+	modelCached any
 }
 
 var (

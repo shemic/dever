@@ -17,6 +17,7 @@ var (
 	mu              sync.RWMutex
 	databases       = map[string]*sqlx.DB{}
 	defaultDatabase = "default"
+	dbPrefixes      = map[string]string{}
 )
 
 // Init 根据配置初始化命名数据库连接。
@@ -24,6 +25,7 @@ func Init(name string, cfg Config) (*sqlx.DB, error) {
 	if strings.TrimSpace(name) == "" {
 		name = currentDefaultDatabase()
 	}
+	prefix := strings.TrimSpace(cfg.Prefix)
 	driver := cfg.driverName()
 	if driver != "sqlite3" && strings.TrimSpace(cfg.DBName) == "" && strings.TrimSpace(cfg.DSN) == "" {
 		return nil, fmt.Errorf("orm: database %q requires dbname", name)
@@ -68,6 +70,7 @@ func Init(name string, cfg Config) (*sqlx.DB, error) {
 		_ = existing.Close()
 	}
 	databases[name] = db
+	dbPrefixes[name] = prefix
 	return db, nil
 }
 
@@ -100,6 +103,7 @@ func Close(name string) error {
 	db, ok := databases[name]
 	if ok {
 		delete(databases, name)
+		delete(dbPrefixes, name)
 	}
 	mu.Unlock()
 	if !ok {
@@ -118,8 +122,19 @@ func CloseAll() error {
 			errs = append(errs, fmt.Errorf("%s: %w", name, err))
 		}
 		delete(databases, name)
+		delete(dbPrefixes, name)
 	}
 	return errors.Join(errs...)
+}
+
+func getDatabasePrefix(name string) string {
+	if strings.TrimSpace(name) == "" {
+		name = currentDefaultDatabase()
+	}
+	mu.RLock()
+	prefix := dbPrefixes[name]
+	mu.RUnlock()
+	return strings.TrimSpace(prefix)
 }
 
 // Ping 检查数据库连接是否可用。

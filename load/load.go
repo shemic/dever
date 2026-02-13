@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/shemic/dever/orm"
 	"github.com/shemic/dever/server"
 )
 
@@ -27,8 +26,8 @@ func Service(name string, args ...any) any {
 	return invokeBinding(binding, args...)
 }
 
-// Model 加载注册的模型函数并断言返回 *orm.Model。
-func Model(name string, args ...any) *orm.Model {
+// Model 加载注册的模型函数并返回模型实例。
+func Model(name string, args ...any) any {
 	binding := mustBinding(name)
 	if len(args) == 0 && binding.modelFn != nil {
 		binding.modelOnce.Do(func() {
@@ -44,11 +43,7 @@ func Model(name string, args ...any) *orm.Model {
 	if result == nil {
 		panic(fmt.Sprintf("load: model %s returned nil", name))
 	}
-	model, ok := result.(*orm.Model)
-	if !ok {
-		panic(fmt.Sprintf("load: model %s returns %T, want *orm.Model", name, result))
-	}
-	return model
+	return result
 }
 
 func invokeBinding(binding *binding, args ...any) any {

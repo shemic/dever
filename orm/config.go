@@ -17,6 +17,7 @@ type Config struct {
 	User              string            `mapstructure:"user"`
 	Password          string            `mapstructure:"password"`
 	DBName            string            `mapstructure:"dbname"`
+	Prefix            string            `mapstructure:"prefix"`
 	Path              string            `mapstructure:"path"`
 	Params            map[string]string `mapstructure:"params"`
 	DSN               string            `mapstructure:"dsn"`
@@ -39,6 +40,7 @@ func ConfigFromDBConf(dbCfg config.DBConf) Config {
 		User:              dbCfg.User,
 		Password:          dbCfg.Pwd,
 		DBName:            dbCfg.DBName,
+		Prefix:            strings.TrimSpace(dbCfg.Prefix),
 		Path:              dbCfg.Path,
 		Params:            params,
 		DSN:               "",

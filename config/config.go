@@ -57,7 +57,9 @@ type App struct {
 	HTTP     HTTP     `json:"http"`
 	Database Database `json:"database"`
 	Redis    Redis    `json:"redis"`
-	Task     Task     `json:"task"`
+	Temporal Temporal `json:"temporal"`
+	Auth     Auth     `json:"auth"`
+	Qiniu    Qiniu    `json:"qiniu"`
 }
 
 // Log 表示日志相关配置。
@@ -97,6 +99,23 @@ type HTTP struct {
 	ReadTimeout       Duration `json:"readTimeout"`
 	WriteTimeout      Duration `json:"writeTimeout"`
 	IdleTimeout       Duration `json:"idleTimeout"`
+}
+
+// Auth 表示认证相关配置。
+type Auth struct {
+	JWTSecret string `json:"jwtSecret"`
+}
+
+// Qiniu 表示七牛云相关配置。
+type Qiniu struct {
+	AccessKey   string `json:"accessKey"`
+	SecretKey   string `json:"secretKey"`
+	Bucket      string `json:"bucket"`
+	Region      string `json:"region"`
+	Domain      string `json:"domain"`
+	UploadHost  string `json:"uploadHost"`
+	CallbackURL string `json:"callbackURL"`
+	TokenTTL    int64  `json:"tokenTTL"`
 }
 
 // Addr 构造监听地址。
@@ -187,6 +206,7 @@ type DBConf struct {
 	User              string            `json:"user"`
 	Pwd               string            `json:"pwd"`
 	DBName            string            `json:"dbname"`
+	Prefix            string            `json:"prefix"`
 	Path              string            `json:"path"`
 	Params            map[string]string `json:"params"`
 	MaxOpenConns      int               `json:"maxOpenConns"`
@@ -194,6 +214,15 @@ type DBConf struct {
 	ConnMaxLifetime   Duration          `json:"connMaxLifetime"`
 	ConnMaxIdleTime   Duration          `json:"connMaxIdleTime"`
 	HealthCheckPeriod Duration          `json:"healthCheckPeriod"`
+}
+
+// Temporal 表示 Temporal 相关配置。
+type Temporal struct {
+	HostPort      string `json:"hostPort"`
+	Namespace     string `json:"namespace"`
+	WorkflowQueue string `json:"workflowQueue"`
+	LlmQueue      string `json:"llmQueue"`
+	ToolsQueue    string `json:"toolsQueue"`
 }
 
 // Redis 表示 Redis 相关配置。
@@ -212,28 +241,6 @@ type Redis struct {
 	WriteTimeout Duration `json:"writeTimeout"`
 	PingTimeout  Duration `json:"pingTimeout"`
 	UseTLS       bool     `json:"useTLS"`
-}
-
-// Task 描述任务系统相关配置。
-type Task struct {
-	RecipesDir string      `json:"recipesDir"`
-	ComfyUI    TaskComfyUI `json:"comfyui"`
-	LLM        TaskLLM     `json:"llm"`
-}
-
-// TaskComfyUI 定义 ComfyUI 执行器配置。
-type TaskComfyUI struct {
-	BaseURL        string   `json:"baseUrl"`
-	Timeout        Duration `json:"timeout"`
-	PollInterval   Duration `json:"pollInterval"`
-	RequestTimeout Duration `json:"requestTimeout"`
-}
-
-// TaskLLM 定义 LLM 执行器配置。
-type TaskLLM struct {
-	BaseURL string   `json:"baseUrl"`
-	APIKey  string   `json:"apiKey"`
-	Timeout Duration `json:"timeout"`
 }
 
 // Load 从指定路径读取配置。
@@ -335,27 +342,6 @@ func (c *App) applyDefaults() {
 			conf.Host = "127.0.0.1:3306"
 		}
 		c.Database.Connections[name] = conf
-	}
-	if strings.TrimSpace(c.Task.RecipesDir) == "" {
-		c.Task.RecipesDir = filepath.Join("module", "task", "recipes")
-	}
-	if strings.TrimSpace(c.Task.ComfyUI.BaseURL) == "" {
-		c.Task.ComfyUI.BaseURL = "http://127.0.0.1:8188"
-	}
-	if c.Task.ComfyUI.Timeout <= 0 {
-		c.Task.ComfyUI.Timeout = Duration(30 * time.Minute)
-	}
-	if c.Task.ComfyUI.PollInterval <= 0 {
-		c.Task.ComfyUI.PollInterval = Duration(2 * time.Second)
-	}
-	if c.Task.ComfyUI.RequestTimeout <= 0 {
-		c.Task.ComfyUI.RequestTimeout = Duration(15 * time.Second)
-	}
-	if strings.TrimSpace(c.Task.LLM.BaseURL) == "" {
-		c.Task.LLM.BaseURL = "http://127.0.0.1:9000/v1/chat/completions"
-	}
-	if c.Task.LLM.Timeout <= 0 {
-		c.Task.LLM.Timeout = Duration(2 * time.Minute)
 	}
 }
 

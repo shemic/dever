@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"fmt"
-	"runtime/debug"
 	"time"
 
 	dlog "github.com/shemic/dever/log"
@@ -29,10 +28,10 @@ func Recover() Middleware {
 		c := extractContext(ctx)
 		defer func() {
 			if r := recover(); r != nil {
-				dlog.Error().Printf("[recover] method=%s path=%s panic=%v\n%s",
-					requestMethod(c), requestPath(c), r, debug.Stack())
+				dlog.Error().Printf("[recover] method=%s path=%s panic=%v",
+					c.Method(), c.Path(), r)
 				if c != nil {
-					_ = c.JSON(map[string]any{"error": fmt.Sprintf("panic: %v", r)})
+					_ = c.Error(fmt.Sprintf("%v", r))
 				}
 				err = nil
 			}
@@ -53,10 +52,10 @@ func Log() Middleware {
 			duration := time.Since(start)
 			if err != nil {
 				dlog.Error().Printf("[error] method=%s path=%s duration=%s err=%v",
-					requestMethod(c), requestPath(c), duration, err)
+					c.Method(), c.Path(), duration, err)
 			}
 			dlog.Access().Printf("[access] method=%s path=%s duration=%s err=%v",
-				requestMethod(c), requestPath(c), duration, err)
+				c.Method(), c.Path(), duration, err)
 		}()
 		if next != nil {
 			err = next(ctx)
@@ -70,36 +69,4 @@ func extractContext(ctx any) *server.Context {
 		return c
 	}
 	return nil
-}
-
-func requestMethod(c *server.Context) string {
-	if c == nil || c.Raw == nil {
-		return ""
-	}
-	type methoder interface{ Method() string }
-	if m, ok := c.Raw.(methoder); ok {
-		return m.Method()
-	}
-	if r, ok := c.Raw.(interface{ Request() any }); ok {
-		if req := r.Request(); req != nil {
-			if m, ok := req.(interface{ Method() string }); ok {
-				return m.Method()
-			}
-		}
-	}
-	return ""
-}
-
-func requestPath(c *server.Context) string {
-	if c == nil || c.Raw == nil {
-		return ""
-	}
-	type router interface{ Path() string }
-	if r, ok := c.Raw.(router); ok {
-		return r.Path()
-	}
-	if a, ok := c.Raw.(interface{ OriginalURL() string }); ok {
-		return a.OriginalURL()
-	}
-	return ""
 }

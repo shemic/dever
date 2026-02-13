@@ -36,7 +36,7 @@
    - 依据 HTTP 配置构建 Fiber `app`，注册项目层提供的路由；
    - 捕获 `SIGINT/SIGTERM`，按 `ShutdownTimeout` 优雅退出，同时输出启动 banner。
 3. CLI 常用命令：
-   - `go run ./dever/cmd/dever routes`：扫描 `module/*/api/*.go` 使用方法名生成路由；
+  - `go run ./dever/cmd/dever routes`：扫描 `module/*/api/*.go` 使用结构体方法生成路由；
    - `go run ./dever/cmd/dever init`：一键执行 routes + 其他初始化；
    - `go run ./dever/cmd/dever migrate`：根据模型元数据刷新数据库结构（若已实现）；
    - `go run ./dever/cmd/dever run`：调试 `dever` 内部示例。
@@ -118,7 +118,7 @@
 ### 7.1 新增 REST API
 1. 在 `module/<name>/model` 中声明或更新模型（`orm.MustLoadModel`），说明是否需要执行迁移命令。
 2. 在 `service` 层封装业务逻辑，调用 `model.NewXxxModel().Select/Insert`，必要时使用 `orm.Transaction`。
-3. 在 `api` 层新增 `Get/Post...` 函数，通过 `c.Input` 读取参数、调用 Service、`c.JSON` 返回。
+3. 在 `api` 层新增结构体方法 `Get/Post...`，通过 `c.Input` 读取参数、调用 Service、`c.JSON` 返回。
 4. 运行 `go run ./dever/cmd/dever routes`（若新增 Provider 还需执行 `go run ./dever/cmd/dever service`）更新生成文件，再 `go run .` 或 `go test ./module/<name>/...` 验证。
 
 ### 7.2 使用 Redis 限流/扣减

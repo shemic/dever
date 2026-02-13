@@ -22,7 +22,26 @@ var (
 	jsonAdapterMux sync.RWMutex
 
 	validatorCache sync.Map
+
+	// payloadPool reduces GC pressure by reusing payload maps
+	payloadPool = sync.Pool{
+		New: func() any {
+			return make(map[string]any, 4)
+		},
+	}
+
+	// methodCache caches reflected methods to avoid repeated reflection lookups
+	methodCache sync.Map // map[reflect.Type]cachedMethods
 )
+
+// cachedMethods holds commonly used methods for a type
+type cachedMethods struct {
+	query     *reflect.Method
+	params    *reflect.Method
+	formValue *reflect.Method
+	status    *reflect.Method
+	json      *reflect.Method
+}
 
 // RegisterJSONAdapter 注册自定义 JSON 输出的扩展逻辑，例如 Fiber、Gin 等。
 func RegisterJSONAdapter(fn JSONAdapter) {
@@ -46,7 +65,10 @@ func callJSONAdapters(raw any, status int, data any) (bool, error) {
 
 // Context 封装底层框架的上下文（例如 *fiber.Ctx），对外暴露统一接口。
 type Context struct {
-	Raw any
+	Raw            any
+	jsonPayload    map[string]any
+	jsonPayloadErr error
+	jsonOnce       sync.Once
 }
 
 // Context 返回底层请求关联的 context.Context。
@@ -101,6 +123,37 @@ func (c *Context) JSON(data any) error {
 	return c.JSONWithStatus(http.StatusOK, data)
 }
 
+// JSONPayload 输出已归一化的 payload，避免重复包装。
+func (c *Context) JSONPayload(status int, payload map[string]any) error {
+	if c.Raw == nil {
+		return errors.New("JSON: nil context")
+	}
+	// Return payload to pool after JSON serialization completes
+	defer func() {
+		if payload != nil {
+			payloadPool.Put(payload)
+		}
+	}()
+
+	if handled, err := callJSONAdapters(c.Raw, status, payload); handled {
+		return err
+	}
+	setStatusIfPossible(c.Raw, status)
+	switch ctx := c.Raw.(type) {
+	case interface{ JSON(any) error }:
+		return ctx.JSON(payload)
+	case interface{ JSON(int, any) error }:
+		return ctx.JSON(status, payload)
+	}
+	if err := callJSONReflect(c.Raw, status, payload); err != nil {
+		if errors.Is(err, errNoJSONMethod) {
+			return errors.New("JSON: not supported framework")
+		}
+		return err
+	}
+	return nil
+}
+
 // JSONWithStatus 输出指定状态码的 JSON 结果。
 func (c *Context) JSONWithStatus(status int, data any) error {
 	if c.Raw == nil {
@@ -151,7 +204,7 @@ func (c *Context) Error(err any, code ...int) error {
 	}
 
 	payload := normalizeErrorPayload(status, e)
-	if jErr := c.JSONWithStatus(status, payload); jErr != nil {
+	if jErr := c.JSONPayload(status, payload); jErr != nil {
 		return jErr
 	}
 	return nil
@@ -168,21 +221,33 @@ func normalizePayload(status int, data any) map[string]any {
 			message = "error"
 		}
 	}
-	return map[string]any{
-		"code":   status,
-		"status": payloadStatus,
-		"msg":    message,
-		"data":   data,
+	payload := payloadPool.Get().(map[string]any)
+	// Clear the map before reuse
+	for k := range payload {
+		delete(payload, k)
 	}
+	payload["code"] = status
+	payload["status"] = payloadStatus
+	payload["msg"] = message
+	payload["data"] = data
+	return payload
 }
 
 func normalizeErrorPayload(status int, err error) map[string]any {
-	payload := normalizePayload(status, nil)
+	payload := payloadPool.Get().(map[string]any)
+	// Clear the map before reuse
+	for k := range payload {
+		delete(payload, k)
+	}
+	payload["code"] = status
 	payload["status"] = 2
+	payload["data"] = nil
 	if err != nil && err.Error() != "" {
 		payload["msg"] = err.Error()
 	} else if txt := http.StatusText(status); txt != "" {
 		payload["msg"] = txt
+	} else {
+		payload["msg"] = "error"
 	}
 	return payload
 }
@@ -227,20 +292,71 @@ func (c *Context) Input(key string, args ...string) string {
 		}
 	}
 	if value == "" {
+		if payload := c.loadJSONPayload(); payload != nil {
+			if v, ok := payload[key]; ok {
+				switch vv := v.(type) {
+				case string:
+					value = strings.TrimSpace(vv)
+				default:
+					if b, err := json.Marshal(v); err == nil {
+						value = strings.TrimSpace(string(b))
+					} else {
+						value = strings.TrimSpace(fmt.Sprint(v))
+					}
+				}
+			}
+		}
+	}
+	if value == "" {
 		value = defaultVal
 	}
+	value = strings.TrimSpace(value)
 
-	rule = strings.TrimSpace(rule)
-	if rule != "" && value != "" {
-		re, err := compileValidator(rule)
-		if err != nil {
-			c.abort(fmt.Errorf("%s 校验规则错误: %v", desc, err))
-		} else if !re.MatchString(value) {
-			c.abort(fmt.Errorf("%s 格式不正确", desc))
+	// Validation logic - rule already trimmed above
+	if rule != "" {
+		lowerRule := strings.ToLower(rule)
+		if lowerRule == "required" || lowerRule == "is_required" {
+			// Only trim for empty check to avoid multiple TrimSpace calls
+			if strings.TrimSpace(value) == "" {
+				c.abort(fmt.Errorf("%s 不能为空", desc))
+			}
+		} else if value != "" {
+			re, err := compileValidator(rule)
+			if err != nil {
+				c.abort(fmt.Errorf("%s 校验规则错误: %v", desc, err))
+			} else if !re.MatchString(value) {
+				c.abort(fmt.Errorf("%s 格式不正确", desc))
+			}
 		}
 	}
 
 	return value
+}
+
+func (c *Context) loadJSONPayload() map[string]any {
+	if c == nil {
+		return nil
+	}
+	c.jsonOnce.Do(func() {
+		if c.Raw == nil {
+			return
+		}
+		payload := make(map[string]any)
+		if v, ok := c.Raw.(interface{ Body() []byte }); ok {
+			if b := v.Body(); len(b) > 0 {
+				if uErr := json.Unmarshal(b, &payload); uErr == nil {
+					c.jsonPayload = payload
+					return
+				}
+			}
+		}
+		if err := c.BindJSON(&payload); err != nil {
+			c.jsonPayloadErr = err
+			return
+		}
+		c.jsonPayload = payload
+	})
+	return c.jsonPayload
 }
 
 // Query 返回查询字符串中的参数值，不存在时返回默认值或空字符串。
@@ -260,6 +376,68 @@ func (c *Context) Query(key string, defaultValue ...string) string {
 		return defaultValue[0]
 	}
 	return ""
+}
+
+// Method 返回请求的 HTTP 方法。
+func (c *Context) Method() string {
+	if c == nil || c.Raw == nil {
+		return ""
+	}
+	if m, ok := c.Raw.(interface{ Method() string }); ok {
+		return m.Method()
+	}
+	return ""
+}
+
+// Path 返回请求路径。
+func (c *Context) Path() string {
+	if c == nil || c.Raw == nil {
+		return ""
+	}
+	if r, ok := c.Raw.(interface{ Path() string }); ok {
+		return r.Path()
+	}
+	if a, ok := c.Raw.(interface{ OriginalURL() string }); ok {
+		return a.OriginalURL()
+	}
+	return ""
+}
+
+// getCachedMethods retrieves or creates cached methods for a type
+func getCachedMethods(t reflect.Type) *cachedMethods {
+	if cached, ok := methodCache.Load(t); ok {
+		return cached.(*cachedMethods)
+	}
+
+	cm := &cachedMethods{}
+
+	// Cache Query method
+	if m, ok := t.MethodByName("Query"); ok {
+		cm.query = &m
+	}
+
+	// Cache Params method
+	if m, ok := t.MethodByName("Params"); ok {
+		cm.params = &m
+	}
+
+	// Cache FormValue method
+	if m, ok := t.MethodByName("FormValue"); ok {
+		cm.formValue = &m
+	}
+
+	// Cache Status method
+	if m, ok := t.MethodByName("Status"); ok {
+		cm.status = &m
+	}
+
+	// Cache JSON method
+	if m, ok := t.MethodByName("JSON"); ok {
+		cm.json = &m
+	}
+
+	methodCache.Store(t, cm)
+	return cm
 }
 
 func lookupString(raw any, methodName, key string, defaultValue ...string) (string, bool) {
@@ -297,9 +475,30 @@ func lookupString(raw any, methodName, key string, defaultValue ...string) (stri
 		return "", false
 	}
 
-	method := rv.MethodByName(methodName)
+	// Use cached method if available
+	cached := getCachedMethods(rv.Type())
+	var method reflect.Value
+
+	switch methodName {
+	case "Query":
+		if cached.query != nil {
+			method = rv.Method(cached.query.Index)
+		}
+	case "Params":
+		if cached.params != nil {
+			method = rv.Method(cached.params.Index)
+		}
+	case "FormValue":
+		if cached.formValue != nil {
+			method = rv.Method(cached.formValue.Index)
+		}
+	}
+
 	if !method.IsValid() {
-		return "", false
+		method = rv.MethodByName(methodName)
+		if !method.IsValid() {
+			return "", false
+		}
 	}
 
 	val := callStringMethod(method, key, defaultValue...)
@@ -320,10 +519,19 @@ func setStatusIfPossible(raw any, status int) {
 	if !rv.IsValid() {
 		return
 	}
-	method := rv.MethodByName("Status")
-	if !method.IsValid() {
-		return
+
+	// Use cached method if available
+	cached := getCachedMethods(rv.Type())
+	var method reflect.Value
+	if cached.status != nil {
+		method = rv.Method(cached.status.Index)
+	} else {
+		method = rv.MethodByName("Status")
+		if !method.IsValid() {
+			return
+		}
 	}
+
 	if method.Type().NumIn() != 1 || method.Type().In(0).Kind() != reflect.Int {
 		return
 	}
@@ -336,9 +544,16 @@ func callJSONReflect(raw any, status int, data any) error {
 		return errNoJSONMethod
 	}
 
-	method := rv.MethodByName("JSON")
-	if !method.IsValid() {
-		return errNoJSONMethod
+	// Use cached method if available
+	cached := getCachedMethods(rv.Type())
+	var method reflect.Value
+	if cached.json != nil {
+		method = rv.Method(cached.json.Index)
+	} else {
+		method = rv.MethodByName("JSON")
+		if !method.IsValid() {
+			return errNoJSONMethod
+		}
 	}
 
 	switch method.Type().NumIn() {

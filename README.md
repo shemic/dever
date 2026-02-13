@@ -154,13 +154,15 @@ func GetInfo(ctx context.Context, params map[string]any) any {
 ```go
 package api
 
-func GetUser(c *server.Context) error {
+type User struct{}
+
+func (User) GetInfo(c *server.Context) error {
     id := c.Input("id", "is_number", "用户ID")
     result := service.GetInfo(c.Context(), map[string]any{"id": id})
     return c.JSON(map[string]any{"data": result})
 }
 ```
-- API 函数名与文件名决定路由：`module/user/api/test.go` + `GetUser` → `GET /user/test/get_user`；
+- API 结构体方法决定路由：`module/user/api/user.go` + `func (User) GetInfo` → `GET /user/user/info`；
 - 修改或新增 API 后运行 `go run ./dever/cmd/dever routes` 更新 `data/router.go`。
 
 ### 6.4 World JSON
