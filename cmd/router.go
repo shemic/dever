@@ -44,7 +44,7 @@ func GenerateRoutes(projectRoot string) error {
 	var routes []routeEntry
 	importAliases := make(map[string]string)
 	aliasUsage := make(map[string]int)
-	apiMethodRegexp := regexp.MustCompile(`func\s*\(\s*\w+\s+\*?([A-Z]\w*)\s*\)\s*(Get|Post|Put|Delete)([A-Z]\w*)\s*\(`)
+	apiMethodRegexp := regexp.MustCompile(`func\s*\(\s*(?:\w+\s+)?\*?([A-Z]\w*)\s*\)\s*(Get|Post|Put|Delete)([A-Z]\w*)\s*\(`)
 
 	if _, err := os.Stat(moduleRoot); err == nil {
 		if walkErr := filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {

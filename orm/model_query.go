@@ -117,11 +117,13 @@ func (m *modelCore) findMap(ctx context.Context, filters any, options ...map[str
 	if len(options) > 0 && options[0] != nil {
 		opt = options[0]
 	}
-	resolved := resolveSelectOptions(opt, "", false)
+	resolved := resolveSelectOptions(opt, m.defaultOrder, true)
 	query, args := m.buildSelectQuery(filters, selectQueryConfig{
-		fields:   resolved.fields,
-		joinRaw:  resolved.joinRaw,
-		limitOne: true,
+		fields:     resolved.fields,
+		joinRaw:    resolved.joinRaw,
+		order:      resolved.order,
+		applyOrder: true,
+		limitOne:   true,
 	})
 	query = exec.rebind(query)
 
