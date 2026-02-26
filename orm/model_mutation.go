@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/jmoiron/sqlx"
 )
 
 // 数据修改相关方法（Insert/Update/Delete）。
@@ -22,6 +24,16 @@ func (m *modelCore) Insert(ctx context.Context, data map[string]any) int64 {
 	quoter := m.identifierQuoter()
 	query, payload, err := buildInsertQuery(m.table, data, quoter)
 	panicOnError(err)
+	if m.driverName == "postgres" {
+		panicOnError(ensureIdentifier(m.primaryKey))
+		query = query + " RETURNING " + quoteWith(m.primaryKey, quoter)
+		namedQuery, args, err := sqlx.Named(query, payload)
+		panicOnError(err)
+		namedQuery = exec.rebind(namedQuery)
+		var id int64
+		panicOnError(exec.queryRowxContext(ctx, namedQuery, args...).Scan(&id))
+		return id
+	}
 	res, err := exec.namedExecContext(ctx, query, payload)
 	panicOnError(err)
 	if id, err := res.LastInsertId(); err == nil {
