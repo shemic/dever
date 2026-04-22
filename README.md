@@ -17,22 +17,26 @@
 
 ## 2. 环境准备与快速启动
 1. 安装 Go 1.25+，在项目根目录执行 `go mod download`。
-2. 确认 `config/setting.json` 已配置数据库/Redis。默认结构参见第 3 节。
+2. 确认 `config/setting.jsonc` 或 `config/setting.json` 已配置数据库/Redis。默认结构参见第 3 节。
 3. 启动服务：
    ```sh
    go run .
    ```
    主函数会调用 `dever/cmd.Run(data.RegisterRoutes)`，注册 `data/router.go` 中自动生成的路由，并装配日志、中间件、锁配置。
-4. 停止服务可使用 `Ctrl+C`，框架会等待 `shutdownTimeout` 后优雅退出。
+4. 开发期热重载可使用：
+   ```sh
+   go run ./dever/cmd/dever run
+   ```
+   或先执行 `go run ./dever/cmd/dever install` 安装到用户 bin 目录，再直接运行 `dever run`。安装命令会直接写入一个启动脚本，始终执行当前项目里的 `dever/cmd/dever` 源码。
+5. 停止服务可使用 `Ctrl+C`，框架会等待 `shutdownTimeout` 后优雅退出。
 
 ## 3. 配置（`dever/config`）
-统一配置文件为 `config/setting.json`：
+统一配置文件优先读取 `config/setting.jsonc`，找不到时回退 `config/setting.json`：
 
 ```json
 {
   "log": {
     "level": "info",
-    "encoding": "console",
     "development": false,
     "output": "file",
     "successFile": "data/log/access.log",
@@ -76,11 +80,12 @@
 ## 4. 命令行工具（`dever/cmd`）
 | 命令 | 说明 |
 | --- | --- |
-| `go run ./dever/cmd/dever run` | 启动框架示例，与 `go run .` 类似但仅运行脚手架。|
+| `go run ./dever/cmd/dever run` | 监听项目文件变化，必要时先执行 `init --skip-tidy`，再自动重启当前项目。|
 | `go run ./dever/cmd/dever routes` | 扫描 `module/*/api/*.go`，根据函数名生成 `data/router.go`。所有 API 修改后必须执行。|
 | `go run ./dever/cmd/dever service` | 扫描 `module/*/service/*.go`，提取 `Provider*` 方法并写入 `data/load/service.go`。|
 | `go run ./dever/cmd/dever init` | 合并 routes、service、model 等生成与依赖整理流程。|
 | `go run ./dever/cmd/dever migrate` | 执行模型迁移（依赖于 ORM 注册的 schema）。|
+| `go run ./dever/cmd/dever install` | 直接写入一个 `dever` 启动脚本到用户 bin 目录，便于直接执行 `dever run` 并始终使用当前项目里的 `dever/cmd/dever` 源码。|
 
 `cmd/run.go` 会：
 1. 调用 `config.Load` 读取配置；

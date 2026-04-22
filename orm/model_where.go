@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/shemic/dever/util"
 )
 
 // WHERE 条件解析与参数构建（仅负责条件拼装，不做查询执行）。
@@ -35,6 +37,9 @@ func parseCondition(filters any, glue string, quoter func(string) string) (strin
 }
 
 func parseConditionSliceMap(items []map[string]any, glue string, quoter func(string) string) (string, []any) {
+	if len(items) == 1 {
+		return parseConditionMap(items[0], glue, quoter)
+	}
 	clauses := make([]string, 0, len(items))
 	var args []any
 	for _, item := range items {
@@ -49,6 +54,9 @@ func parseConditionSliceMap(items []map[string]any, glue string, quoter func(str
 }
 
 func parseConditionSlice(items []any, glue string, quoter func(string) string) (string, []any) {
+	if len(items) == 1 {
+		return parseCondition(items[0], glue, quoter)
+	}
 	clauses := make([]string, 0, len(items))
 	var args []any
 	for _, item := range items {
@@ -65,6 +73,19 @@ func parseConditionSlice(items []any, glue string, quoter func(string) string) (
 func parseConditionMap(m map[string]any, glue string, quoter func(string) string) (string, []any) {
 	if len(m) == 0 {
 		return "", nil
+	}
+	if len(m) == 1 {
+		for key, value := range m {
+			lower := strings.ToLower(strings.TrimSpace(key))
+			switch lower {
+			case "and", "&&":
+				return parseCondition(value, "AND", quoter)
+			case "or", "||":
+				return parseCondition(value, "OR", quoter)
+			default:
+				return parseFieldCondition(key, value, quoter)
+			}
+		}
 	}
 	keys := make([]string, 0, len(m))
 	for key := range m {
@@ -110,6 +131,11 @@ func parseFieldCondition(field string, value any, quoter func(string) string) (s
 		if len(val) == 0 {
 			return "", nil
 		}
+		if len(val) == 1 {
+			for op, item := range val {
+				return buildComparisonClause(field, op, item, quoter)
+			}
+		}
 		ops := make([]string, 0, len(val))
 		for op := range val {
 			ops = append(ops, op)
@@ -130,13 +156,35 @@ func parseFieldCondition(field string, value any, quoter func(string) string) (s
 		clause, args := buildComparisonClause(field, "in", val, quoter)
 		return clause, args
 	default:
+		if shouldUseInComparison(value) {
+			clause, args := buildComparisonClause(field, "in", value, quoter)
+			return clause, args
+		}
 		clause, args := buildComparisonClause(field, "=", val, quoter)
 		return clause, args
 	}
 }
 
+func shouldUseInComparison(value any) bool {
+	if value == nil {
+		return false
+	}
+
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return false
+	}
+
+	// []byte/[]uint8 更接近单个二进制值，不应默认展开为 IN 查询。
+	if rv.Type().Elem().Kind() == reflect.Uint8 {
+		return false
+	}
+
+	return true
+}
+
 func buildComparisonClause(field, op string, value any, quoter func(string) string) (string, []any) {
-	op = strings.TrimSpace(strings.ToUpper(op))
+	op = normalizeComparisonOperator(op)
 	if op == "" {
 		op = "="
 	}
@@ -159,7 +207,7 @@ func buildComparisonClause(field, op string, value any, quoter func(string) stri
 	case "LIKE", "NOT LIKE":
 		return fmt.Sprintf("%s %s ?", quotedField, op), []any{value}
 	case "IS", "IS NOT":
-		valStr := strings.TrimSpace(fmt.Sprint(value))
+		valStr := util.ToStringTrimmed(value)
 		if strings.EqualFold(valStr, "null") || value == nil {
 			return fmt.Sprintf("%s %s NULL", quotedField, op), nil
 		}
@@ -174,6 +222,25 @@ func buildComparisonClause(field, op string, value any, quoter func(string) stri
 			}
 		}
 		return fmt.Sprintf("%s %s ?", quotedField, op), []any{value}
+	}
+}
+
+func normalizeComparisonOperator(op string) string {
+	switch strings.TrimSpace(strings.ToUpper(op)) {
+	case "GT":
+		return ">"
+	case "GTE":
+		return ">="
+	case "LT":
+		return "<"
+	case "LTE":
+		return "<="
+	case "NE", "NEQ":
+		return "!="
+	case "EQ":
+		return "="
+	default:
+		return strings.TrimSpace(strings.ToUpper(op))
 	}
 }
 
@@ -240,8 +307,8 @@ func appendLimit(query string, options map[string]any) string {
 	if limit, ok := options["limit"].(string); ok && strings.TrimSpace(limit) != "" {
 		return query + " LIMIT " + limit
 	}
-	page, hasPage := getInt(options["page"])
-	pageSize, hasSize := getInt(options["pageSize"])
+	page, hasPage := util.ParseInt64(options["page"])
+	pageSize, hasSize := util.ParseInt64(options["pageSize"])
 	if hasPage && hasSize && page > 0 && pageSize > 0 {
 		offset := (page - 1) * pageSize
 		return fmt.Sprintf("%s LIMIT %d OFFSET %d", query, pageSize, offset)

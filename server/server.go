@@ -12,6 +12,7 @@ type Server interface {
 	Put(path string, handler HandlerFunc)
 	Delete(path string, handler HandlerFunc)
 	Handle(method, path string, handler HandlerFunc)
+	OnListen(fn func())
 	Run(addr string) error
 	Shutdown(ctx context.Context) error
 }

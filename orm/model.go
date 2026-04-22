@@ -28,6 +28,8 @@ type modelCore struct {
 	dbCached     *sqlx.DB
 	dbErr        error
 	defaultOrder string
+	quoteOnce    sync.Once
+	quotedTable  string
 	versionOnce  sync.Once
 	hasVersion   bool
 }

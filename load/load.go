@@ -10,6 +10,13 @@ import (
 // Service 查找并执行已注册的服务，出现错误会直接 panic。
 func Service(name string, args ...any) any {
 	binding := mustBinding(name)
+	if len(args) == 0 && binding.fastZero != nil {
+		result, err := binding.fastZero()
+		if err != nil {
+			panic(err)
+		}
+		return result
+	}
 	if binding.provider != nil {
 		ctx, params := extractProviderArgs(args)
 		return binding.provider(ctx, params)
@@ -119,6 +126,20 @@ func assemblePayload(args ...any) map[string]any {
 }
 
 func extractProviderArgs(args []any) (*server.Context, []any) {
+	switch len(args) {
+	case 0:
+		return nil, nil
+	case 1:
+		return extractSingleProviderArg(args[0])
+	case 2:
+		if ctx, ok := args[0].(*server.Context); ok {
+			return ctx, normalizeProviderParams(args[1])
+		}
+		if ctx, ok := args[1].(*server.Context); ok {
+			return ctx, normalizeProviderParams(args[0])
+		}
+	}
+
 	var (
 		ctx    *server.Context
 		params []any
@@ -133,14 +154,6 @@ func extractProviderArgs(args []any) (*server.Context, []any) {
 		case []any:
 			params = append([]any(nil), v...)
 		default:
-			if slice, ok := v.([]interface{}); ok {
-				converted := make([]any, len(slice))
-				for i := range slice {
-					converted[i] = slice[i]
-				}
-				params = append([]any(nil), converted...)
-				continue
-			}
 			extra = append(extra, v)
 		}
 	}
@@ -150,4 +163,26 @@ func extractProviderArgs(args []any) (*server.Context, []any) {
 		params = append(params, extra...)
 	}
 	return ctx, params
+}
+
+func extractSingleProviderArg(arg any) (*server.Context, []any) {
+	switch v := arg.(type) {
+	case nil:
+		return nil, nil
+	case *server.Context:
+		return v, nil
+	default:
+		return nil, normalizeProviderParams(v)
+	}
+}
+
+func normalizeProviderParams(arg any) []any {
+	switch v := arg.(type) {
+	case nil:
+		return nil
+	case []any:
+		return append([]any(nil), v...)
+	default:
+		return []any{v}
+	}
 }

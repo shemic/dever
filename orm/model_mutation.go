@@ -12,15 +12,10 @@ import (
 
 // Insert 插入数据，返回自增主键（若驱动支持）。
 func (m *modelCore) Insert(ctx context.Context, data map[string]any) int64 {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if len(data) > 0 {
 		data = m.normalizeColumns(data)
 	}
-	baseDB, err := m.db()
-	panicOnError(err)
-	exec := newExecutor(ctx, baseDB)
+	ctx, exec := m.executor(ctx)
 	quoter := m.identifierQuoter()
 	query, payload, err := buildInsertQuery(m.table, data, quoter)
 	panicOnError(err)
@@ -44,12 +39,7 @@ func (m *modelCore) Insert(ctx context.Context, data map[string]any) int64 {
 
 // Update 根据条件更新数据。
 func (m *modelCore) Update(ctx context.Context, filters any, data map[string]any, optimistic ...bool) int64 {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	baseDB, err := m.db()
-	panicOnError(err)
-	exec := newExecutor(ctx, baseDB)
+	ctx, exec := m.executor(ctx)
 	quoter := m.identifierQuoter()
 
 	useOptimistic := len(optimistic) > 0 && optimistic[0]
@@ -115,7 +105,7 @@ func (m *modelCore) Update(ctx context.Context, filters any, data map[string]any
 		panic(fmt.Errorf("orm: update %s requires filter conditions", m.table))
 	}
 	args = append(args, whereArgs...)
-	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", quoteWith(m.table, quoter), setBuilder.String(), whereClause)
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", m.quotedTableName(), setBuilder.String(), whereClause)
 	query = exec.rebind(query)
 	res, err := exec.execContext(ctx, query, args...)
 	panicOnError(err)
@@ -129,19 +119,14 @@ func (m *modelCore) Update(ctx context.Context, filters any, data map[string]any
 
 // Delete 根据条件删除数据。
 func (m *modelCore) Delete(ctx context.Context, filters any) int64 {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	baseDB, err := m.db()
-	panicOnError(err)
-	exec := newExecutor(ctx, baseDB)
+	ctx, exec := m.executor(ctx)
 	quoter := m.identifierQuoter()
 	filters = m.normalizeFilters(filters)
 	whereClause, whereArgs := buildWhereClauseWithQuoter(filters, quoter)
 	if strings.TrimSpace(whereClause) == "" {
 		panic(fmt.Errorf("orm: delete %s requires filter conditions", m.table))
 	}
-	query := fmt.Sprintf("DELETE FROM %s WHERE %s", quoteWith(m.table, quoter), whereClause)
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s", m.quotedTableName(), whereClause)
 	query = exec.rebind(query)
 	res, err := exec.execContext(ctx, query, whereArgs...)
 	panicOnError(err)

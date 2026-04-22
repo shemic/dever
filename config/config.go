@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/shemic/dever/util"
 )
 
 const (
@@ -54,6 +55,7 @@ func (d Duration) Duration() time.Duration {
 // App 定义应用配置结构。
 type App struct {
 	Log      Log      `json:"log"`
+	Observe  Observe  `json:"observe"`
 	HTTP     HTTP     `json:"http"`
 	Database Database `json:"database"`
 	Redis    Redis    `json:"redis"`
@@ -65,7 +67,6 @@ type App struct {
 // Log 表示日志相关配置。
 type Log struct {
 	Level       string     `json:"level"`
-	Encoding    string     `json:"encoding"`
 	Development bool       `json:"development"`
 	Enabled     *bool      `json:"enabled,omitempty"`
 	Output      string     `json:"output"`
@@ -82,12 +83,23 @@ type LogTarget struct {
 	FilePath string `json:"filePath"`
 }
 
+// Observe 表示框架观测配置。
+type Observe struct {
+	Enabled     bool           `json:"enabled"`
+	Provider    string         `json:"provider"`
+	Service     string         `json:"service"`
+	SlowRequest Duration       `json:"slowRequest"`
+	SlowSQL     Duration       `json:"slowSQL"`
+	Options     map[string]any `json:"options"`
+}
+
 // HTTP 表示 HTTP 服务配置。
 type HTTP struct {
 	Host              string   `json:"host"`
 	Port              int      `json:"port"`
 	ShutdownTimeout   Duration `json:"shutdownTimeout"`
 	AppName           string   `json:"appName"`
+	CORS              CORS     `json:"cors"`
 	EnableTuning      bool     `json:"enableTuning"`
 	Prefork           bool     `json:"prefork"`
 	StrictRouting     bool     `json:"strictRouting"`
@@ -101,9 +113,45 @@ type HTTP struct {
 	IdleTimeout       Duration `json:"idleTimeout"`
 }
 
+// CORS 表示跨域配置。
+type CORS struct {
+	Enabled          bool     `json:"enabled"`
+	AllowOrigins     []string `json:"allowOrigins"`
+	AllowMethods     []string `json:"allowMethods"`
+	AllowHeaders     []string `json:"allowHeaders"`
+	ExposeHeaders    []string `json:"exposeHeaders"`
+	AllowCredentials bool     `json:"allowCredentials"`
+	MaxAge           int      `json:"maxAge"`
+}
+
 // Auth 表示认证相关配置。
 type Auth struct {
-	JWTSecret string `json:"jwtSecret"`
+	JWTSecret string  `json:"jwtSecret"`
+	JWT       AuthJWT `json:"jwt"`
+}
+
+// AuthJWT 表示 JWT 认证配置。
+type AuthJWT struct {
+	Schemes map[string]JWTScheme `json:"schemes"`
+	Guards  []JWTGuard           `json:"guards"`
+}
+
+// JWTScheme 表示单个 JWT 方案。
+type JWTScheme struct {
+	Enabled   *bool    `json:"enabled,omitempty"`
+	Alg       string   `json:"alg"`
+	Secret    string   `json:"secret"`
+	SecretEnv string   `json:"secretEnv"`
+	Header    string   `json:"header"`
+	Prefix    string   `json:"prefix"`
+	ClaimKeys []string `json:"claimKeys"`
+}
+
+// JWTGuard 表示 JWT 方案对应的路由保护规则。
+type JWTGuard struct {
+	Scheme      string   `json:"scheme"`
+	Prefixes    []string `json:"prefixes"`
+	PublicPaths []string `json:"publicPaths"`
 }
 
 // Qiniu 表示七牛云相关配置。
@@ -133,6 +181,7 @@ func (h HTTP) Addr() string {
 // Database 表示数据库集合配置。
 type Database struct {
 	Create       bool              `json:"create"`
+	Delete       bool              `json:"delete"`
 	Default      string            `json:"default"`
 	Connections  map[string]DBConf `json:"connections"`
 	Persist      bool              `json:"persist"`
@@ -154,6 +203,10 @@ func (d *Database) UnmarshalJSON(data []byte) error {
 		switch key {
 		case "create":
 			if err := json.Unmarshal(value, &d.Create); err != nil {
+				return err
+			}
+		case "delete":
+			if err := json.Unmarshal(value, &d.Delete); err != nil {
 				return err
 			}
 		case "default":
@@ -253,18 +306,32 @@ func Load(path string) (*App, error) {
 		return nil, fmt.Errorf("解析配置路径失败: %w", err)
 	}
 
-	data, err := os.ReadFile(abs)
+	data, actualPath, err := util.ReadJSONCFile(buildConfigPathCandidates(abs)...)
 	if err != nil {
 		return nil, fmt.Errorf("读取配置失败 (%s): %w", abs, err)
 	}
 
 	var cfg App
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("解析配置失败: %w", err)
+	if err := util.UnmarshalNormalizedJSON(data, &cfg); err != nil {
+		return nil, fmt.Errorf("解析配置失败 (%s): %w", actualPath, err)
 	}
 
 	cfg.applyDefaults()
 	return &cfg, nil
+}
+
+func buildConfigPathCandidates(path string) []string {
+	cleanPath := filepath.Clean(path)
+	basePath := strings.TrimSuffix(cleanPath, filepath.Ext(cleanPath))
+
+	switch strings.ToLower(filepath.Ext(cleanPath)) {
+	case ".jsonc":
+		return []string{cleanPath, basePath + ".json"}
+	case ".json":
+		return []string{basePath + ".jsonc", cleanPath}
+	default:
+		return []string{cleanPath + ".jsonc", cleanPath + ".json", cleanPath}
+	}
 }
 
 func (c *App) applyDefaults() {
@@ -291,6 +358,41 @@ func (c *App) applyDefaults() {
 	}
 	if strings.TrimSpace(c.HTTP.AppName) == "" {
 		c.HTTP.AppName = "Dever"
+	}
+	if c.HTTP.CORS.Enabled {
+		if len(c.HTTP.CORS.AllowMethods) == 0 {
+			c.HTTP.CORS.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+		}
+		if len(c.HTTP.CORS.AllowHeaders) == 0 {
+			c.HTTP.CORS.AllowHeaders = []string{"Content-Type", "Authorization", "X-Client-Page"}
+		}
+	}
+	if strings.TrimSpace(c.Observe.Service) == "" {
+		c.Observe.Service = c.HTTP.AppName
+	}
+	if c.Observe.SlowRequest <= 0 {
+		c.Observe.SlowRequest = Duration(500 * time.Millisecond)
+	}
+	if c.Observe.SlowSQL <= 0 {
+		c.Observe.SlowSQL = Duration(200 * time.Millisecond)
+	}
+	if c.Auth.JWT.Schemes == nil {
+		c.Auth.JWT.Schemes = map[string]JWTScheme{}
+	}
+	for name, scheme := range c.Auth.JWT.Schemes {
+		if strings.TrimSpace(scheme.Alg) == "" {
+			scheme.Alg = "HS256"
+		}
+		if strings.TrimSpace(scheme.Header) == "" {
+			scheme.Header = "Authorization"
+		}
+		if strings.TrimSpace(scheme.Prefix) == "" {
+			scheme.Prefix = "Bearer"
+		}
+		if len(scheme.ClaimKeys) == 0 {
+			scheme.ClaimKeys = []string{"uid", "sub"}
+		}
+		c.Auth.JWT.Schemes[name] = scheme
 	}
 	if c.HTTP.BodyLimit < 0 {
 		c.HTTP.BodyLimit = 0

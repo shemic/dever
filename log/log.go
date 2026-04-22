@@ -19,6 +19,8 @@ var (
 	writerMu     sync.Mutex
 	accessCloser io.Closer
 	errorCloser  io.Closer
+	accessOut    io.Writer = io.Discard
+	errorOut     io.Writer = io.Discard
 
 	errorLogger = stdlog.New(io.Discard, "", stdlog.LstdFlags)
 )
@@ -112,6 +114,8 @@ func Configure(cfg config.Log) {
 
 	accessCloser = newAccessCloser
 	errorCloser = newErrorCloser
+	accessOut = accessWriter
+	errorOut = errorWriter
 
 	stdlog.SetOutput(accessWriter)
 	errorLogger.SetOutput(errorWriter)

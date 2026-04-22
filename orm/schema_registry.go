@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shemic/dever/util"
 )
 
 var (
@@ -19,9 +21,12 @@ var (
 	registered = map[string]*tableSchema{}
 )
 
-var (
-	schemaOnceMap sync.Map
-)
+var schemaOnceMap util.ConcurrentMap[string, *sync.Once]
+
+var pendingSchemaResetState struct {
+	mu     sync.Mutex
+	tables map[string]struct{}
+}
 
 // SeedData 用于描述默认插入的数据行。
 type SeedData struct {
@@ -102,24 +107,7 @@ func uniquePaths(paths []string) []string {
 }
 
 func cloneSeedRows(rows []map[string]any) []map[string]any {
-	if len(rows) == 0 {
-		return nil
-	}
-	cloned := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		if row == nil {
-			continue
-		}
-		copyRow := make(map[string]any, len(row))
-		for k, v := range row {
-			copyRow[k] = v
-		}
-		cloned = append(cloned, copyRow)
-	}
-	if len(cloned) == 0 {
-		return nil
-	}
-	return cloned
+	return util.CloneMapSlice(rows)
 }
 
 // RegisterSchema 注册表结构并同步索引信息，可传入额外的索引结构用于描述复合索引。
@@ -137,6 +125,7 @@ func registerSchemaWithOptions(table string, model any, indexModels []any, seeds
 	if table == "" {
 		return errors.New("orm: table name required for registration")
 	}
+	shouldReset := shouldResetTableOnMissingSchemaFile(table)
 	schema, err := buildSchema(table, model, indexModels, seeds)
 	if err != nil {
 		return err
@@ -149,7 +138,67 @@ func registerSchemaWithOptions(table string, model any, indexModels []any, seeds
 	if err := persistSchema(schema); err != nil {
 		return fmt.Errorf("orm: persist schema for %s failed: %w", table, err)
 	}
+	if shouldReset {
+		markPendingSchemaReset(table)
+	}
 	return nil
+}
+
+func shouldResetTableOnMissingSchemaFile(table string) bool {
+	return deleteMissingSchemaTablesEnabled() && !schemaFileExists(table)
+}
+
+func schemaFileExists(table string) bool {
+	if !schemaPersistenceEnabled() {
+		return true
+	}
+	return hasSchemaFileOnDisk(table)
+}
+
+func hasSchemaFileOnDisk(table string) bool {
+	for _, candidate := range schemaFileCandidates(table) {
+		if _, err := os.Stat(candidate); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func markPendingSchemaReset(table string) {
+	lower := strings.ToLower(strings.TrimSpace(table))
+	if lower == "" {
+		return
+	}
+	pendingSchemaResetState.mu.Lock()
+	defer pendingSchemaResetState.mu.Unlock()
+	if pendingSchemaResetState.tables == nil {
+		pendingSchemaResetState.tables = map[string]struct{}{}
+	}
+	pendingSchemaResetState.tables[lower] = struct{}{}
+}
+
+func hasPendingSchemaReset(table string) bool {
+	lower := strings.ToLower(strings.TrimSpace(table))
+	if lower == "" {
+		return false
+	}
+	pendingSchemaResetState.mu.Lock()
+	defer pendingSchemaResetState.mu.Unlock()
+	_, ok := pendingSchemaResetState.tables[lower]
+	return ok
+}
+
+func clearPendingSchemaReset(table string) {
+	lower := strings.ToLower(strings.TrimSpace(table))
+	if lower == "" {
+		return
+	}
+	pendingSchemaResetState.mu.Lock()
+	defer pendingSchemaResetState.mu.Unlock()
+	if pendingSchemaResetState.tables == nil {
+		return
+	}
+	delete(pendingSchemaResetState.tables, lower)
 }
 
 func registerSchemaOnce(table string, model any, options schemaOptions) error {
@@ -160,8 +209,7 @@ func registerSchemaOnce(table string, model any, options schemaOptions) error {
 	if lower == "" {
 		return errors.New("orm: table name required for registration")
 	}
-	onceIface, _ := schemaOnceMap.LoadOrStore(lower, &sync.Once{})
-	once := onceIface.(*sync.Once)
+	once, _ := schemaOnceMap.LoadOrStore(lower, &sync.Once{})
 	var onceErr error
 	once.Do(func() {
 		onceErr = registerSchemaWithOptions(table, model, options.indexes, options.seeds)
@@ -289,13 +337,15 @@ func buildSchema(table string, model any, indexModels []any, seeds []map[string]
 	for _, idx := range indexMap {
 		indexes = append(indexes, *idx)
 	}
+	sort.Slice(indexes, func(i, j int) bool {
+		return indexes[i].Name < indexes[j].Name
+	})
 
 	schema := &tableSchema{
-		Table:     table,
-		Columns:   columns,
-		Indexes:   indexes,
-		Seeds:     cloneSeedRows(seeds),
-		UpdatedAt: time.Now(),
+		Table:   table,
+		Columns: columns,
+		Indexes: indexes,
+		Seeds:   cloneSeedRows(seeds),
 	}
 	schema.ensureLookup()
 	return schema, nil
@@ -383,7 +433,7 @@ func resolveIndexColumn(raw string, columnMap map[string]string) (string, bool) 
 	if val, ok := columnMap[key]; ok {
 		return val, true
 	}
-	snake := strings.ToLower(toSnake(raw))
+	snake := strings.ToLower(util.ToSnake(raw))
 	if val, ok := columnMap[snake]; ok {
 		return val, true
 	}
@@ -394,15 +444,15 @@ func buildCustomIndexName(table string, field reflect.StructField, unique bool) 
 	override := strings.TrimSpace(field.Tag.Get("name"))
 	if override != "" {
 		if candidate := normalizeIndexName(override); candidate != "" {
-			return toSnake(candidate)
+			return util.ToSnake(candidate)
 		}
 	}
 	base := normalizeIndexName(field.Name)
 	if base != "" {
-		base = toSnake(base)
+		base = util.ToSnake(base)
 	}
 	if base == "" {
-		base = toSnake(field.Name)
+		base = util.ToSnake(field.Name)
 	}
 	if base == "" {
 		base = "idx"
@@ -411,7 +461,7 @@ func buildCustomIndexName(table string, field reflect.StructField, unique bool) 
 	if unique {
 		prefix = "uidx"
 	}
-	return fmt.Sprintf("%s_%s_%s", prefix, toSnake(table), base)
+	return fmt.Sprintf("%s_%s_%s", prefix, util.ToSnake(table), base)
 }
 
 func parseField(table string, field reflect.StructField) (columnDef, []indexDef, bool, error) {
@@ -426,11 +476,11 @@ func parseField(table string, field reflect.StructField) (columnDef, []indexDef,
 	if tagExists(tagOptions, "-") {
 		return empty, nil, true, nil
 	}
-	if colName := firstNonEmpty(tagOptions["column"]); colName != "" {
+	if colName := util.FirstNonEmpty(tagOptions["column"]...); colName != "" {
 		columnName = colName
 	}
 	if columnName == "" {
-		columnName = toSnake(field.Name)
+		columnName = util.ToSnake(field.Name)
 	}
 	if err := ensureIdentifier(columnName); err != nil {
 		return empty, nil, false, err
@@ -444,6 +494,7 @@ func parseField(table string, field reflect.StructField) (columnDef, []indexDef,
 	col := columnDef{
 		Name:          columnName,
 		Type:          sqlType,
+		Comment:       util.FirstNonEmpty(tagOptions["comment"]...),
 		NotNull:       !nullable,
 		AutoIncrement: tagExists(tagOptions, "autoincrement"),
 		Primary:       tagExists(tagOptions, "primarykey"),
@@ -456,8 +507,7 @@ func parseField(table string, field reflect.StructField) (columnDef, []indexDef,
 		col.NotNull = false
 	}
 
-	if defaultVal := firstNonEmpty(tagOptions["default"]); defaultVal != "" {
-		defaultStr, raw := normalizeDefaultValue(defaultVal)
+	if defaultStr, raw, ok := resolveColumnDefaultValue(field, tagOptions, col.NotNull); ok {
 		col.DefaultValue = &defaultStr
 		col.DefaultIsRaw = raw
 	}
@@ -467,7 +517,7 @@ func parseField(table string, field reflect.StructField) (columnDef, []indexDef,
 }
 
 func inferSQLType(field reflect.StructField, options map[string][]string) (string, bool, error) {
-	if custom := firstNonEmpty(options["type"]); custom != "" {
+	if custom := util.FirstNonEmpty(options["type"]...); custom != "" {
 		return strings.ToUpper(custom), false, nil
 	}
 
@@ -489,7 +539,7 @@ func inferSQLType(field reflect.StructField, options map[string][]string) (strin
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return "BIGINT", nullable, nil
 	case reflect.String:
-		if size := firstNonEmpty(options["size"]); size != "" {
+		if size := util.FirstNonEmpty(options["size"]...); size != "" {
 			return fmt.Sprintf("VARCHAR(%s)", size), nullable, nil
 		}
 		return "VARCHAR(255)", nullable, nil
@@ -524,15 +574,6 @@ func parseDormTag(tag string) map[string][]string {
 		options[key] = append(options[key], value)
 	}
 	return options
-}
-
-func firstNonEmpty(values []string) string {
-	for _, val := range values {
-		if strings.TrimSpace(val) != "" {
-			return strings.TrimSpace(val)
-		}
-	}
-	return ""
 }
 
 func tagExists(options map[string][]string, key string) bool {
@@ -584,7 +625,7 @@ func defaultIndexName(table, column string, unique bool) string {
 	if unique {
 		prefix = "uidx"
 	}
-	return fmt.Sprintf("%s_%s_%s", prefix, toSnake(table), column)
+	return fmt.Sprintf("%s_%s_%s", prefix, util.ToSnake(table), column)
 }
 
 func normalizeIndexName(name string) string {
@@ -611,8 +652,18 @@ func uniqueAppend(dst []string, items ...string) []string {
 
 func normalizeDefaultValue(val string) (string, bool) {
 	val = strings.TrimSpace(val)
-	if val == "" {
-		return val, false
+	if len(val) >= 2 {
+		first := val[0]
+		last := val[len(val)-1]
+		if (first == '\'' && last == '\'') || (first == '"' && last == '"') {
+			inner := val[1 : len(val)-1]
+			if first == '\'' {
+				inner = strings.ReplaceAll(inner, "''", "'")
+			} else {
+				inner = strings.ReplaceAll(inner, `""`, `"`)
+			}
+			return inner, false
+		}
 	}
 	switch strings.ToUpper(val) {
 	case "CURRENT_TIMESTAMP", "CURRENT_DATE", "CURRENT_TIME", "NOW()":
@@ -625,6 +676,30 @@ func normalizeDefaultValue(val string) (string, bool) {
 		return strings.ToLower(val), true
 	}
 	return val, false
+}
+
+func resolveColumnDefaultValue(field reflect.StructField, options map[string][]string, notNull bool) (string, bool, bool) {
+	if values, ok := options["default"]; ok {
+		raw := ""
+		if len(values) > 0 {
+			raw = values[len(values)-1]
+		}
+		value, isRaw := normalizeDefaultValue(raw)
+		return value, isRaw, true
+	}
+
+	if !notNull {
+		return "", false, false
+	}
+
+	fieldType := field.Type
+	if fieldType.Kind() == reflect.Pointer {
+		return "", false, false
+	}
+	if fieldType.Kind() != reflect.String {
+		return "", false, false
+	}
+	return "", false, true
 }
 
 func persistSchema(schema *tableSchema) error {
@@ -644,12 +719,50 @@ func persistSchema(schema *tableSchema) error {
 	}
 	existing, err := os.ReadFile(path)
 	if err == nil {
-		// skip write if identical to avoid churn
+		var recorded tableSchema
+		if json.Unmarshal(existing, &recorded) == nil && schemasEqualForPersistence(&recorded, schema) {
+			schema.UpdatedAt = recorded.UpdatedAt
+			return nil
+		}
 		if strings.TrimSpace(string(existing)) == strings.TrimSpace(string(data)) {
 			return nil
 		}
 	}
+	schema.UpdatedAt = time.Now()
+	data, err = json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+func schemasEqualForPersistence(current, next *tableSchema) bool {
+	if current == nil || next == nil {
+		return false
+	}
+
+	left := cloneSchemaForPersistence(current)
+	right := cloneSchemaForPersistence(next)
+	return string(mustMarshalSchema(left)) == string(mustMarshalSchema(right))
+}
+
+func cloneSchemaForPersistence(schema *tableSchema) *tableSchema {
+	if schema == nil {
+		return nil
+	}
+
+	cloned := &tableSchema{
+		Table:   schema.Table,
+		Columns: append([]columnDef(nil), schema.Columns...),
+		Indexes: append([]indexDef(nil), schema.Indexes...),
+		Seeds:   cloneSeedRows(schema.Seeds),
+	}
+	return cloned
+}
+
+func mustMarshalSchema(schema *tableSchema) []byte {
+	data, _ := json.Marshal(schema)
+	return data
 }
 
 func loadSchemaForTable(table string) (*tableSchema, error) {

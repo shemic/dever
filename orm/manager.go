@@ -139,6 +139,9 @@ func getDatabasePrefix(name string) string {
 
 // Ping 检查数据库连接是否可用。
 func Ping(ctx context.Context, name ...string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	db, err := Get(name...)
 	if err != nil {
 		return err
@@ -177,6 +180,9 @@ func currentDefaultDatabase() string {
 }
 
 func withOptionalTimeout(ctx context.Context, fallback time.Duration) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) > 0 {
 		return context.WithCancel(ctx)
 	}

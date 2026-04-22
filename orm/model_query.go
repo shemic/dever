@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/jmoiron/sqlx"
 )
 
 // 查询/聚合相关方法：负责 SELECT 语句拼装与读取结果。
@@ -17,22 +15,14 @@ func (m *modelCore) selectMaps(ctx context.Context, filters any, options map[str
 }
 
 func (m *modelCore) selectMapsWithOptions(ctx context.Context, filters any, options map[string]any, normalizeKeys bool, lock ...bool) []map[string]any {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if filters == nil {
 		filters = map[string]any{}
-	}
-	if filters != nil {
-		filters = m.normalizeFilters(filters)
 	}
 	lockFlag := false
 	if len(lock) > 0 {
 		lockFlag = lock[0]
 	}
-	baseDB, err := m.db()
-	panicOnError(err)
-	exec := newExecutor(ctx, baseDB)
+	ctx, exec := m.executor(ctx)
 	resolved := resolveSelectOptions(options, m.defaultOrder, true)
 	query, args := m.buildSelectQuery(filters, selectQueryConfig{
 		fields:           resolved.fields,
@@ -107,12 +97,7 @@ func (m *modelCore) Sum(ctx context.Context, column string, filters any, options
 }
 
 func (m *modelCore) findMap(ctx context.Context, filters any, options ...map[string]any) map[string]any {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	baseDB, err := m.db()
-	panicOnError(err)
-	exec := newExecutor(ctx, baseDB)
+	ctx, exec := m.executor(ctx)
 	var opt map[string]any
 	if len(options) > 0 && options[0] != nil {
 		opt = options[0]
@@ -232,19 +217,14 @@ func (m *modelCore) aggregateFloat(ctx context.Context, expr string, filters any
 	return 0
 }
 
-func (m *modelCore) aggregateRow(ctx context.Context, expr string, filters any, options map[string]any) *sqlx.Row {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+func (m *modelCore) aggregateRow(ctx context.Context, expr string, filters any, options map[string]any) *observedRow {
 	if filters == nil {
 		filters = map[string]any{}
 	}
 	if filters != nil {
 		filters = m.normalizeFilters(filters)
 	}
-	baseDB, err := m.db()
-	panicOnError(err)
-	exec := newExecutor(ctx, baseDB)
+	ctx, exec := m.executor(ctx)
 	quoter := m.identifierQuoter()
 
 	joinClause := ""
@@ -254,7 +234,7 @@ func (m *modelCore) aggregateRow(ctx context.Context, expr string, filters any, 
 		}
 	}
 
-	query := fmt.Sprintf("SELECT %s FROM %s AS main", wrapAggregateExpression(expr), quoteWith(m.table, quoter))
+	query := fmt.Sprintf("SELECT %s FROM %s AS main", wrapAggregateExpression(expr), m.quotedTableName())
 	if joinClause != "" {
 		query += " " + joinClause
 	}
@@ -322,7 +302,7 @@ func (m *modelCore) buildSelectQuery(filters any, cfg selectQueryConfig) (string
 		filters = m.normalizeFilters(filters)
 	}
 	quoter := m.identifierQuoter()
-	tableName := quoteWith(m.table, quoter)
+	tableName := m.quotedTableName()
 	query := fmt.Sprintf("SELECT %s FROM %s AS main", cfg.fields, tableName)
 	if cfg.joinRaw != nil {
 		joinClause := buildJoinClause(cfg.joinRaw)

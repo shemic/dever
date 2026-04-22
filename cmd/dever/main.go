@@ -1,12 +1,10 @@
 package main
 
 import (
-    "flag"
-    "fmt"
-    "log"
+	"flag"
+	"fmt"
+	"log"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
 	devercmd "github.com/shemic/dever/cmd"
@@ -21,6 +19,10 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "run":
+		runWatchMode(os.Args[2:])
+	case "build":
+		runBuild(os.Args[2:])
 	case "init":
 		runInit(os.Args[2:])
 	case "routes":
@@ -31,6 +33,8 @@ func main() {
 		runModel(os.Args[2:])
 	case "migrate":
 		runMigrate(os.Args[2:])
+	case "install":
+		runInstall(os.Args[2:])
 	default:
 		printUsage()
 		os.Exit(1)
@@ -41,11 +45,14 @@ func printUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `dever - 开发辅助命令
 
 Usage:
+    dever run [--project-root=.] [--entry=main.go] [--interval=800ms]  # 热重载运行当前项目
+    dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [target]
     dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成路由
     dever routes [--project-root=.]               # 仅生成路由
     dever service [--project-root=.]              # 仅生成 service 注册
     dever model [--project-root=.]                # 仅生成 model 注册
     dever migrate [--project-root=.] <database>   # 应用 data/table 中记录的表结构到目标数据库
+    dever install [--project-root=.] [--bin-dir=] # 直接写入一个启动脚本到用户 bin 目录
 `)
 }
 
@@ -58,20 +65,8 @@ func runInit(args []string) {
 	}
 
 	root := resolveProjectRoot(*projectRoot)
-	if !*skipTidy {
-		if err := runGoModTidy(root); err != nil {
-			log.Fatalf("go mod tidy 执行失败: %v", err)
-		}
-	}
-
-	if err := devercmd.GenerateRoutes(root); err != nil {
-		log.Fatalf("路由生成失败: %v", err)
-	}
-	if err := devercmd.GenerateServices(root); err != nil {
-		log.Fatalf("service 生成失败: %v", err)
-	}
-	if err := devercmd.GenerateModels(root); err != nil {
-		log.Fatalf("model 生成失败: %v", err)
+	if err := runProjectInit(root, *skipTidy); err != nil {
+		log.Fatalf("init 执行失败: %v", err)
 	}
 }
 
@@ -132,23 +127,4 @@ func runMigrate(args []string) {
 	if err := devercmd.RunMigrations(root, target); err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}
-}
-
-func runGoModTidy(projectRoot string) error {
-	cmd := exec.Command("go", "mod", "tidy")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Dir = projectRoot
-	return cmd.Run()
-}
-
-func resolveProjectRoot(root string) string {
-	if root == "" {
-		root = "."
-	}
-	wd, err := filepath.Abs(root)
-	if err != nil {
-		log.Fatalf("无法解析项目根目录: %v", err)
-	}
-	return wd
 }

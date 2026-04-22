@@ -3,11 +3,16 @@ package orm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/shemic/dever/observe"
+	"github.com/shemic/dever/util"
 )
 
 // 工具函数和辅助方法（执行器、反射、通用辅助）。
@@ -15,6 +20,12 @@ import (
 type executor struct {
 	db *sqlx.DB
 	tx *sqlx.Tx
+}
+
+type observedRow struct {
+	row  *sqlx.Row
+	span observe.Span
+	once sync.Once
 }
 
 func newExecutor(ctx context.Context, db *sqlx.DB) executor {
@@ -25,43 +36,85 @@ func newExecutor(ctx context.Context, db *sqlx.DB) executor {
 	return exec
 }
 
+func normalizeContext(ctx context.Context) context.Context {
+	if ctx != nil {
+		return ctx
+	}
+	return context.Background()
+}
+
+func (m *modelCore) executor(ctx context.Context) (context.Context, executor) {
+	ctx = normalizeContext(ctx)
+	baseDB, err := m.db()
+	panicOnError(err)
+	return ctx, newExecutor(ctx, baseDB)
+}
+
 func (e executor) rebind(query string) string {
 	return e.db.Rebind(query)
 }
 
-func (e executor) selectContext(ctx context.Context, dest any, query string, args ...any) error {
+func (e executor) selectContext(ctx context.Context, dest any, query string, args ...any) (err error) {
+	ctx, span := startDBObserve(ctx, "select", query)
+	defer func() {
+		finishDBObserve(span, err)
+	}()
 	if e.tx != nil {
-		return e.tx.SelectContext(ctx, dest, query, args...)
+		err = e.tx.SelectContext(ctx, dest, query, args...)
+		return err
 	}
-	return e.db.SelectContext(ctx, dest, query, args...)
+	err = e.db.SelectContext(ctx, dest, query, args...)
+	return err
 }
 
-func (e executor) queryxContext(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
+func (e executor) queryxContext(ctx context.Context, query string, args ...any) (rows *sqlx.Rows, err error) {
+	ctx, span := startDBObserve(ctx, "query", query)
+	defer func() {
+		finishDBObserve(span, err)
+	}()
 	if e.tx != nil {
-		return e.tx.QueryxContext(ctx, query, args...)
+		rows, err = e.tx.QueryxContext(ctx, query, args...)
+		return rows, err
 	}
-	return e.db.QueryxContext(ctx, query, args...)
+	rows, err = e.db.QueryxContext(ctx, query, args...)
+	return rows, err
 }
 
-func (e executor) queryRowxContext(ctx context.Context, query string, args ...any) *sqlx.Row {
+func (e executor) queryRowxContext(ctx context.Context, query string, args ...any) *observedRow {
+	ctx, span := startDBObserve(ctx, "query_row", query)
+	var row *sqlx.Row
 	if e.tx != nil {
-		return e.tx.QueryRowxContext(ctx, query, args...)
+		row = e.tx.QueryRowxContext(ctx, query, args...)
+	} else {
+		row = e.db.QueryRowxContext(ctx, query, args...)
 	}
-	return e.db.QueryRowxContext(ctx, query, args...)
+	return &observedRow{row: row, span: span}
 }
 
-func (e executor) execContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+func (e executor) execContext(ctx context.Context, query string, args ...any) (result sql.Result, err error) {
+	ctx, span := startDBObserve(ctx, "exec", query)
+	defer func() {
+		finishDBObserve(span, err)
+	}()
 	if e.tx != nil {
-		return e.tx.ExecContext(ctx, query, args...)
+		result, err = e.tx.ExecContext(ctx, query, args...)
+		return result, err
 	}
-	return e.db.ExecContext(ctx, query, args...)
+	result, err = e.db.ExecContext(ctx, query, args...)
+	return result, err
 }
 
-func (e executor) namedExecContext(ctx context.Context, query string, arg any) (sql.Result, error) {
+func (e executor) namedExecContext(ctx context.Context, query string, arg any) (result sql.Result, err error) {
+	ctx, span := startDBObserve(ctx, "named_exec", query)
+	defer func() {
+		finishDBObserve(span, err)
+	}()
 	if e.tx != nil {
-		return e.tx.NamedExecContext(ctx, query, arg)
+		result, err = e.tx.NamedExecContext(ctx, query, arg)
+		return result, err
 	}
-	return e.db.NamedExecContext(ctx, query, arg)
+	result, err = e.db.NamedExecContext(ctx, query, arg)
+	return result, err
 }
 
 func (m *modelCore) db() (*sqlx.DB, error) {
@@ -75,10 +128,25 @@ func (m *modelCore) db() (*sqlx.DB, error) {
 }
 
 func (m *modelCore) identifierQuoter() func(string) string {
+	m.quoteOnce.Do(func() {
+		driver := m.driverName
+		m.quotedTable = quoteIdentifier(driver, m.table)
+	})
 	driver := m.driverName
 	return func(name string) string {
 		return quoteIdentifier(driver, name)
 	}
+}
+
+func (m *modelCore) quotedTableName() string {
+	m.quoteOnce.Do(func() {
+		driver := m.driverName
+		m.quotedTable = quoteIdentifier(driver, m.table)
+	})
+	if strings.TrimSpace(m.quotedTable) != "" {
+		return m.quotedTable
+	}
+	return m.table
 }
 
 func (m *modelCore) ensureVersionColumn() bool {
@@ -167,87 +235,129 @@ func looksLikeOrder(expr string) bool {
 }
 
 func buildJoinClause(raw any) string {
-	defs := parseJoinDefinitions(raw)
-	if len(defs) == 0 {
+	switch v := raw.(type) {
+	case []any:
+		var builder strings.Builder
+		written := 0
+		for idx, item := range v {
+			m, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			written = appendJoinClause(&builder, written, idx, m)
+		}
+		return builder.String()
+	case []map[string]any:
+		var builder strings.Builder
+		written := 0
+		for idx := range v {
+			written = appendJoinClause(&builder, written, idx, v[idx])
+		}
+		return builder.String()
+	default:
 		return ""
 	}
-	parts := make([]string, 0, len(defs))
-	for _, def := range defs {
-		parts = append(parts, fmt.Sprintf("%s %s AS %s ON %s", def.JoinType, def.Table, def.Alias, def.On))
-	}
-	return strings.Join(parts, " ")
 }
 
-type joinDefinition struct {
-	Table    string
-	Alias    string
-	JoinType string
-	On       string
+func normalizeJoinType(raw string) string {
+	joinType := strings.TrimSpace(raw)
+	if joinType == "" {
+		return "LEFT JOIN"
+	}
+	joinType = strings.ToUpper(joinType)
+	if !strings.Contains(joinType, "JOIN") {
+		joinType += " JOIN"
+	}
+	return joinType
 }
 
-func parseJoinDefinitions(raw any) []joinDefinition {
-	if raw == nil {
-		return nil
+func appendJoinClause(builder *strings.Builder, written, idx int, m map[string]any) int {
+	table := strings.TrimSpace(firstNonEmptyString(m, "table", "name"))
+	if table == "" || ensureIdentifier(table) != nil {
+		return written
 	}
-	var items []any
-	switch v := raw.(type) {
-	case []map[string]any:
-		items = make([]any, 0, len(v))
-		for _, item := range v {
-			items = append(items, item)
-		}
-	case []any:
-		items = v
-	default:
-		return nil
+	onClause := strings.TrimSpace(firstNonEmptyString(m, "on"))
+	if onClause == "" {
+		return written
 	}
-
-	defs := make([]joinDefinition, 0, len(items))
-	for idx, item := range items {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		table := firstNonEmptyString(m, "table", "name")
-		table = strings.TrimSpace(table)
-		if table == "" || ensureIdentifier(table) != nil {
-			continue
-		}
-		joinType := strings.TrimSpace(firstNonEmptyString(m, "type"))
-		if joinType == "" {
-			joinType = "LEFT JOIN"
-		} else {
-			joinType = strings.ToUpper(joinType)
-			if !strings.Contains(joinType, "JOIN") {
-				joinType += " JOIN"
-			}
-		}
-		onClause := strings.TrimSpace(firstNonEmptyString(m, "on"))
-		if onClause == "" {
-			continue
-		}
-		alias := fmt.Sprintf("t%d", idx)
-		defs = append(defs, joinDefinition{
-			Table:    table,
-			Alias:    alias,
-			JoinType: joinType,
-			On:       onClause,
-		})
+	joinType := normalizeJoinType(firstNonEmptyString(m, "type"))
+	if written > 0 {
+		builder.WriteByte(' ')
 	}
-	return defs
+	builder.WriteString(joinType)
+	builder.WriteByte(' ')
+	builder.WriteString(table)
+	builder.WriteString(" AS t")
+	builder.WriteString(strconv.Itoa(idx))
+	builder.WriteString(" ON ")
+	builder.WriteString(onClause)
+	return written + 1
 }
 
 func firstNonEmptyString(m map[string]any, keys ...string) string {
 	for _, key := range keys {
 		if val, ok := m[key]; ok {
-			if str, ok := val.(string); ok {
-				if strings.TrimSpace(str) != "" {
-					return str
-				}
+			if str := util.ToStringTrimmed(val); str != "" {
+				return str
 			}
 		}
 	}
 	return ""
+}
+
+func startDBObserve(ctx context.Context, operation, query string) (context.Context, observe.Span) {
+	return observe.Start(ctx, observe.KindDB, operation, map[string]any{
+		"db.operation": operation,
+		"db.statement": normalizeSQLStatement(query),
+	})
+}
+
+func finishDBObserve(span observe.Span, err error) {
+	if span == nil {
+		return
+	}
+	if err != nil {
+		span.RecordError(err)
+	}
+	span.End()
+}
+
+func normalizeObserveDBError(err error) error {
+	if err == nil || errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	return err
+}
+
+func (r *observedRow) Scan(dest ...any) error {
+	if r == nil || r.row == nil {
+		return sql.ErrNoRows
+	}
+	err := r.row.Scan(dest...)
+	r.finish(err)
+	return err
+}
+
+func (r *observedRow) MapScan(dest map[string]any) error {
+	if r == nil || r.row == nil {
+		return sql.ErrNoRows
+	}
+	err := r.row.MapScan(dest)
+	r.finish(err)
+	return err
+}
+
+func (r *observedRow) finish(err error) {
+	if r == nil {
+		return
+	}
+	r.once.Do(func() {
+		finishDBObserve(r.span, normalizeObserveDBError(err))
+	})
+}
+
+func normalizeSQLStatement(query string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(query)), " ")
 }
 
 func quoteWith(ident string, quoter func(string) string) string {
@@ -258,8 +368,13 @@ func quoteWith(ident string, quoter func(string) string) string {
 }
 
 func modelCacheKey(table string, args ...any) string {
+	normalizedTable := strings.ToLower(strings.TrimSpace(table))
+	if len(args) == 0 {
+		return normalizedTable
+	}
+
 	var builder strings.Builder
-	builder.WriteString(strings.ToLower(strings.TrimSpace(table)))
+	builder.WriteString(normalizedTable)
 	builder.WriteByte('|')
 	for i, arg := range args {
 		if i > 0 {

@@ -3,10 +3,11 @@ package orm
 import "sync/atomic"
 
 var (
-	autoMigrate       atomic.Bool
-	stableFilters     atomic.Bool
-	schemaPersistence atomic.Bool
-	migrationLog      atomic.Bool
+	autoMigrate               atomic.Bool
+	deleteMissingSchemaTables atomic.Bool
+	stableFilters             atomic.Bool
+	schemaPersistence         atomic.Bool
+	migrationLog              atomic.Bool
 )
 
 func init() {
@@ -22,6 +23,15 @@ func EnableAutoMigrate(enable bool) {
 
 func autoMigrateEnabled() bool {
 	return autoMigrate.Load()
+}
+
+// EnableDeleteMissingSchemaTables 控制当 schema 文件在注册前缺失时，是否删除对应旧表。
+func EnableDeleteMissingSchemaTables(enable bool) {
+	deleteMissingSchemaTables.Store(enable)
+}
+
+func deleteMissingSchemaTablesEnabled() bool {
+	return deleteMissingSchemaTables.Load()
 }
 
 // EnableStableFilters 控制是否对查询条件进行排序，默认开启以保证 deterministic。

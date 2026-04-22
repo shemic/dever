@@ -25,6 +25,7 @@ func ensureDatabaseInitialized() error {
 
 		SetDefaultDatabase(cfg.Database.Default)
 		EnableAutoMigrate(cfg.Database.Create)
+		EnableDeleteMissingSchemaTables(cfg.Database.Delete)
 		EnableSchemaPersistence(cfg.Database.Persist)
 		EnableMigrationLog(cfg.Database.MigrationLog)
 

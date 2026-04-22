@@ -5,15 +5,23 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"unicode"
+
+	"github.com/shemic/dever/util"
 )
 
 // 字段名/结构归一化相关函数（不负责值类型转换）。
 
 var (
-	fieldIndexCache sync.Map
-	stringSlicePool sync.Pool
+	fieldBindingCache util.ConcurrentMap[reflect.Type, map[string]fieldBinding]
+	stringSlicePool   sync.Pool
 )
+
+type fieldBinding struct {
+	index      int
+	targetType reflect.Type
+	elemType   reflect.Type
+	isPointer  bool
+}
 
 func normalizeMap(record map[string]any) {
 	if len(record) == 0 {
@@ -29,7 +37,7 @@ func normalizeMap(record map[string]any) {
 		}
 	}
 	for _, k := range keys {
-		snake := toSnake(k)
+		snake := util.ToSnake(k)
 		if snake == "" || snake == k {
 			continue
 		}
@@ -156,26 +164,26 @@ func mapToStruct(record map[string]any, dest any) error {
 	if elem.Kind() != reflect.Struct {
 		return fmt.Errorf("orm: dest must point to struct")
 	}
-	fieldMap := cachedFieldIndexMap(elem.Type())
-	if len(fieldMap) == 0 {
+	bindings := cachedFieldBindingMap(elem.Type())
+	if len(bindings) == 0 {
 		return nil
 	}
 	for key, raw := range record {
-		index, ok := resolveFieldIndex(fieldMap, key)
+		binding, ok := resolveFieldBinding(bindings, key)
 		if !ok {
 			continue
 		}
-		field := elem.Field(index)
+		field := elem.Field(binding.index)
 		if !field.CanSet() {
 			continue
 		}
-		assignStructField(field, raw)
+		assignStructField(field, binding, raw)
 	}
 	return nil
 }
 
-func buildFieldColumnIndex(t reflect.Type) map[string]int {
-	index := make(map[string]int, t.NumField())
+func buildFieldBindings(t reflect.Type) map[string]fieldBinding {
+	index := make(map[string]fieldBinding, t.NumField())
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if field.PkgPath != "" {
@@ -185,32 +193,40 @@ func buildFieldColumnIndex(t reflect.Type) map[string]int {
 		if column == "" {
 			continue
 		}
-		index[normalizeColumnKey(column)] = i
+		binding := fieldBinding{
+			index:      i,
+			targetType: field.Type,
+		}
+		if field.Type.Kind() == reflect.Pointer {
+			binding.isPointer = true
+			binding.elemType = field.Type.Elem()
+		}
+		index[normalizeColumnKey(column)] = binding
 	}
 	return index
 }
 
-func cachedFieldIndexMap(t reflect.Type) map[string]int {
-	if cached, ok := fieldIndexCache.Load(t); ok {
-		return cached.(map[string]int)
+func cachedFieldBindingMap(t reflect.Type) map[string]fieldBinding {
+	if cached, ok := fieldBindingCache.Load(t); ok {
+		return cached
 	}
-	index := buildFieldColumnIndex(t)
-	fieldIndexCache.Store(t, index)
+	index := buildFieldBindings(t)
+	fieldBindingCache.Store(t, index)
 	return index
 }
 
-func resolveFieldIndex(fieldMap map[string]int, key string) (int, bool) {
+func resolveFieldBinding(fieldMap map[string]fieldBinding, key string) (fieldBinding, bool) {
 	normalized := normalizeColumnKey(key)
-	if index, ok := fieldMap[normalized]; ok {
-		return index, true
+	if binding, ok := fieldMap[normalized]; ok {
+		return binding, true
 	}
 	if idx := strings.LastIndex(key, "."); idx != -1 && idx+1 < len(key) {
 		base := key[idx+1:]
 		normalized = normalizeColumnKey(base)
-		index, ok := fieldMap[normalized]
-		return index, ok
+		binding, ok := fieldMap[normalized]
+		return binding, ok
 	}
-	return 0, false
+	return fieldBinding{}, false
 }
 
 func fieldColumnName(field reflect.StructField) string {
@@ -221,41 +237,10 @@ func fieldColumnName(field reflect.StructField) string {
 	if tagExists(tagOptions, "-") {
 		return ""
 	}
-	if col := firstNonEmpty(tagOptions["column"]); col != "" {
+	if col := util.FirstNonEmpty(tagOptions["column"]...); col != "" {
 		return col
 	}
-	return toSnake(field.Name)
-}
-
-func toSnake(name string) string {
-	if name == "" {
-		return name
-	}
-	runes := []rune(name)
-	var builder strings.Builder
-	builder.Grow(len(runes) * 2)
-	for i, r := range runes {
-		nextUpperToLower := false
-		if i+1 < len(runes) {
-			next := runes[i+1]
-			nextUpperToLower = unicode.IsUpper(r) && unicode.IsLower(next)
-		}
-		if unicode.IsUpper(r) {
-			if i > 0 {
-				prev := runes[i-1]
-				if unicode.IsLower(prev) || (unicode.IsUpper(prev) && nextUpperToLower) || unicode.IsDigit(prev) {
-					builder.WriteByte('_')
-				}
-			}
-			builder.WriteRune(unicode.ToLower(r))
-			continue
-		}
-		if i > 0 && unicode.IsDigit(r) && unicode.IsLetter(runes[i-1]) {
-			builder.WriteByte('_')
-		}
-		builder.WriteRune(r)
-	}
-	return builder.String()
+	return util.ToSnake(field.Name)
 }
 
 func getStringSlice(size int) []string {

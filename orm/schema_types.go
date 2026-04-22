@@ -10,6 +10,7 @@ import (
 type columnDef struct {
 	Name          string  `json:"name"`
 	Type          string  `json:"type"`
+	Comment       string  `json:"comment,omitempty"`
 	NotNull       bool    `json:"notNull"`
 	Primary       bool    `json:"primary"`
 	AutoIncrement bool    `json:"autoIncrement"`
@@ -36,6 +37,7 @@ type tableSchema struct {
 	aliasDefLookup  map[string]columnDef `json:"-"`
 	aliasKeyLookup  map[string]string    `json:"-"`
 	aliasMiss       map[string]struct{}  `json:"-"`
+	labelLookup     map[string]string    `json:"-"`
 }
 
 func (s *tableSchema) ensureLookup() {
@@ -44,13 +46,18 @@ func (s *tableSchema) ensureLookup() {
 	}
 	lookup := make(map[string]string, len(s.Columns))
 	defLookup := make(map[string]columnDef, len(s.Columns))
+	labelLookup := make(map[string]string, len(s.Columns))
 	for _, col := range s.Columns {
 		key := normalizeColumnKey(col.Name)
 		lookup[key] = col.Name
 		defLookup[key] = col
+		if strings.TrimSpace(col.Comment) != "" {
+			labelLookup[key] = strings.TrimSpace(col.Comment)
+		}
 	}
 	s.columnLookup = lookup
 	s.columnDefLookup = defLookup
+	s.labelLookup = labelLookup
 }
 
 func (s *tableSchema) resolveColumn(name string) (string, bool) {
@@ -71,6 +78,41 @@ func (s *tableSchema) resolveColumnDef(name string) (columnDef, bool) {
 	key := normalizeColumnKey(name)
 	val, ok := s.columnDefLookup[key]
 	return val, ok
+}
+
+func (s *tableSchema) resolveLabel(name string) (string, bool) {
+	if s == nil {
+		return "", false
+	}
+	s.ensureLookup()
+	key := normalizeColumnKey(name)
+	if label, ok := s.labelLookup[key]; ok {
+		return label, true
+	}
+	if strings.Contains(name, ".") {
+		if idx := strings.LastIndex(name, "."); idx != -1 && idx+1 < len(name) {
+			key = normalizeColumnKey(name[idx+1:])
+			if label, ok := s.labelLookup[key]; ok {
+				return label, true
+			}
+		}
+	}
+	return "", false
+}
+
+func (s *tableSchema) labels() map[string]string {
+	if s == nil {
+		return nil
+	}
+	s.ensureLookup()
+	if len(s.labelLookup) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(s.labelLookup))
+	for key, value := range s.labelLookup {
+		result[key] = value
+	}
+	return result
 }
 
 func (s *tableSchema) resolveColumnDefWithAlias(name string) (columnDef, string, bool) {

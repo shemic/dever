@@ -16,6 +16,7 @@ type Handler func(params map[string]any) (any, error)
 type binding struct {
 	handler Handler
 
+	fastZero func() (any, error)
 	fastSrv  func(*server.Context) (any, error)
 	provider func(*server.Context, []any) any
 

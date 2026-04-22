@@ -18,7 +18,8 @@ func GetContext(raw any) *Context {
 func ReleaseContext(c *Context) {
 	c.Raw = nil
 	c.jsonPayload = nil
-	c.jsonPayloadErr = nil
 	c.jsonOnce = sync.Once{}
+	c.baseCtx = nil
+	c.baseCtxReady = false
 	ctxPool.Put(c)
 }

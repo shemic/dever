@@ -34,7 +34,7 @@ func RegisterMany(handlers map[string]any) {
 			panic(fmt.Sprintf("load: duplicated service name: %s conflicts with %s", name, original))
 		}
 		originals[key] = name
-		prepared[key] = adaptHandler(raw)
+		prepared[key] = adaptHandler(name, raw)
 	}
 
 	regMutex.Lock()
@@ -58,29 +58,89 @@ func RegisterMany(handlers map[string]any) {
 	registry.Store(next)
 }
 
-func adaptHandler(fn any) *binding {
+func adaptHandler(name string, fn any) *binding {
+	isModelBinding := isModelBindingName(name)
 	switch h := fn.(type) {
 	case nil:
 		panic("load: handler is nil")
 	case Handler:
 		return &binding{handler: h}
 	case func() (any, error):
-		return &binding{
+		binding := &binding{
+			fastZero: h,
 			handler: func(map[string]any) (any, error) {
 				return h()
 			},
 		}
+		return binding
 	case func() any:
-		return &binding{
+		binding := &binding{
+			fastZero: func() (any, error) {
+				return h(), nil
+			},
 			handler: func(map[string]any) (any, error) {
 				return h(), nil
 			},
 		}
+		if isModelBinding {
+			binding.modelFn = h
+		}
+		return binding
+	case func() error:
+		return &binding{
+			fastZero: func() (any, error) {
+				return nil, h()
+			},
+			handler: func(map[string]any) (any, error) {
+				return nil, h()
+			},
+		}
 	case func():
 		return &binding{
+			fastZero: func() (any, error) {
+				h()
+				return nil, nil
+			},
 			handler: func(map[string]any) (any, error) {
 				h()
 				return nil, nil
+			},
+		}
+	case func(*server.Context) (any, error):
+		return &binding{
+			fastSrv: h,
+			handler: func(params map[string]any) (any, error) {
+				var ctx *server.Context
+				if v, ok := params["_srv_ctx"].(*server.Context); ok {
+					ctx = v
+				}
+				return h(ctx)
+			},
+		}
+	case func(*server.Context) any:
+		return &binding{
+			fastSrv: func(ctx *server.Context) (any, error) {
+				return h(ctx), nil
+			},
+			handler: func(params map[string]any) (any, error) {
+				var ctx *server.Context
+				if v, ok := params["_srv_ctx"].(*server.Context); ok {
+					ctx = v
+				}
+				return h(ctx), nil
+			},
+		}
+	case func(*server.Context) error:
+		return &binding{
+			fastSrv: func(ctx *server.Context) (any, error) {
+				return nil, h(ctx)
+			},
+			handler: func(params map[string]any) (any, error) {
+				var ctx *server.Context
+				if v, ok := params["_srv_ctx"].(*server.Context); ok {
+					ctx = v
+				}
+				return nil, h(ctx)
 			},
 		}
 	case func(*server.Context, []any) any:
@@ -100,16 +160,39 @@ func adaptHandler(fn any) *binding {
 		}
 	default:
 		if v := reflect.ValueOf(fn); v.Kind() == reflect.Func && v.Type().NumIn() == 0 && v.Type().NumOut() == 1 {
-			return &binding{
+			binding := &binding{
+				fastZero: func() (any, error) {
+					return v.Call(nil)[0].Interface(), nil
+				},
 				handler: func(map[string]any) (any, error) {
 					return v.Call(nil)[0].Interface(), nil
 				},
 			}
+			if isModelBinding {
+				binding.modelFn = func() any {
+					return v.Call(nil)[0].Interface()
+				}
+			}
+			return binding
 		}
 		panic(fmt.Sprintf("load: unsupported handler type %T", fn))
 	}
 }
 
+func isModelBindingName(name string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(name)), "model")
+}
+
 func normalize(name string) string {
-	return strings.TrimSpace(strings.ToLower(name))
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	for i := 0; i < len(trimmed); i++ {
+		b := trimmed[i]
+		if b >= 'A' && b <= 'Z' {
+			return strings.ToLower(trimmed)
+		}
+	}
+	return trimmed
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/shemic/dever/config"
 	"github.com/shemic/dever/lock"
 	dlog "github.com/shemic/dever/log"
+	"github.com/shemic/dever/observe"
 	"github.com/shemic/dever/server"
 	serverhttp "github.com/shemic/dever/server/http"
 )
@@ -31,17 +32,22 @@ func Run(register func(server.Server)) error {
 	lock.Configure(makeLockConfig(cfg.Redis))
 
 	dlog.Configure(cfg.Log)
+	if err := observe.Configure(makeObserveConfig(cfg)); err != nil {
+		return fmt.Errorf("初始化 observe 失败: %w", err)
+	}
 
 	fiberCfg := makeFiberConfig(cfg.HTTP)
-	app := serverhttp.NewWithConfig(fiberCfg)
+	app := serverhttp.NewWithConfig(fiberCfg, cfg.HTTP.CORS)
 	if register != nil && (!fiberCfg.Prefork || fiber.IsChild()) {
 		register(app)
 	}
 
 	addr := cfg.HTTP.Addr()
-	if !fiber.IsChild() {
-		printStartupBanner(cfg.HTTP.AppName, addr)
-	}
+	app.OnListen(func() {
+		if !fiber.IsChild() {
+			printStartupBanner(cfg.HTTP.AppName, addr)
+		}
+	})
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -71,6 +77,12 @@ func Run(register func(server.Server)) error {
 		if err := app.Shutdown(shutdownCtx); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				fmt.Println("HTTP 服务优雅停机超时，尝试强制退出...")
+				observeCtx, observeCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				if observeErr := observe.Shutdown(observeCtx); observeErr != nil && !errors.Is(observeErr, context.Canceled) && !errors.Is(observeErr, context.DeadlineExceeded) {
+					observeCancel()
+					return fmt.Errorf("observe 停机失败: %w", observeErr)
+				}
+				observeCancel()
 				go func() {
 					select {
 					case <-serverErrCh:
@@ -82,6 +94,9 @@ func Run(register func(server.Server)) error {
 			if !errors.Is(err, context.Canceled) {
 				return fmt.Errorf("HTTP 服务优雅停机失败: %w", err)
 			}
+		}
+		if err := observe.Shutdown(shutdownCtx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("observe 停机失败: %w", err)
 		}
 
 		if err := <-serverErrCh; err != nil {
@@ -170,5 +185,16 @@ func makeLockConfig(redisCfg config.Redis) lock.Config {
 		WriteTimeout: redisCfg.WriteTimeout.Duration(),
 		PingTimeout:  redisCfg.PingTimeout.Duration(),
 		UseTLS:       redisCfg.UseTLS,
+	}
+}
+
+func makeObserveConfig(cfg *config.App) observe.Config {
+	return observe.Config{
+		Enabled:     cfg.Observe.Enabled,
+		Provider:    cfg.Observe.Provider,
+		Service:     cfg.Observe.Service,
+		SlowRequest: cfg.Observe.SlowRequest.Duration(),
+		SlowSQL:     cfg.Observe.SlowSQL.Duration(),
+		Options:     cfg.Observe.Options,
 	}
 }

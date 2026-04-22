@@ -3,11 +3,13 @@ package http
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 
+	"github.com/shemic/dever/config"
 	"github.com/shemic/dever/middleware"
 	"github.com/shemic/dever/server"
 )
@@ -31,17 +33,15 @@ type fiberServer struct {
 
 // New 创建一个 Fiber 版本的 Server，并加载通过 server.Auto 注册的路由配置。
 func New() server.Server {
-	return NewWithConfig(fiber.Config{})
+	return NewWithConfig(fiber.Config{}, config.CORS{})
 }
 
 // NewWithConfig 创建一个自定义配置的 Fiber Server，并加载通过 server.Auto 注册的路由配置。
-func NewWithConfig(conf fiber.Config) server.Server {
+func NewWithConfig(conf fiber.Config, corsCfg config.CORS) server.Server {
 	app := fiber.New(conf)
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders: "*",
-	}))
+	if corsCfg.Enabled {
+		app.Use(cors.New(buildCORSConfig(corsCfg)))
+	}
 	srv := &fiberServer{
 		app:    app,
 		router: app,
@@ -50,6 +50,17 @@ func NewWithConfig(conf fiber.Config) server.Server {
 		server.LoadAll(srv)
 	}
 	return srv
+}
+
+func buildCORSConfig(cfg config.CORS) cors.Config {
+	return cors.Config{
+		AllowOrigins:     strings.Join(cfg.AllowOrigins, ","),
+		AllowMethods:     strings.Join(cfg.AllowMethods, ","),
+		AllowHeaders:     strings.Join(cfg.AllowHeaders, ","),
+		ExposeHeaders:    strings.Join(cfg.ExposeHeaders, ","),
+		AllowCredentials: cfg.AllowCredentials,
+		MaxAge:           cfg.MaxAge,
+	}
 }
 
 func (s *fiberServer) Get(path string, handler server.HandlerFunc) {
@@ -86,12 +97,30 @@ func (s *fiberServer) Use(middlewares ...server.HandlerFunc) {
 	}
 }
 
+func (s *fiberServer) OnListen(fn func()) {
+	if fn == nil {
+		return
+	}
+	s.app.Hooks().OnListen(func(fiber.ListenData) error {
+		fn()
+		return nil
+	})
+}
+
 func (s *fiberServer) Run(addr string) error {
 	return s.app.Listen(addr)
 }
 
 // wrap 将统一的 HandlerFunc 适配为 Fiber 的处理函数，并复用 Context 对象池。
 func wrap(fn server.HandlerFunc, method, path string) fiber.Handler {
+	compiled := middleware.Compile(method, path, func(current any) error {
+		ctx, ok := current.(*server.Context)
+		if !ok || ctx == nil {
+			return nil
+		}
+		return fn(ctx)
+	})
+
 	return func(c *fiber.Ctx) (err error) {
 		ctx := server.GetContext(c)
 		defer server.ReleaseContext(ctx)
@@ -105,9 +134,7 @@ func wrap(fn server.HandlerFunc, method, path string) fiber.Handler {
 				panic(r)
 			}
 		}()
-		return middleware.Execute(ctx, method, path, func(_ any) error {
-			return fn(ctx)
-		})
+		return compiled(ctx)
 	}
 }
 

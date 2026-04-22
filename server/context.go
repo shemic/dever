@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,8 +9,11 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/shemic/dever/util"
 )
 
 var errNoJSONMethod = errors.New("context: JSON method not found")
@@ -21,7 +25,7 @@ var (
 	jsonAdapters   []JSONAdapter
 	jsonAdapterMux sync.RWMutex
 
-	validatorCache sync.Map
+	validatorCache util.ConcurrentMap[string, validatorCacheEntry]
 
 	// payloadPool reduces GC pressure by reusing payload maps
 	payloadPool = sync.Pool{
@@ -31,7 +35,7 @@ var (
 	}
 
 	// methodCache caches reflected methods to avoid repeated reflection lookups
-	methodCache sync.Map // map[reflect.Type]cachedMethods
+	methodCache util.ConcurrentMap[reflect.Type, *cachedMethods]
 )
 
 // cachedMethods holds commonly used methods for a type
@@ -65,10 +69,11 @@ func callJSONAdapters(raw any, status int, data any) (bool, error) {
 
 // Context 封装底层框架的上下文（例如 *fiber.Ctx），对外暴露统一接口。
 type Context struct {
-	Raw            any
-	jsonPayload    map[string]any
-	jsonPayloadErr error
-	jsonOnce       sync.Once
+	Raw          any
+	jsonPayload  map[string]any
+	jsonOnce     sync.Once
+	baseCtx      context.Context
+	baseCtxReady bool
 }
 
 // Context 返回底层请求关联的 context.Context。
@@ -76,26 +81,74 @@ func (c *Context) Context() context.Context {
 	if c == nil {
 		return context.Background()
 	}
+	if c.baseCtxReady {
+		if c.baseCtx != nil {
+			return c.baseCtx
+		}
+		return context.Background()
+	}
+
+	var resolved context.Context
 	if raw := c.Raw; raw != nil {
 		if v, ok := raw.(interface{ UserContext() context.Context }); ok {
 			if ctx := v.UserContext(); ctx != nil {
-				return ctx
+				resolved = ctx
+				goto done
 			}
 		}
 		if v, ok := raw.(interface{ Context() context.Context }); ok {
 			if ctx := v.Context(); ctx != nil {
-				return ctx
+				resolved = ctx
+				goto done
 			}
 		}
 		if v, ok := raw.(interface{ Request() *http.Request }); ok {
 			if req := v.Request(); req != nil {
 				if ctx := req.Context(); ctx != nil {
-					return ctx
+					resolved = ctx
+					goto done
 				}
 			}
 		}
 	}
+
+done:
+	c.baseCtx = resolved
+	c.baseCtxReady = true
+	if resolved != nil {
+		return resolved
+	}
 	return context.Background()
+}
+
+// AttachContext 将新的 context 绑定回底层 HTTP 框架上下文。
+func AttachContext(raw any, ctx context.Context) {
+	if raw == nil || ctx == nil {
+		return
+	}
+	if v, ok := raw.(interface{ SetUserContext(context.Context) }); ok {
+		v.SetUserContext(ctx)
+		return
+	}
+	if v, ok := raw.(interface{ SetContext(context.Context) }); ok {
+		v.SetContext(ctx)
+		return
+	}
+	if v, ok := raw.(interface{ SetRequest(*http.Request) }); ok {
+		if req, ok := raw.(interface{ Request() *http.Request }); ok && req.Request() != nil {
+			v.SetRequest(req.Request().WithContext(ctx))
+		}
+	}
+}
+
+// SetContext 将新的 context 绑定到统一 Context，并同步回底层 HTTP 框架。
+func (c *Context) SetContext(ctx context.Context) {
+	if c == nil || ctx == nil {
+		return
+	}
+	c.baseCtx = ctx
+	c.baseCtxReady = true
+	AttachContext(c.Raw, ctx)
 }
 
 // Abort 表示请求已在处理中断，通常由 Context 自动输出响应后触发。
@@ -123,17 +176,10 @@ func (c *Context) JSON(data any) error {
 	return c.JSONWithStatus(http.StatusOK, data)
 }
 
-// JSONPayload 输出已归一化的 payload，避免重复包装。
-func (c *Context) JSONPayload(status int, payload map[string]any) error {
+func (c *Context) writeJSONPayload(status int, payload map[string]any) error {
 	if c.Raw == nil {
 		return errors.New("JSON: nil context")
 	}
-	// Return payload to pool after JSON serialization completes
-	defer func() {
-		if payload != nil {
-			payloadPool.Put(payload)
-		}
-	}()
 
 	if handled, err := callJSONAdapters(c.Raw, status, payload); handled {
 		return err
@@ -154,34 +200,16 @@ func (c *Context) JSONPayload(status int, payload map[string]any) error {
 	return nil
 }
 
+// JSONPayload 输出已归一化的 payload，避免重复包装。
+func (c *Context) JSONPayload(status int, payload map[string]any) error {
+	return c.writeJSONPayload(status, payload)
+}
+
 // JSONWithStatus 输出指定状态码的 JSON 结果。
 func (c *Context) JSONWithStatus(status int, data any) error {
-	if c.Raw == nil {
-		return errors.New("JSON: nil context")
-	}
-
 	payload := normalizePayload(status, data)
-
-	if handled, err := callJSONAdapters(c.Raw, status, payload); handled {
-		return err
-	}
-
-	setStatusIfPossible(c.Raw, status)
-
-	switch ctx := c.Raw.(type) {
-	case interface{ JSON(any) error }:
-		return ctx.JSON(payload)
-	case interface{ JSON(int, any) error }:
-		return ctx.JSON(status, payload)
-	}
-
-	if err := callJSONReflect(c.Raw, status, payload); err != nil {
-		if errors.Is(err, errNoJSONMethod) {
-			return errors.New("JSON: not supported framework")
-		}
-		return err
-	}
-	return nil
+	defer releasePayload(payload)
+	return c.writeJSONPayload(status, payload)
 }
 
 // Error 将错误信息以 JSON 输出，默认状态码 400，可自定义。
@@ -204,28 +232,16 @@ func (c *Context) Error(err any, code ...int) error {
 	}
 
 	payload := normalizeErrorPayload(status, e)
-	if jErr := c.JSONPayload(status, payload); jErr != nil {
+	defer releasePayload(payload)
+	if jErr := c.writeJSONPayload(status, payload); jErr != nil {
 		return jErr
 	}
 	return nil
 }
 
 func normalizePayload(status int, data any) map[string]any {
-	payloadStatus := 1
-	message := "success"
-	if status < http.StatusOK || status >= http.StatusMultipleChoices {
-		payloadStatus = 2
-		if txt := http.StatusText(status); txt != "" {
-			message = txt
-		} else {
-			message = "error"
-		}
-	}
-	payload := payloadPool.Get().(map[string]any)
-	// Clear the map before reuse
-	for k := range payload {
-		delete(payload, k)
-	}
+	payloadStatus, message := resolvePayloadStatus(status)
+	payload := acquirePayload()
 	payload["code"] = status
 	payload["status"] = payloadStatus
 	payload["msg"] = message
@@ -234,11 +250,7 @@ func normalizePayload(status int, data any) map[string]any {
 }
 
 func normalizeErrorPayload(status int, err error) map[string]any {
-	payload := payloadPool.Get().(map[string]any)
-	// Clear the map before reuse
-	for k := range payload {
-		delete(payload, k)
-	}
+	payload := acquirePayload()
 	payload["code"] = status
 	payload["status"] = 2
 	payload["data"] = nil
@@ -250,6 +262,34 @@ func normalizeErrorPayload(status int, err error) map[string]any {
 		payload["msg"] = "error"
 	}
 	return payload
+}
+
+func acquirePayload() map[string]any {
+	payload := payloadPool.Get().(map[string]any)
+	for k := range payload {
+		delete(payload, k)
+	}
+	return payload
+}
+
+func releasePayload(payload map[string]any) {
+	if payload == nil {
+		return
+	}
+	for k := range payload {
+		delete(payload, k)
+	}
+	payloadPool.Put(payload)
+}
+
+func resolvePayloadStatus(status int) (int, string) {
+	if status >= http.StatusOK && status < http.StatusMultipleChoices {
+		return 1, "success"
+	}
+	if txt := http.StatusText(status); txt != "" {
+		return 2, txt
+	}
+	return 2, "error"
 }
 
 // Input 统一读取请求参数，按路径参数→查询参数→表单参数的顺序查找。
@@ -278,16 +318,16 @@ func (c *Context) Input(key string, args ...string) string {
 	}
 
 	var value string
-	if v, ok := lookupString(c.Raw, "Params", key); ok && v != "" {
+	if v, ok := lookupParamsString(c.Raw, key); ok && v != "" {
 		value = v
 	}
 	if value == "" {
-		if v, ok := lookupString(c.Raw, "Query", key); ok && v != "" {
+		if v, ok := lookupQueryString(c.Raw, key); ok && v != "" {
 			value = v
 		}
 	}
 	if value == "" {
-		if v, ok := lookupString(c.Raw, "FormValue", key); ok && v != "" {
+		if v, ok := lookupFormValueString(c.Raw, key); ok && v != "" {
 			value = v
 		}
 	}
@@ -297,11 +337,39 @@ func (c *Context) Input(key string, args ...string) string {
 				switch vv := v.(type) {
 				case string:
 					value = strings.TrimSpace(vv)
+				case bool:
+					value = strconv.FormatBool(vv)
+				case json.Number:
+					value = vv.String()
+				case float64:
+					value = strconv.FormatFloat(vv, 'f', -1, 64)
+				case float32:
+					value = strconv.FormatFloat(float64(vv), 'f', -1, 32)
+				case int:
+					value = strconv.Itoa(vv)
+				case int8:
+					value = strconv.FormatInt(int64(vv), 10)
+				case int16:
+					value = strconv.FormatInt(int64(vv), 10)
+				case int32:
+					value = strconv.FormatInt(int64(vv), 10)
+				case int64:
+					value = strconv.FormatInt(vv, 10)
+				case uint:
+					value = strconv.FormatUint(uint64(vv), 10)
+				case uint8:
+					value = strconv.FormatUint(uint64(vv), 10)
+				case uint16:
+					value = strconv.FormatUint(uint64(vv), 10)
+				case uint32:
+					value = strconv.FormatUint(uint64(vv), 10)
+				case uint64:
+					value = strconv.FormatUint(vv, 10)
 				default:
 					if b, err := json.Marshal(v); err == nil {
 						value = strings.TrimSpace(string(b))
 					} else {
-						value = strings.TrimSpace(fmt.Sprint(v))
+						value = util.ToStringTrimmed(v)
 					}
 				}
 			}
@@ -316,8 +384,7 @@ func (c *Context) Input(key string, args ...string) string {
 	if rule != "" {
 		lowerRule := strings.ToLower(rule)
 		if lowerRule == "required" || lowerRule == "is_required" {
-			// Only trim for empty check to avoid multiple TrimSpace calls
-			if strings.TrimSpace(value) == "" {
+			if value == "" {
 				c.abort(fmt.Errorf("%s 不能为空", desc))
 			}
 		} else if value != "" {
@@ -341,20 +408,27 @@ func (c *Context) loadJSONPayload() map[string]any {
 		if c.Raw == nil {
 			return
 		}
-		payload := make(map[string]any)
 		if v, ok := c.Raw.(interface{ Body() []byte }); ok {
-			if b := v.Body(); len(b) > 0 {
-				if uErr := json.Unmarshal(b, &payload); uErr == nil {
-					c.jsonPayload = payload
-					return
-				}
+			body := bytes.TrimSpace(v.Body())
+			if len(body) == 0 || body[0] != '{' {
+				return
 			}
-		}
-		if err := c.BindJSON(&payload); err != nil {
-			c.jsonPayloadErr = err
+			payload := make(map[string]any)
+			if err := json.Unmarshal(body, &payload); err != nil {
+				return
+			}
+			if len(payload) > 0 {
+				c.jsonPayload = payload
+			}
 			return
 		}
-		c.jsonPayload = payload
+		payload := make(map[string]any)
+		if err := c.BindJSON(&payload); err != nil {
+			return
+		}
+		if len(payload) > 0 {
+			c.jsonPayload = payload
+		}
 	})
 	return c.jsonPayload
 }
@@ -368,7 +442,7 @@ func (c *Context) Query(key string, defaultValue ...string) string {
 		return ""
 	}
 
-	val, ok := lookupString(c.Raw, "Query", key, defaultValue...)
+	val, ok := lookupQueryString(c.Raw, key, defaultValue...)
 	if ok && val != "" {
 		return val
 	}
@@ -385,6 +459,14 @@ func (c *Context) Method() string {
 	}
 	if m, ok := c.Raw.(interface{ Method() string }); ok {
 		return m.Method()
+	}
+	if m, ok := c.Raw.(interface{ Method(...string) string }); ok {
+		return m.Method()
+	}
+	if v, ok := c.Raw.(interface{ Request() *http.Request }); ok {
+		if req := v.Request(); req != nil {
+			return req.Method
+		}
 	}
 	return ""
 }
@@ -403,10 +485,40 @@ func (c *Context) Path() string {
 	return ""
 }
 
+// Header 返回请求头值，不存在时返回默认值或空字符串。
+func (c *Context) Header(key string, defaultValue ...string) string {
+	if c == nil || c.Raw == nil {
+		if len(defaultValue) > 0 {
+			return defaultValue[0]
+		}
+		return ""
+	}
+
+	if getter, ok := c.Raw.(interface {
+		Get(string, ...string) string
+	}); ok {
+		value := getter.Get(key)
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	if v, ok := c.Raw.(interface{ Request() *http.Request }); ok {
+		if req := v.Request(); req != nil {
+			if value := req.Header.Get(key); strings.TrimSpace(value) != "" {
+				return value
+			}
+		}
+	}
+	if len(defaultValue) > 0 {
+		return defaultValue[0]
+	}
+	return ""
+}
+
 // getCachedMethods retrieves or creates cached methods for a type
 func getCachedMethods(t reflect.Type) *cachedMethods {
 	if cached, ok := methodCache.Load(t); ok {
-		return cached.(*cachedMethods)
+		return cached
 	}
 
 	cm := &cachedMethods{}
@@ -440,36 +552,50 @@ func getCachedMethods(t reflect.Type) *cachedMethods {
 	return cm
 }
 
-func lookupString(raw any, methodName, key string, defaultValue ...string) (string, bool) {
+func lookupParamsString(raw any, key string, defaultValue ...string) (string, bool) {
 	if raw == nil {
 		return "", false
 	}
 
-	switch methodName {
-	case "Params":
-		if ctx, ok := raw.(interface {
-			Params(string, ...string) string
-		}); ok {
-			return ctx.Params(key, defaultValue...), true
-		}
-		if ctx, ok := raw.(interface{ Params(string) string }); ok {
-			return ctx.Params(key), true
-		}
-	case "Query":
-		if ctx, ok := raw.(interface {
-			Query(string, ...string) string
-		}); ok {
-			return ctx.Query(key, defaultValue...), true
-		}
-		if ctx, ok := raw.(interface{ Query(string) string }); ok {
-			return ctx.Query(key), true
-		}
-	case "FormValue":
-		if ctx, ok := raw.(interface{ FormValue(string) string }); ok {
-			return ctx.FormValue(key), true
-		}
+	if ctx, ok := raw.(interface {
+		Params(string, ...string) string
+	}); ok {
+		return ctx.Params(key, defaultValue...), true
+	}
+	if ctx, ok := raw.(interface{ Params(string) string }); ok {
+		return ctx.Params(key), true
+	}
+	return lookupCachedStringMethod(raw, "Params", key, defaultValue...)
+}
+
+func lookupQueryString(raw any, key string, defaultValue ...string) (string, bool) {
+	if raw == nil {
+		return "", false
 	}
 
+	if ctx, ok := raw.(interface {
+		Query(string, ...string) string
+	}); ok {
+		return ctx.Query(key, defaultValue...), true
+	}
+	if ctx, ok := raw.(interface{ Query(string) string }); ok {
+		return ctx.Query(key), true
+	}
+	return lookupCachedStringMethod(raw, "Query", key, defaultValue...)
+}
+
+func lookupFormValueString(raw any, key string) (string, bool) {
+	if raw == nil {
+		return "", false
+	}
+
+	if ctx, ok := raw.(interface{ FormValue(string) string }); ok {
+		return ctx.FormValue(key), true
+	}
+	return lookupCachedStringMethod(raw, "FormValue", key)
+}
+
+func lookupCachedStringMethod(raw any, methodName, key string, defaultValue ...string) (string, bool) {
 	rv := reflect.ValueOf(raw)
 	if !rv.IsValid() {
 		return "", false
@@ -649,8 +775,7 @@ func compileValidator(rule string) (*regexp.Regexp, error) {
 	}
 
 	if cached, ok := validatorCache.Load(cacheKey); ok {
-		entry := cached.(validatorCacheEntry)
-		return entry.re, entry.err
+		return cached.re, cached.err
 	}
 
 	re, err := regexp.Compile(pattern)

@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
+
+	"github.com/shemic/dever/util"
 )
 
 // 值类型转换相关函数（配合查询结果映射）。
@@ -42,9 +43,9 @@ func convertValue(value any, target reflect.Type) (reflect.Value, bool) {
 			return out, true
 		}
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if v, ok := toInt64(value); ok && v >= 0 {
+		if v, ok := toUint64(value); ok {
 			out := reflect.New(target).Elem()
-			out.SetUint(uint64(v))
+			out.SetUint(v)
 			return out, true
 		}
 	case reflect.Float32, reflect.Float64:
@@ -90,82 +91,19 @@ func normalizeValueByType(value any, sqlType string) any {
 }
 
 func toInt64(value any) (int64, bool) {
-	switch v := value.(type) {
-	case int:
-		return int64(v), true
-	case int8:
-		return int64(v), true
-	case int16:
-		return int64(v), true
-	case int32:
-		return int64(v), true
-	case int64:
-		return v, true
-	case uint:
-		return int64(v), true
-	case uint8:
-		return int64(v), true
-	case uint16:
-		return int64(v), true
-	case uint32:
-		return int64(v), true
-	case uint64:
-		if v > uint64(^uint64(0)>>1) {
-			return 0, false
-		}
-		return int64(v), true
-	case float64:
-		return int64(v), true
-	case float32:
-		return int64(v), true
-	case string:
-		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
-		if err == nil {
-			return parsed, true
-		}
-	}
-	return 0, false
+	return util.ParseInt64(value)
 }
 
 func toFloat64(value any) (float64, bool) {
-	switch v := value.(type) {
-	case float64:
-		return v, true
-	case float32:
-		return float64(v), true
-	case int:
-		return float64(v), true
-	case int64:
-		return float64(v), true
-	case string:
-		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
-		if err == nil {
-			return parsed, true
-		}
-	}
-	return 0, false
+	return util.ParseFloat64(value)
 }
 
 func toBool(value any) (bool, bool) {
-	switch v := value.(type) {
-	case bool:
-		return v, true
-	case int:
-		return v != 0, true
-	case int64:
-		return v != 0, true
-	case float64:
-		return v != 0, true
-	case string:
-		trimmed := strings.ToLower(strings.TrimSpace(v))
-		if trimmed == "true" || trimmed == "1" {
-			return true, true
-		}
-		if trimmed == "false" || trimmed == "0" {
-			return false, true
-		}
-	}
-	return false, false
+	return util.ParseBool(value)
+}
+
+func toUint64(value any) (uint64, bool) {
+	return util.ParseUint64(value)
 }
 
 func toJSONValue(value any) (any, bool) {
@@ -193,42 +131,24 @@ func toJSONValue(value any) (any, bool) {
 	return value, false
 }
 
-func getInt(v any) (int, bool) {
-	switch val := v.(type) {
-	case int:
-		return val, true
-	case int8:
-		return int(val), true
-	case int16:
-		return int(val), true
-	case int32:
-		return int(val), true
-	case int64:
-		return int(val), true
-	default:
-		return 0, false
-	}
-}
-
-func assignStructField(field reflect.Value, value any) {
+func assignStructField(field reflect.Value, binding fieldBinding, value any) {
 	if value == nil {
-		if field.Kind() == reflect.Pointer {
+		if binding.isPointer {
 			field.Set(reflect.Zero(field.Type()))
 		}
 		return
 	}
-	if field.Kind() == reflect.Pointer {
-		elemType := field.Type().Elem()
-		converted, ok := convertValue(value, elemType)
+	if binding.isPointer {
+		converted, ok := convertValue(value, binding.elemType)
 		if !ok {
 			return
 		}
-		ptr := reflect.New(elemType)
+		ptr := reflect.New(binding.elemType)
 		ptr.Elem().Set(converted)
 		field.Set(ptr)
 		return
 	}
-	converted, ok := convertValue(value, field.Type())
+	converted, ok := convertValue(value, binding.targetType)
 	if ok {
 		field.Set(converted)
 	}

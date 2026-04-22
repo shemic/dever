@@ -37,12 +37,23 @@ func (m *modelCore) ensureSchema(ctx context.Context) error {
 }
 
 func syncTableSchema(ctx context.Context, db *sqlx.DB, driver, table string, schema *tableSchema) ([]string, error) {
+	var statements []string
+	if hasPendingSchemaReset(table) {
+		dropStmt, err := dropTableIfExists(ctx, db, driver, table)
+		if err != nil {
+			return nil, err
+		}
+		clearPendingSchemaReset(table)
+		if dropStmt != "" {
+			statements = append(statements, dropStmt)
+		}
+	}
+
 	exists, err := tableExists(ctx, db, driver, table)
 	if err != nil {
 		return nil, err
 	}
 
-	var statements []string
 	if !exists {
 		stmt, err := createTable(ctx, db, driver, table, schema.Columns)
 		if err != nil {
@@ -51,7 +62,7 @@ func syncTableSchema(ctx context.Context, db *sqlx.DB, driver, table string, sch
 		if stmt != "" {
 			statements = append(statements, stmt)
 		}
-		seedStmt, err := applySeedData(ctx, db, driver, table, schema.Seeds)
+		seedStmt, err := applySeedData(ctx, db, driver, table, schema.Columns, schema.Seeds)
 		if err != nil {
 			return nil, err
 		}
@@ -119,6 +130,29 @@ func tableExists(ctx context.Context, db *sqlx.DB, driver, table string) (bool, 
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func dropTableIfExists(ctx context.Context, db *sqlx.DB, driver, table string) (string, error) {
+	if err := ensureIdentifier(table); err != nil {
+		return "", err
+	}
+	stmt := buildDropTableStatement(driver, table)
+	if stmt == "" {
+		return "", fmt.Errorf("orm: unsupported driver %s", driver)
+	}
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return "", err
+	}
+	return stmt, nil
+}
+
+func buildDropTableStatement(driver, table string) string {
+	switch driver {
+	case "postgres", "mysql", "sqlite":
+		return fmt.Sprintf("DROP TABLE IF EXISTS %s", quoteIdentifier(driver, table))
+	default:
+		return ""
+	}
 }
 
 func createTable(ctx context.Context, db *sqlx.DB, driver, table string, columns []columnDef) (string, error) {
@@ -286,7 +320,7 @@ func buildRenameColumnStatement(driver, table, oldName, newName string) string {
 	}
 }
 
-func applySeedData(ctx context.Context, db *sqlx.DB, driver, table string, seeds []map[string]any) ([]string, error) {
+func applySeedData(ctx context.Context, db *sqlx.DB, driver, table string, columns []columnDef, seeds []map[string]any) ([]string, error) {
 	if len(seeds) == 0 {
 		return nil, nil
 	}
@@ -298,7 +332,8 @@ func applySeedData(ctx context.Context, db *sqlx.DB, driver, table string, seeds
 		if len(row) == 0 {
 			continue
 		}
-		query, payload, err := buildInsertQuery(table, row, quoter)
+		prepared := prepareSeedInsertRow(row, columns)
+		query, payload, err := buildInsertQuery(table, prepared, quoter)
 		if err != nil {
 			return nil, err
 		}
@@ -308,6 +343,41 @@ func applySeedData(ctx context.Context, db *sqlx.DB, driver, table string, seeds
 		statements = append(statements, query)
 	}
 	return statements, nil
+}
+
+func prepareSeedInsertRow(row map[string]any, columns []columnDef) map[string]any {
+	if len(row) == 0 {
+		return row
+	}
+
+	prepared := make(map[string]any, len(row)+2)
+	for key, value := range row {
+		prepared[key] = value
+	}
+
+	for _, column := range columns {
+		if hasSeedInsertValue(prepared[column.Name]) || column.DefaultValue != nil {
+			continue
+		}
+		switch normalizeColumnKey(column.Name) {
+		case "createdat", "updatedat":
+			prepared[column.Name] = time.Now()
+		}
+	}
+
+	return prepared
+}
+
+func hasSeedInsertValue(value any) bool {
+	if value == nil {
+		return false
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed) != ""
+	default:
+		return true
+	}
 }
 
 func ensureIndexes(ctx context.Context, db *sqlx.DB, driver, table string, indexes []indexDef) ([]string, error) {
