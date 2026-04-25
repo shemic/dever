@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/shemic/dever/util"
 )
@@ -22,8 +23,9 @@ var errNoJSONMethod = errors.New("context: JSON method not found")
 type JSONAdapter func(raw any, status int, data any) (handled bool, err error)
 
 var (
-	jsonAdapters   []JSONAdapter
-	jsonAdapterMux sync.RWMutex
+	jsonAdapters      []JSONAdapter
+	jsonAdapterMux    sync.Mutex
+	jsonAdapterStored atomic.Value // stores []JSONAdapter
 
 	validatorCache util.ConcurrentMap[string, validatorCacheEntry]
 
@@ -49,15 +51,24 @@ type cachedMethods struct {
 
 // RegisterJSONAdapter 注册自定义 JSON 输出的扩展逻辑，例如 Fiber、Gin 等。
 func RegisterJSONAdapter(fn JSONAdapter) {
+	if fn == nil {
+		return
+	}
 	jsonAdapterMux.Lock()
 	defer jsonAdapterMux.Unlock()
-	jsonAdapters = append(jsonAdapters, fn)
+	next := make([]JSONAdapter, 0, len(jsonAdapters)+1)
+	next = append(next, jsonAdapters...)
+	next = append(next, fn)
+	jsonAdapters = next
+	jsonAdapterStored.Store(next)
 }
 
 func callJSONAdapters(raw any, status int, data any) (bool, error) {
-	jsonAdapterMux.RLock()
-	defer jsonAdapterMux.RUnlock()
-	for _, adapter := range jsonAdapters {
+	loaded := jsonAdapterStored.Load()
+	if loaded == nil {
+		return false, nil
+	}
+	for _, adapter := range loaded.([]JSONAdapter) {
 		if handled, err := adapter(raw, status, data); handled {
 			return true, err
 		} else if err != nil {
@@ -515,41 +526,55 @@ func (c *Context) Header(key string, defaultValue ...string) string {
 	return ""
 }
 
-// getCachedMethods retrieves or creates cached methods for a type
 func getCachedMethods(t reflect.Type) *cachedMethods {
 	if cached, ok := methodCache.Load(t); ok {
 		return cached
 	}
 
 	cm := &cachedMethods{}
-
-	// Cache Query method
 	if m, ok := t.MethodByName("Query"); ok {
 		cm.query = &m
 	}
-
-	// Cache Params method
 	if m, ok := t.MethodByName("Params"); ok {
 		cm.params = &m
 	}
-
-	// Cache FormValue method
 	if m, ok := t.MethodByName("FormValue"); ok {
 		cm.formValue = &m
 	}
-
-	// Cache Status method
 	if m, ok := t.MethodByName("Status"); ok {
 		cm.status = &m
 	}
-
-	// Cache JSON method
 	if m, ok := t.MethodByName("JSON"); ok {
 		cm.json = &m
 	}
-
 	methodCache.Store(t, cm)
 	return cm
+}
+
+func cachedMethodValue(raw any, name string) (reflect.Value, bool) {
+	rv := reflect.ValueOf(raw)
+	if !rv.IsValid() {
+		return reflect.Value{}, false
+	}
+
+	cached := getCachedMethods(rv.Type())
+	var method *reflect.Method
+	switch name {
+	case "Query":
+		method = cached.query
+	case "Params":
+		method = cached.params
+	case "FormValue":
+		method = cached.formValue
+	case "Status":
+		method = cached.status
+	case "JSON":
+		method = cached.json
+	}
+	if method == nil {
+		return reflect.Value{}, false
+	}
+	return rv.Method(method.Index), true
 }
 
 func lookupParamsString(raw any, key string, defaultValue ...string) (string, bool) {
@@ -596,35 +621,9 @@ func lookupFormValueString(raw any, key string) (string, bool) {
 }
 
 func lookupCachedStringMethod(raw any, methodName, key string, defaultValue ...string) (string, bool) {
-	rv := reflect.ValueOf(raw)
-	if !rv.IsValid() {
+	method, ok := cachedMethodValue(raw, methodName)
+	if !ok {
 		return "", false
-	}
-
-	// Use cached method if available
-	cached := getCachedMethods(rv.Type())
-	var method reflect.Value
-
-	switch methodName {
-	case "Query":
-		if cached.query != nil {
-			method = rv.Method(cached.query.Index)
-		}
-	case "Params":
-		if cached.params != nil {
-			method = rv.Method(cached.params.Index)
-		}
-	case "FormValue":
-		if cached.formValue != nil {
-			method = rv.Method(cached.formValue.Index)
-		}
-	}
-
-	if !method.IsValid() {
-		method = rv.MethodByName(methodName)
-		if !method.IsValid() {
-			return "", false
-		}
 	}
 
 	val := callStringMethod(method, key, defaultValue...)
@@ -641,21 +640,9 @@ func setStatusIfPossible(raw any, status int) {
 		return
 	}
 
-	rv := reflect.ValueOf(raw)
-	if !rv.IsValid() {
+	method, ok := cachedMethodValue(raw, "Status")
+	if !ok {
 		return
-	}
-
-	// Use cached method if available
-	cached := getCachedMethods(rv.Type())
-	var method reflect.Value
-	if cached.status != nil {
-		method = rv.Method(cached.status.Index)
-	} else {
-		method = rv.MethodByName("Status")
-		if !method.IsValid() {
-			return
-		}
 	}
 
 	if method.Type().NumIn() != 1 || method.Type().In(0).Kind() != reflect.Int {
@@ -664,40 +651,64 @@ func setStatusIfPossible(raw any, status int) {
 	method.Call([]reflect.Value{reflect.ValueOf(status)})
 }
 
-func callJSONReflect(raw any, status int, data any) error {
-	rv := reflect.ValueOf(raw)
-	if !rv.IsValid() {
-		return errNoJSONMethod
-	}
-
-	// Use cached method if available
-	cached := getCachedMethods(rv.Type())
-	var method reflect.Value
-	if cached.json != nil {
-		method = rv.Method(cached.json.Index)
-	} else {
-		method = rv.MethodByName("JSON")
-		if !method.IsValid() {
-			return errNoJSONMethod
+func callJSONReflect(raw any, status int, data any) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = errNoJSONMethod
 		}
+	}()
+
+	method, ok := cachedMethodValue(raw, "JSON")
+	if !ok {
+		return errNoJSONMethod
 	}
 
 	switch method.Type().NumIn() {
 	case 1:
-		results := method.Call([]reflect.Value{reflect.ValueOf(data)})
+		arg, ok := reflectArg(method.Type().In(0), data)
+		if !ok {
+			return errNoJSONMethod
+		}
+		results := method.Call([]reflect.Value{arg})
 		return extractError(results)
 	case 2:
 		if method.Type().In(0).Kind() != reflect.Int {
 			return errNoJSONMethod
 		}
+		arg, ok := reflectArg(method.Type().In(1), data)
+		if !ok {
+			return errNoJSONMethod
+		}
 		results := method.Call([]reflect.Value{
 			reflect.ValueOf(status),
-			reflect.ValueOf(data),
+			arg,
 		})
 		return extractError(results)
 	default:
 		return errNoJSONMethod
 	}
+}
+
+func reflectArg(target reflect.Type, value any) (reflect.Value, bool) {
+	if target == nil {
+		return reflect.Value{}, false
+	}
+	if value == nil {
+		switch target.Kind() {
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+			return reflect.Zero(target), true
+		default:
+			return reflect.Value{}, false
+		}
+	}
+	current := reflect.ValueOf(value)
+	if current.Type().AssignableTo(target) {
+		return current, true
+	}
+	if current.Type().ConvertibleTo(target) {
+		return current.Convert(target), true
+	}
+	return reflect.Value{}, false
 }
 
 func extractError(results []reflect.Value) error {
@@ -710,12 +721,25 @@ func extractError(results []reflect.Value) error {
 	return nil
 }
 
-func callStringMethod(method reflect.Value, key string, defaultValue ...string) string {
+func callStringMethod(method reflect.Value, key string, defaultValue ...string) (result string) {
+	fallback := ""
+	if len(defaultValue) > 0 {
+		fallback = defaultValue[0]
+	}
+	defer func() {
+		if recover() != nil {
+			result = fallback
+		}
+	}()
+
 	methodType := method.Type()
+	if methodType.NumIn() == 0 || methodType.In(0).Kind() != reflect.String {
+		return fallback
+	}
 	args := []reflect.Value{reflect.ValueOf(key)}
 
 	if methodType.IsVariadic() {
-		if len(defaultValue) > 0 {
+		if len(defaultValue) > 0 && methodType.NumIn() > 1 && methodType.In(methodType.NumIn()-1).Elem().Kind() == reflect.String {
 			args = append(args, reflect.ValueOf(defaultValue[0]))
 		}
 	} else {
@@ -729,27 +753,21 @@ func callStringMethod(method reflect.Value, key string, defaultValue ...string) 
 				args = append(args, reflect.Zero(methodType.In(1)))
 			}
 		default:
-			return ""
+			return fallback
 		}
 	}
 
 	results := method.Call(args)
 	if len(results) == 0 {
-		if len(defaultValue) > 0 {
-			return defaultValue[0]
-		}
-		return ""
+		return fallback
 	}
 	if str, ok := results[0].Interface().(string); ok {
-		if str == "" && len(defaultValue) > 0 {
-			return defaultValue[0]
+		if str == "" {
+			return fallback
 		}
 		return str
 	}
-	if len(defaultValue) > 0 {
-		return defaultValue[0]
-	}
-	return ""
+	return fallback
 }
 
 type validatorCacheEntry struct {

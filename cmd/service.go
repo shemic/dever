@@ -53,7 +53,10 @@ func GenerateServices(projectRoot string) error {
 
 	for _, source := range moduleSources {
 		walkErr := filepath.Walk(source.Root, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
+			if err != nil {
+				return err
+			}
+			if info == nil || info.IsDir() {
 				return nil
 			}
 			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {

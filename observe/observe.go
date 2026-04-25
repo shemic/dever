@@ -238,8 +238,10 @@ func (s *runtimeSpan) End() {
 	s.once.Do(func() {
 		s.snapshot.EndedAt = time.Now()
 		s.snapshot.Duration = s.snapshot.EndedAt.Sub(s.snapshot.StartedAt)
+		snapshot := s.snapshot
+
 		for _, provider := range s.cfg.provider {
-			provider.OnFinish(s.ctx, s.snapshot)
+			provider.OnFinish(s.ctx, snapshot)
 		}
 	})
 }

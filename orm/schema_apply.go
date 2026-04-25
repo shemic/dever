@@ -544,6 +544,9 @@ func loadExistingColumns(ctx context.Context, db *sqlx.DB, driver, table string)
 			}
 			result[strings.ToLower(name)] = name
 		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	case "mysql":
 		query := "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?"
 		rows, err := db.QueryxContext(ctx, query, table)
@@ -557,6 +560,9 @@ func loadExistingColumns(ctx context.Context, db *sqlx.DB, driver, table string)
 				return nil, err
 			}
 			result[strings.ToLower(name)] = name
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
 		}
 	case "sqlite":
 		query := fmt.Sprintf("PRAGMA table_info(%s)", quoteIdentifier(driver, table))
@@ -574,6 +580,9 @@ func loadExistingColumns(ctx context.Context, db *sqlx.DB, driver, table string)
 				return nil, err
 			}
 			result[strings.ToLower(name)] = name
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
 		}
 	default:
 		return nil, fmt.Errorf("orm: unsupported driver %s", driver)
@@ -641,6 +650,9 @@ func loadExistingIndexes(ctx context.Context, db *sqlx.DB, driver, table string)
 			key := strings.ToLower(name)
 			result[key] = indexState{Name: name, Columns: cols, Unique: unique}
 		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	case "mysql":
 		query := "SELECT index_name, non_unique, column_name, seq_in_index FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? ORDER BY index_name, seq_in_index"
 		rows, err := db.QueryxContext(ctx, query, table)
@@ -665,6 +677,9 @@ func loadExistingIndexes(ctx context.Context, db *sqlx.DB, driver, table string)
 			state.Columns = append(state.Columns, column)
 			result[key] = state
 		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	case "sqlite":
 		query := fmt.Sprintf("PRAGMA index_list(%s)", quoteIdentifier(driver, table))
 		rows, err := db.QueryxContext(ctx, query)
@@ -688,6 +703,9 @@ func loadExistingIndexes(ctx context.Context, db *sqlx.DB, driver, table string)
 				continue
 			}
 			meta[name] = indexMeta{name: name, unique: unique == 1}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
 		}
 		for name, info := range meta {
 			cols, err := loadSQLiteIndexColumns(ctx, db, name)
@@ -744,6 +762,9 @@ func loadSQLiteIndexColumns(ctx context.Context, db *sqlx.DB, indexName string) 
 			return nil, err
 		}
 		columns = append(columns, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return columns, nil
 }

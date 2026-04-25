@@ -51,7 +51,10 @@ func GenerateRoutes(projectRoot string) error {
 
 	for _, source := range moduleSources {
 		walkErr := filepath.Walk(source.Root, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
+			if err != nil {
+				return err
+			}
+			if info == nil || info.IsDir() {
 				return nil
 			}
 			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
@@ -75,7 +78,10 @@ func GenerateRoutes(projectRoot string) error {
 			importPath := joinImportPath(source.Import, parts[:len(parts)-1]...)
 			alias := ensureAlias(importAliases, aliasUsage, importPath, filepath.Join(source.Name, filepath.Dir(relPath)))
 
-			content, _ := os.ReadFile(path)
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("读取 API 文件失败 %s: %w", path, err)
+			}
 			methodMatches := apiMethodRegexp.FindAllStringSubmatch(string(content), -1)
 			for _, m := range methodMatches {
 				recvType := m[1]
@@ -177,7 +183,9 @@ func RegisterRoutes(r server.Server) {
 		resultMsg = "✅ Routes generated successfully → " + output
 	}
 
-	os.MkdirAll(filepath.Dir(output), 0755)
+	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+		return fmt.Errorf("创建路由输出目录失败: %w", err)
+	}
 	if err := os.WriteFile(output, []byte(code), 0644); err != nil {
 		return err
 	}
@@ -316,14 +324,17 @@ func isAcronymPlural(s string) bool {
 // 检测 server.Server 方法风格（Get 还是 GET）
 func detectServerMethodStyle(serverDir string) string {
 	methodStyle := "Title" // 默认 r.Get()
-	filepath.Walk(serverDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	_ = filepath.Walk(serverDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
 			return nil
 		}
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-		content, _ := os.ReadFile(path)
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil
+		}
 		if strings.Contains(string(content), "func (") {
 			if strings.Contains(string(content), "GET(") {
 				methodStyle = "Upper"

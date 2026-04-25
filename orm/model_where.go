@@ -260,6 +260,21 @@ func valueSlice(value any) ([]any, bool) {
 	if value == nil {
 		return nil, false
 	}
+	switch v := value.(type) {
+	case []any:
+		return v, true
+	case []string:
+		return typedValueSlice(v), true
+	case []int:
+		return typedValueSlice(v), true
+	case []int64:
+		return typedValueSlice(v), true
+	case []uint:
+		return typedValueSlice(v), true
+	case []uint64:
+		return typedValueSlice(v), true
+	}
+
 	rv := reflect.ValueOf(value)
 	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
 		return nil, false
@@ -270,6 +285,14 @@ func valueSlice(value any) ([]any, bool) {
 		result = append(result, rv.Index(i).Interface())
 	}
 	return result, true
+}
+
+func typedValueSlice[T any](items []T) []any {
+	result := make([]any, len(items))
+	for i := range items {
+		result[i] = items[i]
+	}
+	return result
 }
 
 func ensureQualifiedIdentifier(name string) error {

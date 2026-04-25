@@ -21,7 +21,12 @@ var (
 	registered = map[string]*tableSchema{}
 )
 
-var schemaOnceMap util.ConcurrentMap[string, *sync.Once]
+type schemaOnceEntry struct {
+	once sync.Once
+	err  error
+}
+
+var schemaOnceMap util.ConcurrentMap[string, *schemaOnceEntry]
 
 var pendingSchemaResetState struct {
 	mu     sync.Mutex
@@ -209,12 +214,11 @@ func registerSchemaOnce(table string, model any, options schemaOptions) error {
 	if lower == "" {
 		return errors.New("orm: table name required for registration")
 	}
-	once, _ := schemaOnceMap.LoadOrStore(lower, &sync.Once{})
-	var onceErr error
-	once.Do(func() {
-		onceErr = registerSchemaWithOptions(table, model, options.indexes, options.seeds)
+	entry, _ := schemaOnceMap.LoadOrStore(lower, &schemaOnceEntry{})
+	entry.once.Do(func() {
+		entry.err = registerSchemaWithOptions(table, model, options.indexes, options.seeds)
 	})
-	return onceErr
+	return entry.err
 }
 
 type schemaOptions struct {
@@ -820,7 +824,6 @@ func listRecordedSchemas() ([]*tableSchema, error) {
 				continue
 			}
 			schema.Table = strings.TrimSpace(schema.Table)
-			schema.ensureLookup()
 			seen[tableName] = struct{}{}
 			schemaCopy := schema
 			schemas = append(schemas, &schemaCopy)

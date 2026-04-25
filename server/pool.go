@@ -16,6 +16,9 @@ func GetContext(raw any) *Context {
 }
 
 func ReleaseContext(c *Context) {
+	if c == nil {
+		return
+	}
 	c.Raw = nil
 	c.jsonPayload = nil
 	c.jsonOnce = sync.Once{}

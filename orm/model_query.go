@@ -56,6 +56,7 @@ func (m *modelCore) selectMapsWithOptions(ctx context.Context, filters any, opti
 		}
 		result = append(result, record)
 	}
+	panicOnError(rows.Err())
 	if result == nil {
 		return []map[string]any{}
 	}

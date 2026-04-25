@@ -402,8 +402,27 @@ func modelCacheKey(table string, args ...any) string {
 				builder.WriteString(fmt.Sprintf("%v", row))
 			}
 		default:
+			if t := cacheKeyStructType(v); t != "" {
+				builder.WriteString("struct:")
+				builder.WriteString(t)
+				continue
+			}
 			builder.WriteString(fmt.Sprintf("%T:%v", v, v))
 		}
 	}
 	return builder.String()
+}
+
+func cacheKeyStructType(value any) string {
+	if value == nil {
+		return ""
+	}
+	t := reflect.TypeOf(value)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return ""
+	}
+	return t.String()
 }

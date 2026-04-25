@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -26,8 +25,8 @@ type httpJSONProvider struct {
 	headers  map[string]string
 	queue    chan Snapshot
 	dropped  atomic.Uint64
-	queueMu  sync.RWMutex
-	closed   bool
+	closed   atomic.Bool
+	stop     chan struct{}
 	done     chan struct{}
 }
 
@@ -74,6 +73,7 @@ func newHTTPJSONProvider(cfg Config) (Provider, error) {
 		endpoint: endpoint,
 		headers:  observeOptionHeaders(cfg.Options),
 		queue:    make(chan Snapshot, bufferSize),
+		stop:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}
 	go provider.loop()
@@ -83,40 +83,46 @@ func newHTTPJSONProvider(cfg Config) (Provider, error) {
 func (p *httpJSONProvider) OnStart(context.Context, Snapshot) {}
 
 func (p *httpJSONProvider) OnFinish(_ context.Context, snapshot Snapshot) {
-	snapshot = cloneSnapshot(snapshot)
-	p.queueMu.RLock()
-	if p.closed {
-		p.queueMu.RUnlock()
+	if p.closed.Load() {
 		return
 	}
-	queue := p.queue
+	snapshot = cloneSnapshot(snapshot)
 	endpoint := p.endpoint
-	p.queueMu.RUnlock()
 
 	select {
-	case queue <- snapshot:
+	case <-p.stop:
+		return
 	default:
-		dropped := p.dropped.Add(1)
-		if dropped == 1 || dropped%100 == 0 {
-			dlog.ErrorFields("observe_http_provider", "observe queue dropped", dlog.Fields{
-				"provider": "http",
-				"dropped":  dropped,
-				"reason":   "queue_full",
-				"endpoint": endpoint,
-			})
-		}
+	}
+
+	select {
+	case p.queue <- snapshot:
+		return
+	case <-p.stop:
+		return
+	default:
+	}
+
+	dropped := p.dropped.Add(1)
+	if dropped == 1 || dropped%100 == 0 {
+		dlog.ErrorFields("observe_http_provider", "observe queue dropped", dlog.Fields{
+			"provider": "http",
+			"dropped":  dropped,
+			"reason":   "queue_full",
+			"endpoint": endpoint,
+		})
 	}
 }
 
 func (p *httpJSONProvider) loop() {
 	defer close(p.done)
-	for snapshot := range p.queue {
-		if err := p.post(snapshot); err != nil {
-			dlog.ErrorFields("observe_http_provider", "observe push failed", dlog.Fields{
-				"provider": "http",
-				"endpoint": p.endpoint,
-				"error":    dlog.ErrorValue(err),
-			})
+	for {
+		select {
+		case snapshot := <-p.queue:
+			p.postAndLog(snapshot)
+		case <-p.stop:
+			p.drain()
+			return
 		}
 	}
 }
@@ -124,13 +130,10 @@ func (p *httpJSONProvider) loop() {
 func (p *httpJSONProvider) Shutdown(ctx context.Context) error {
 	ctx = normalizeContext(ctx)
 
-	p.queueMu.Lock()
-	if !p.closed {
-		p.closed = true
-		close(p.queue)
+	if p.closed.CompareAndSwap(false, true) {
+		close(p.stop)
 	}
 	done := p.done
-	p.queueMu.Unlock()
 
 	select {
 	case <-done:
@@ -138,6 +141,27 @@ func (p *httpJSONProvider) Shutdown(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (p *httpJSONProvider) drain() {
+	for {
+		select {
+		case snapshot := <-p.queue:
+			p.postAndLog(snapshot)
+		default:
+			return
+		}
+	}
+}
+
+func (p *httpJSONProvider) postAndLog(snapshot Snapshot) {
+	if err := p.post(snapshot); err != nil {
+		dlog.ErrorFields("observe_http_provider", "observe push failed", dlog.Fields{
+			"provider": "http",
+			"endpoint": p.endpoint,
+			"error":    dlog.ErrorValue(err),
+		})
 	}
 }
 
@@ -182,7 +206,7 @@ func buildHTTPJSONPayload(snapshot Snapshot) httpJSONPayload {
 		StartedAt:    snapshot.StartedAt,
 		EndedAt:      snapshot.EndedAt,
 		DurationMS:   snapshot.Duration.Milliseconds(),
-		Attributes:   util.CloneMap(snapshot.Attributes),
+		Attributes:   snapshot.Attributes,
 	}
 	if snapshot.Error != nil {
 		payload.Error = snapshot.Error.Error()
