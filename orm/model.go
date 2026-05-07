@@ -19,11 +19,13 @@ import (
 
 // modelCore 提供最小化的 CRUD 能力，并在初始化时支持基于结构体的自动建表/更新。
 type modelCore struct {
+	name         string
 	table        string
 	primaryKey   string
 	dbName       string
 	driverName   string
 	schema       *tableSchema
+	config       ModelConfig
 	dbOnce       sync.Once
 	dbCached     *sqlx.DB
 	dbErr        error
@@ -71,75 +73,38 @@ func EnsureCachedSchemas(ctx context.Context) error {
 	return nil
 }
 
-// newModelCore 创建模型，参数格式：
-//   - table 必填，表示表名
-//   - 可选参数：字符串表示数据库名称
-func newModelCore(table string, args ...any) (*modelCore, error) {
+// newModelCore 创建模型，name/table 是模型的业务名和表名，config 承载 ORM 与业务元信息。
+func newModelCore(name, table string, config ModelConfig) (*modelCore, error) {
+	name = strings.TrimSpace(name)
+	config = normalizeModelConfig(config)
 	m := &modelCore{
+		name:       name,
 		table:      table,
 		primaryKey: "id",
 		dbName:     currentDefaultDatabase(),
+		config:     config,
+	}
+	if m.name == "" {
+		m.name = table
+	}
+	if config.Database != "" {
+		m.dbName = config.Database
 	}
 
-	var (
-		schemaModel  any
-		indexModels  []any
-		seedRows     []map[string]any
-		defaultOrder string
-		orderSet     bool
-	)
-
-	for _, arg := range args {
-		switch v := arg.(type) {
-		case string:
-			trimmed := strings.TrimSpace(v)
-			if trimmed == "" {
-				continue
-			}
-			if schemaModel != nil && !orderSet && looksLikeOrder(trimmed) {
-				defaultOrder = trimmed
-				orderSet = true
-				continue
-			}
-			m.dbName = trimmed
-		case *string:
-			if v != nil && strings.TrimSpace(*v) != "" {
-				m.dbName = *v
-			}
-		case []map[string]any:
-			if len(v) > 0 {
-				seedRows = append(seedRows, cloneSeedRows(v)...)
-			}
-		case SeedData:
-			if len(v.Rows) > 0 {
-				seedRows = append(seedRows, cloneSeedRows(v.Rows)...)
-			}
-		case nil:
-			continue
-		default:
-			if isStructLike(v) {
-				if schemaModel == nil {
-					schemaModel = v
-				} else {
-					indexModels = append(indexModels, v)
-				}
-				continue
-			}
-			return nil, fmt.Errorf("orm: unsupported argument type %T for NewModel", v)
-		}
-	}
+	schemaModel := config.schema
+	indexModels := config.indexModels()
+	seedRows := cloneSeedRows(config.Seeds)
+	defaultOrder := strings.TrimSpace(config.Order)
 
 	table = applyTablePrefix(table, m.dbName)
 	m.table = table
 
-	if schemaModel != nil {
-		options := schemaOptions{
-			indexes: indexModels,
-			seeds:   seedRows,
-		}
-		if err := registerSchemaOnce(table, schemaModel, options); err != nil {
-			return nil, err
-		}
+	options := schemaOptions{
+		indexes: indexModels,
+		seeds:   seedRows,
+	}
+	if err := registerSchemaOnce(table, schemaModel, options); err != nil {
+		return nil, err
 	}
 
 	m.defaultOrder = strings.TrimSpace(defaultOrder)
@@ -149,6 +114,7 @@ func newModelCore(table string, args ...any) (*modelCore, error) {
 		return nil, fmt.Errorf("orm: table %s schema not registered, please call orm.RegisterModel", table)
 	}
 	m.schema = schema
+	m.config = m.config.withRuntimeMeta(m.name, m.table, m.dbName, m.defaultOrder, schema.labels())
 
 	if autoMigrateEnabled() {
 		if err := m.ensureSchema(context.Background()); err != nil {
@@ -160,24 +126,22 @@ func newModelCore(table string, args ...any) (*modelCore, error) {
 }
 
 // LoadModel 返回缓存的模型实例，若不存在则创建并缓存。
-func LoadModel[T any](table string, args ...any) *Model[T] {
-	if !hasSchemaType[T](args) {
-		var schema T
-		args = append([]any{schema}, args...)
-	}
-	core, err := loadModelCore(table, args...)
+func LoadModel[T any](name, table string, config ModelConfig) *Model[T] {
+	var schema T
+	config = config.withSchema(schema)
+	core, err := loadModelCore(name, table, config)
 	if err != nil {
 		panic(err)
 	}
 	return &Model[T]{modelCore: core}
 }
 
-func loadModelCore(table string, args ...any) (*modelCore, error) {
+func loadModelCore(name, table string, config ModelConfig) (*modelCore, error) {
 	if err := ensureDatabaseInitialized(); err != nil {
 		return nil, err
 	}
 
-	key := modelCacheKey(table, args...)
+	key := modelCacheKey(table, config)
 	modelCacheMu.RLock()
 	if cached, ok := modelCache[key]; ok {
 		modelCacheMu.RUnlock()
@@ -185,7 +149,7 @@ func loadModelCore(table string, args ...any) (*modelCore, error) {
 	}
 	modelCacheMu.RUnlock()
 
-	created, err := newModelCore(table, args...)
+	created, err := newModelCore(name, table, config)
 	if err != nil {
 		return nil, err
 	}

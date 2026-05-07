@@ -33,6 +33,9 @@ func Recover() Middleware {
 			if r := recover(); r != nil {
 				method, path, traceID, spanID := requestLogFields(c)
 				fields := requestSourceFields(c)
+				if fields == nil {
+					fields = dlog.Fields{}
+				}
 				fields["trace_id"] = traceID
 				fields["span_id"] = spanID
 				fields["method"] = method

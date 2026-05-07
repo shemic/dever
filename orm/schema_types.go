@@ -108,9 +108,17 @@ func (s *tableSchema) labels() map[string]string {
 	if len(s.labelLookup) == 0 {
 		return nil
 	}
-	result := make(map[string]string, len(s.labelLookup))
-	for key, value := range s.labelLookup {
-		result[key] = value
+	result := make(map[string]string, len(s.labelLookup)*2)
+	for _, col := range s.Columns {
+		label := strings.TrimSpace(col.Comment)
+		if label == "" {
+			continue
+		}
+		name := strings.TrimSpace(col.Name)
+		if name != "" {
+			result[name] = label
+		}
+		result[normalizeColumnKey(name)] = label
 	}
 	return result
 }

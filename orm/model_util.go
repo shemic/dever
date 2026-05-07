@@ -175,23 +175,6 @@ func isStructLike(v any) bool {
 	return t.Kind() == reflect.Struct
 }
 
-func hasSchemaType[T any](args []any) bool {
-	schemaType := reflect.TypeOf((*T)(nil)).Elem()
-	for _, arg := range args {
-		if arg == nil {
-			continue
-		}
-		t := reflect.TypeOf(arg)
-		if t == schemaType {
-			return true
-		}
-		if t.Kind() == reflect.Pointer && t.Elem() == schemaType {
-			return true
-		}
-	}
-	return false
-}
-
 func applyTablePrefix(table, dbName string) string {
 	prefix := getDatabasePrefix(dbName)
 	if prefix == "" {
@@ -221,17 +204,6 @@ func ensureIntoDest(dest any) error {
 		return fmt.Errorf("orm: into destination must be a non-nil pointer")
 	}
 	return nil
-}
-
-func looksLikeOrder(expr string) bool {
-	expr = strings.TrimSpace(expr)
-	if expr == "" {
-		return false
-	}
-	if strings.ContainsAny(expr, " \t,") {
-		return true
-	}
-	return strings.Contains(expr, ".")
 }
 
 func buildJoinClause(raw any) string {
@@ -367,62 +339,11 @@ func quoteWith(ident string, quoter func(string) string) string {
 	return quoter(ident)
 }
 
-func modelCacheKey(table string, args ...any) string {
+func modelCacheKey(table string, config ModelConfig) string {
 	normalizedTable := strings.ToLower(strings.TrimSpace(table))
-	if len(args) == 0 {
+	database := strings.ToLower(strings.TrimSpace(config.Database))
+	if database == "" {
 		return normalizedTable
 	}
-
-	var builder strings.Builder
-	builder.WriteString(normalizedTable)
-	builder.WriteByte('|')
-	for i, arg := range args {
-		if i > 0 {
-			builder.WriteByte(';')
-		}
-		switch v := arg.(type) {
-		case nil:
-			builder.WriteString("nil")
-		case string:
-			builder.WriteString("s:")
-			builder.WriteString(strings.TrimSpace(v))
-		case *string:
-			builder.WriteString("ps:")
-			if v != nil {
-				builder.WriteString(strings.TrimSpace(*v))
-			}
-		case []map[string]any:
-			builder.WriteString("seeds:")
-			for _, row := range v {
-				builder.WriteString(fmt.Sprintf("%v", row))
-			}
-		case SeedData:
-			builder.WriteString("seeddata:")
-			for _, row := range v.Rows {
-				builder.WriteString(fmt.Sprintf("%v", row))
-			}
-		default:
-			if t := cacheKeyStructType(v); t != "" {
-				builder.WriteString("struct:")
-				builder.WriteString(t)
-				continue
-			}
-			builder.WriteString(fmt.Sprintf("%T:%v", v, v))
-		}
-	}
-	return builder.String()
-}
-
-func cacheKeyStructType(value any) string {
-	if value == nil {
-		return ""
-	}
-	t := reflect.TypeOf(value)
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	if t.Kind() != reflect.Struct {
-		return ""
-	}
-	return t.String()
+	return normalizedTable + "|" + database
 }
