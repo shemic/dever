@@ -12,9 +12,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/shemic/dever/config"
 )
 
 const (
@@ -38,6 +41,7 @@ type watchedProcess struct {
 	root       string
 	entry      string
 	binaryPath string
+	listenPort int
 	cmd        *exec.Cmd
 	done       chan error
 }
@@ -87,6 +91,11 @@ func runHotReload(options watchRunOptions) error {
 		root:       options.projectRoot,
 		entry:      options.entry,
 		binaryPath: filepath.Join(options.projectRoot, "tmp", "dever-run", "app"),
+	}
+	if listenPort, err := loadRunListenPort(options.projectRoot); err != nil {
+		log.Printf("读取监听端口失败，跳过旧进程清理: %v", err)
+	} else {
+		process.listenPort = listenPort
 	}
 	if err := process.restart("初始启动", true); err != nil {
 		return err
@@ -154,6 +163,9 @@ func (p *watchedProcess) restart(reason string, rebuild bool) error {
 	}
 
 	if err := p.stop(processStopTimeout); err != nil {
+		return err
+	}
+	if err := p.stopStalePortOwners(processStopTimeout); err != nil {
 		return err
 	}
 
@@ -227,6 +239,262 @@ func (p *watchedProcess) stop(timeout time.Duration) error {
 		<-done
 		return nil
 	}
+}
+
+func (p *watchedProcess) stopStalePortOwners(timeout time.Duration) error {
+	if p == nil || p.listenPort <= 0 {
+		return nil
+	}
+	pids, err := listeningPIDsOnPort(p.listenPort)
+	if err != nil {
+		return fmt.Errorf("检查端口 %d 占用失败: %w", p.listenPort, err)
+	}
+	if len(pids) == 0 {
+		return nil
+	}
+
+	ownedPIDs := make([]int, 0, len(pids))
+	foreignPIDs := make([]int, 0)
+	for _, pid := range pids {
+		if pid == os.Getpid() {
+			continue
+		}
+		if isProjectRunProcess(pid, p.root, p.binaryPath) {
+			ownedPIDs = append(ownedPIDs, pid)
+			continue
+		}
+		foreignPIDs = append(foreignPIDs, pid)
+	}
+	if len(foreignPIDs) > 0 {
+		return fmt.Errorf("端口 %d 已被非当前项目 dever run 进程占用: %s", p.listenPort, formatPIDs(foreignPIDs))
+	}
+	for _, pid := range ownedPIDs {
+		log.Printf("检测到旧运行进程占用端口 %d，正在关闭 pid=%d", p.listenPort, pid)
+		if err := terminateProcess(pid, timeout); err != nil {
+			return fmt.Errorf("关闭旧运行进程 pid=%d 失败: %w", pid, err)
+		}
+	}
+	if err := waitPortReleased(p.listenPort, timeout); err != nil {
+		return err
+	}
+	return nil
+}
+
+func loadRunListenPort(projectRoot string) (int, error) {
+	cfg, err := config.Load(filepath.Join(projectRoot, config.DefaultPath))
+	if err != nil {
+		return 0, err
+	}
+	return cfg.HTTP.Port, nil
+}
+
+func listeningPIDsOnPort(port int) ([]int, error) {
+	if port <= 0 {
+		return nil, nil
+	}
+	inodes, err := listeningSocketInodes(port)
+	if err != nil {
+		return nil, err
+	}
+	if len(inodes) == 0 {
+		return nil, nil
+	}
+	return pidsBySocketInode(inodes)
+}
+
+func listeningSocketInodes(port int) (map[string]bool, error) {
+	result := map[string]bool{}
+	for _, path := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, err
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) < 10 || fields[0] == "sl" || fields[3] != "0A" {
+				continue
+			}
+			if tcpLinePort(fields[1]) != port {
+				continue
+			}
+			result[fields[9]] = true
+		}
+	}
+	return result, nil
+}
+
+func tcpLinePort(localAddress string) int {
+	_, portHex, ok := strings.Cut(localAddress, ":")
+	if !ok {
+		return 0
+	}
+	value, err := strconv.ParseInt(portHex, 16, 32)
+	if err != nil {
+		return 0
+	}
+	return int(value)
+}
+
+func pidsBySocketInode(inodes map[string]bool) ([]int, error) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil, err
+	}
+
+	pidSet := map[int]bool{}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil {
+			continue
+		}
+		fdDir := filepath.Join("/proc", entry.Name(), "fd")
+		fds, err := os.ReadDir(fdDir)
+		if err != nil {
+			continue
+		}
+		for _, fd := range fds {
+			target, err := os.Readlink(filepath.Join(fdDir, fd.Name()))
+			if err != nil || !strings.HasPrefix(target, "socket:[") || !strings.HasSuffix(target, "]") {
+				continue
+			}
+			inode := strings.TrimSuffix(strings.TrimPrefix(target, "socket:["), "]")
+			if inodes[inode] {
+				pidSet[pid] = true
+				break
+			}
+		}
+	}
+
+	pids := make([]int, 0, len(pidSet))
+	for pid := range pidSet {
+		pids = append(pids, pid)
+	}
+	sort.Ints(pids)
+	return pids, nil
+}
+
+func isProjectRunProcess(pid int, projectRoot string, binaryPath string) bool {
+	if sameProcessPath(readProcLink(pid, "exe"), binaryPath) {
+		return true
+	}
+	if sameProcessPath(firstProcCmdlineArg(pid), binaryPath) {
+		return true
+	}
+	return sameProcessPath(readProcLink(pid, "cwd"), projectRoot)
+}
+
+func readProcLink(pid int, name string) string {
+	target, err := os.Readlink(filepath.Join("/proc", strconv.Itoa(pid), name))
+	if err != nil {
+		return ""
+	}
+	return target
+}
+
+func firstProcCmdlineArg(pid int) string {
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	parts := strings.Split(string(data), "\x00")
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[0]
+}
+
+func sameProcessPath(left string, right string) bool {
+	left = normalizeProcessPath(left)
+	right = normalizeProcessPath(right)
+	return left != "" && right != "" && left == right
+}
+
+func normalizeProcessPath(path string) string {
+	path = strings.TrimSpace(strings.TrimSuffix(path, " (deleted)"))
+	if path == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	return filepath.Clean(abs)
+}
+
+func terminateProcess(pid int, timeout time.Duration) error {
+	if pid <= 0 {
+		return nil
+	}
+	signalProcessGroupOrPID(pid, syscall.SIGTERM)
+	if waitProcessExit(pid, timeout) {
+		return nil
+	}
+	signalProcessGroupOrPID(pid, syscall.SIGKILL)
+	if waitProcessExit(pid, timeout) {
+		return nil
+	}
+	return fmt.Errorf("进程未退出")
+}
+
+func signalProcessGroupOrPID(pid int, signal syscall.Signal) {
+	if err := syscall.Kill(-pid, signal); err != nil && !isMissingProcessError(err) {
+		_ = syscall.Kill(pid, signal)
+	}
+}
+
+func waitProcessExit(pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if !processExists(pid) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func processExists(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil || !isMissingProcessError(err)
+}
+
+func waitPortReleased(port int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		pids, err := listeningPIDsOnPort(port)
+		if err != nil {
+			return err
+		}
+		if len(pids) == 0 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("端口 %d 仍被占用: %s", port, formatPIDs(pids))
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func formatPIDs(pids []int) string {
+	if len(pids) == 0 {
+		return ""
+	}
+	values := make([]string, 0, len(pids))
+	for _, pid := range pids {
+		values = append(values, strconv.Itoa(pid))
+	}
+	return strings.Join(values, ",")
 }
 
 func (p *watchedProcess) doneChannel() <-chan error {

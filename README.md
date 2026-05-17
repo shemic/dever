@@ -1,64 +1,83 @@
 # Dever 框架开发指南
 
-本指南面向第一次接触 Dever 的开发者。文档按照 `dever/` 目录的核心功能组织，帮助你理解配置、命令行、服务器适配、ORM、锁与模块开发流程。
+本指南按当前 `dever/` 代码维护，面向业务项目中内嵌或引用 Dever 的开发者。重点是怎么启动、生成注册文件、写模块、接入 ORM、使用中间件、打包和提交。
 
 ## 1. 功能概览
+
 | 目录 | 作用 |
 | --- | --- |
-| `cmd/` | 提供 `run`、`routes`、`init`、`migrate` 等命令，负责启动 Fiber 服务、自动生成路由、整理依赖。|
-| `config/` | 解析 `config/setting.json`，支持多数据库连接、日志/HTTP/Redis 默认值。|
-| `server/` | 抽象 HTTP Server，提供统一 `Context`、JSON 适配和 Fiber 实现 (`server/http`)。|
-| `middleware/` | 全局与路由级中间件注册，默认组合 Recover + Log。|
-| `load/` | 服务与模型注册中心，通过 `load.Service("<provider 名>")` 调用自动注册的 Provider，或用 `load.Model("user")` 缓存模型。|
-| `orm/` | 结构体驱动的 ORM，内建自动迁移、CRUD、复杂过滤、事务、悲观/乐观锁。|
-| `lock/` | Redis 原子扣减组件，提供 `Dec/Inc` 与 `WithFloor/WithCeiling/WithTTL` 配置。|
-| `log/` | 访问与错误日志配置，`dlog.Configure` 统一初始化。|
-| `util/` | Map 与字符串等轻量工具函数。|
+| `cmd/` | 框架运行入口与生成器：启动 HTTP 服务，生成 `data/router.go`、`data/load/service.go`、`data/load/model.go`，执行迁移。 |
+| `cmd/dever/` | 开发命令行：`run`、`build`、`init`、`routes`、`service`、`model`、`migrate`、`install`、`push`。 |
+| `config/` | 读取 `config/setting.jsonc` 或 `config/setting.json`，提供日志、HTTP、数据库、Redis、observe、auth 等配置结构。 |
+| `server/` | 统一 HTTP 抽象，封装 `server.Context`、请求参数、JSON 响应和 Fiber 适配。 |
+| `middleware/` | 全局与路由级中间件注册，默认提供 Recover + Log。 |
+| `load/` | Provider 与 Model 注册中心，读取生成后的 `data/load/*.go`。 |
+| `orm/` | 泛型 Model、结构体 schema、自动迁移、CRUD、聚合、事务、乐观锁、schema 持久化。 |
+| `lock/` | Redis 原子增减，支持上下限和 TTL。 |
+| `log/` | 结构化访问日志和错误日志。 |
+| `observe/` | 请求和 SQL 观测埋点，支持内置 provider 和扩展 provider。 |
+| `auth/jwt/` | 可配置 JWT scheme、guard 和中间件。 |
+| `util/` | JSONC、类型转换、模块源码解析等通用工具。 |
 
-## 2. 环境准备与快速启动
-1. 安装 Go 1.25+，在项目根目录执行 `go mod download`。
-2. 确认 `config/setting.jsonc` 或 `config/setting.json` 已配置数据库/Redis。默认结构参见第 3 节。
-3. 启动服务：
-   ```sh
-   go run .
-   ```
-   主函数会调用 `dever/cmd.Run(data.RegisterRoutes)`，注册 `data/router.go` 中自动生成的路由，并装配日志、中间件、锁配置。
-4. 开发期热重载可使用：
-   ```sh
-   go run ./dever/cmd/dever run
-   ```
-   或先执行 `go run ./dever/cmd/dever install` 安装到用户 bin 目录，再直接运行 `dever run`。安装命令会直接写入一个启动脚本，始终执行当前项目里的 `dever/cmd/dever` 源码。
-5. 停止服务可使用 `Ctrl+C`，框架会等待 `shutdownTimeout` 后优雅退出。
+## 2. 快速启动
 
-## 3. 配置（`dever/config`）
-统一配置文件优先读取 `config/setting.jsonc`，找不到时回退 `config/setting.json`：
+在业务项目根目录执行。若项目通过 `replace github.com/shemic/dever => ./dever` 使用本地框架，命令路径就是 `./dever/cmd/dever`。
+
+```sh
+go run ./dever/cmd/dever install
+dever run
+```
+
+`install` 会把一个 `dever` 启动脚本写入用户 bin 目录，脚本始终执行当前项目内的 `dever/cmd/dever` 源码。后续日常开发优先使用 `dever run`，它会先执行 `init --skip-tidy`，并在 `module/*/{api,service,model}` 等敏感文件变化后重新生成注册文件再重启服务。
+
+常用发布和提交命令：
+
+```sh
+dever build
+dever push
+```
+
+`dever build` 默认打包当前项目根入口 `main.go`，目标为 `linux/amd64`、关闭 CGO，并使用 release 参数 `-trimpath -buildvcs=false -ldflags="-s -w -buildid="`。`dever push` 会读取 `git status`，把有变更的文件加入暂存区，执行 `git commit -m "edit"`，最后 `git push`；没有本地变更时直接 `git push`。
+
+## 3. 配置
+
+默认读取 `config/setting.jsonc`，不存在时回退 `config/setting.json`。数据库配置不使用 `connections` 包裹，多连接直接写在 `database` 下：
 
 ```json
 {
   "log": {
     "level": "info",
-    "development": false,
-    "output": "file",
+    "output": "stdout",
     "successFile": "data/log/access.log",
     "errorFile": "data/log/error.log"
   },
+  "observe": {
+    "enabled": true,
+    "provider": "builtin",
+    "slowRequest": "500ms",
+    "slowSQL": "200ms"
+  },
   "http": {
     "host": "0.0.0.0",
-    "port": 8081,
+    "port": 8080,
     "shutdownTimeout": "10s",
-    "appName": "Dever Demo",
+    "appName": "Dever",
     "enableTuning": true,
-    "prefork": false,
-    "serverHeader": "work"
+    "cors": {
+      "enabled": true,
+      "allowOrigins": ["*"]
+    }
   },
   "database": {
     "create": true,
+    "persist": true,
+    "migrationLog": false,
     "default": {
       "driver": "mysql",
-      "host": "127.0.0.1:3310",
+      "host": "127.0.0.1:3306",
       "user": "root",
       "pwd": "123456",
-      "dbname": "ydb",
+      "dbname": "demo",
       "maxOpenConns": 20,
       "maxIdleConns": 10,
       "connMaxLifetime": "300s"
@@ -67,162 +86,345 @@
   "redis": {
     "enable": false,
     "addr": "127.0.0.1:6379",
-    "prefix": "work:"
+    "prefix": "demo:"
   }
 }
 ```
 
-- `log` 支持按访问/错误拆分输出，`output="stdout|stderr|file|off"`；若目录不存在将自动创建。
-- `http` 配置会传入 Fiber，`enableTuning=false` 时使用最小化配置以保持 KISS。
-- `database` 可写多个连接：`"connections": {"default": {...}, "reporting": {...}}`，`create=true` 打开自动迁移；`persist`、`migrationLog` 控制表结构持久化。
-- `redis` 只在需要 `lock` 时启用，遵循 YAGNI；`prefix` 会自动拼接在所有键前。
+多数据库示例：
 
-## 4. 命令行工具（`dever/cmd`）
+```json
+{
+  "database": {
+    "create": true,
+    "default": "main",
+    "main": {"driver": "mysql", "host": "127.0.0.1:3306", "user": "root", "pwd": "123456", "dbname": "main"},
+    "report": {"driver": "mysql", "host": "127.0.0.1:3306", "user": "root", "pwd": "123456", "dbname": "report"}
+  }
+}
+```
+
+配置要点：
+
+- `database.create=true` 会在首次加载 Model 时启用自动建表和结构更新。
+- `database.persist=true` 会把 schema 记录到 `data/table`，`dever migrate <database>` 会读取这些记录应用到目标数据库。
+- `database.default` 可以是连接名，也可以直接是默认连接对象。
+- `http.cors.enabled=true` 时，未配置 method/header 会使用框架默认值。
+- `observe.enabled=true` 时，请求中间件和 ORM 会记录 trace/span、慢请求和慢 SQL。
+
+## 4. 命令行
+
+安装后使用 `dever ...`；未安装时使用 `go run ./dever/cmd/dever ...`。
+
 | 命令 | 说明 |
 | --- | --- |
-| `go run ./dever/cmd/dever run` | 监听项目文件变化，必要时先执行 `init --skip-tidy`，再自动重启当前项目。|
-| `go run ./dever/cmd/dever routes` | 扫描 `module/*/api/*.go`，根据函数名生成 `data/router.go`。所有 API 修改后必须执行。|
-| `go run ./dever/cmd/dever service` | 扫描 `module/*/service/*.go`，提取 `Provider*` 方法并写入 `data/load/service.go`。|
-| `go run ./dever/cmd/dever init` | 合并 routes、service、model 等生成与依赖整理流程。|
-| `go run ./dever/cmd/dever migrate` | 执行模型迁移（依赖于 ORM 注册的 schema）。|
-| `go run ./dever/cmd/dever install` | 直接写入一个 `dever` 启动脚本到用户 bin 目录，便于直接执行 `dever run` 并始终使用当前项目里的 `dever/cmd/dever` 源码。|
+| `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`data`、`dever`、`middleware`、`module`、`package` 等目录。 |
+| `dever build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
+| `dever init [--project-root=.] [--skip-tidy]` | 执行 `go mod tidy`，然后生成 routes、service、model 注册文件。 |
+| `dever routes [--project-root=.]` | 只扫描 API 并生成 `data/router.go`。 |
+| `dever service [--project-root=.]` | 只扫描 Provider 并生成 `data/load/service.go`。 |
+| `dever model [--project-root=.]` | 只扫描 Model 构造函数并生成 `data/load/model.go`。 |
+| `dever migrate [--project-root=.] <database>` | 将 `data/table` 中记录的 schema 应用到指定数据库。 |
+| `dever install [--project-root=.] [--bin-dir=]` | 安装本项目绑定的 `dever` 启动脚本。 |
+| `dever push [--project-root=.] [--message=edit] [-m edit]` | 默认对调用 `dever` 时所在目录执行 git 操作；输出 `git status --short`，`git add` 变更文件，`git commit -m <message>`，最后 `git push`。 |
 
-`cmd/run.go` 会：
-1. 调用 `config.Load` 读取配置；
-2. 通过 `lock.Configure` 记录 Redis 设置；
-3. `dlog.Configure` 初始化访问/错误日志；
-4. 使用 `server/http` 创建 Fiber 应用，注册路由后启动；
-5. 阻塞等待信号并优雅关闭。
+日常开发只需要 `dever run`。显式执行 `routes/service/model/init` 主要用于排查生成问题，生成文件不要手改：
 
-## 5. 服务器与中间件
-- `server.Server` 定义统一接口，当前实现位于 `server/http`，对 Fiber 进行封装。
-- `server.Context` 暴露 `Input/BindJSON/JSON/Error`：
-  ```go
-  func GetUser(c *server.Context) error {
-      id := c.Input("id", "is_number", "用户ID")
-      return c.JSON(service.GetUser(c.Context(), map[string]any{"id": id}))
-  }
-  ```
-- `middleware.Init()` 组合 Recover + Log，可在 `main.go` 或模块初始化中执行 `middleware.UseGlobal(middleware.Init())`。
-- 自定义中间件：
-  ```go
-  middleware.UseRouteFunc("POST", "/user/test/add", func(ctx any) error {
-      // 访问 *server.Context
-      return nil
-  })
-  ```
+- `data/router.go`
+- `data/load/service.go`
+- `data/load/model.go`
 
-## 6. 模块化开发流程
-模块统一存放在 `module/<name>`，包含 `api/`、`model/`、`service/`、`world/` 等子目录。
+## 5. 服务入口
 
-### 6.1 Model（`dever/orm`）
+业务项目入口通常很薄：
+
+```go
+package main
+
+import (
+    "log"
+
+    "your/project/data"
+    "github.com/shemic/dever/cmd"
+)
+
+func main() {
+    if err := cmd.Run(data.RegisterRoutes); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+`cmd.Run` 会读取配置、配置 Redis lock、初始化日志、初始化 observe、创建 Fiber Server、注册路由，并在收到退出信号后按 `http.shutdownTimeout` 优雅关闭。
+
+## 6. 模块开发
+
+业务模块放在 `module/<name>`。当前生成器关注三个目录：
+
+```text
+module/<name>/
+  api/
+  model/
+  service/
+```
+
+如果 `module/<name>/main.go` 写了 `// dever:import <import-path>`，生成器会通过 `go list` 找到真实源码目录，适合把可复用 package 挂到项目模块名下。
+
+### 6.1 Model
+
+`model` 目录中所有导出的普通函数都会进入 `data/load/model.go`。推荐一个资源一个构造函数，返回 `*orm.Model[T]`：
+
 ```go
 package model
 
+import (
+    "time"
+
+    "github.com/shemic/dever/orm"
+)
+
 type User struct {
-    ID    uint   `dorm:"primaryKey;autoIncrement"`
-    Name  string `dorm:"size:64;not null"`
-    Email string `dorm:"size:128;unique"`
+    ID        uint64    `dorm:"primaryKey;autoIncrement"`
+    Name      string    `dorm:"size:64;not null"`
+    Email     string    `dorm:"size:128;unique"`
+    Status    int       `dorm:"default:1"`
+    Version   int       `dorm:"default:1"`
+    CreatedAt time.Time `dorm:"autoCreateTime"`
+    UpdatedAt time.Time `dorm:"autoUpdateTime"`
 }
 
 type UserIndex struct {
     Email struct{} `unique:"email"`
+    Status struct{} `index:"status"`
 }
 
-var UserDefault = []map[string]any{
-    {"name": "admin", "email": "admin@example.com"},
-}
-
-func NewUserModel() *orm.Model {
-    return orm.MustLoadModel("user", User{}, UserIndex{}, UserDefault, "id desc", "default")
+func NewUserModel() *orm.Model[User] {
+    return orm.LoadModel[User]("用户", "user", orm.ModelConfig{
+        Index:    UserIndex{},
+        Order:    "id desc",
+        Database: "default",
+        Options: map[string]any{
+            "status": []map[string]any{
+                {"id": 1, "name": "启用"},
+                {"id": 2, "name": "禁用"},
+            },
+        },
+    })
 }
 ```
-- `MustLoadModel` 会缓存模型，必要时自动建表；
-- `UserDefault` 仅在首次建表时写入；
-- `orm.EnsureCachedSchemas` 可在初始化阶段同步所有模型结构。
 
-### 6.2 Service 与 Provider 注册
+说明：
+
+- `LoadModel[T](name, table, config)` 会缓存模型实例。
+- 首次加载 Model 时，ORM 会读取数据库配置并初始化连接。
+- `ModelConfig.Index` / `Indexes` 描述索引，`Seeds` 描述建表初始数据，`Options` / `Relations` 可供后台页面和运行时元数据使用。
+- 生成后的注册名形如 `user.NewUserModel`，可用 `load.Model("user.NewUserModel")` 获取。
+
+### 6.2 Service 与 Provider
+
+Service 承载业务编排，普通方法不要求固定签名；只有需要被 `load.Service` 动态调用的方法才写成 `ProviderXxx`。
+
 ```go
 package service
 
-func GetInfo(ctx context.Context, params map[string]any) any {
-    userModel := model.NewUserModel()
-    filters := map[string]any{"main.id": params["id"]}
-    return userModel.Find(ctx, filters, map[string]any{"field": "main.id, main.name"})
+import (
+    "context"
+
+    "your/project/module/user/model"
+    "github.com/shemic/dever/server"
+    "github.com/shemic/dever/util"
+)
+
+type UserService struct{}
+
+func (UserService) Info(ctx context.Context, id uint64) *model.User {
+    return model.NewUserModel().Find(ctx, map[string]any{"id": id})
+}
+
+func (s UserService) ProviderInfo(c *server.Context, params []any) any {
+    var id uint64
+    if len(params) > 0 {
+        id, _ = util.ParseUint64(params[0])
+    }
+    return s.Info(c.Context(), id)
 }
 ```
-- Service 签名惯例：`func Xxx(ctx context.Context, params map[string]any) any/error`；
-- 可通过 `orm.Transaction`、`Select(..., true)`（悲观锁）、`Update(..., true)`（乐观锁）处理复杂场景；
-- 若需要将 Service 暴露给 World/其他模块，定义结构体方法并以 `Provider` 为前缀，例如 `func (User) ProviderGet(ctx *server.Context, params []any) any`。执行 `go run ./dever/cmd/dever service` 后，方法会写入 `data/load/service.go` 并注册为 `module.subpath.Struct.Method`（上例即 `user.User.Get`），随后可通过 `load.Service("user.User.Get", ctx, ... )` 或 World 的 `provider` 字段引用。
+
+Provider 规则：
+
+- 生成器只扫描 `service` 目录里的接收者方法。
+- 接收者类型必须导出，方法名必须以 `Provider` 开头。
+- 支持签名 `func(*server.Context, []any) any`。
+- `ProviderInfo` 会注册为 `module.Type.Info`；上例在 `module/user` 中注册为 `user.UserService.Info`。
+- 调用方式：`load.Service("user.UserService.Info", c, id)`。
 
 ### 6.3 API
+
+API 层只负责参数读取、调用 Service、返回响应：
+
 ```go
 package api
+
+import (
+    userservice "your/project/module/user/service"
+    "github.com/shemic/dever/server"
+    "github.com/shemic/dever/util"
+)
 
 type User struct{}
 
 func (User) GetInfo(c *server.Context) error {
-    id := c.Input("id", "is_number", "用户ID")
-    result := service.GetInfo(c.Context(), map[string]any{"id": id})
-    return c.JSON(map[string]any{"data": result})
+    id, _ := util.ParseUint64(c.Input("id", "required", "用户ID"))
+    data := userservice.UserService{}.Info(c.Context(), id)
+    return c.JSON(data)
 }
 ```
-- API 结构体方法决定路由：`module/user/api/user.go` + `func (User) GetInfo` → `GET /user/user/info`；
-- 修改或新增 API 后运行 `go run ./dever/cmd/dever routes` 更新 `data/router.go`。
 
-### 6.4 World JSON
-1. 在 `module/<name>/world/<path>.json` 维护 `page/layout/data/flows`；
-2. `data` 的 `type` 可为 `service/model/static`，`use` 填 Provider 字符串（如 `user.User.Get`，与 `load.Service` 一致）；
-3. 使用 `/world/main/get`、`/world/main/run` + `locator` 调试。
+路由规则：
 
-## 7. 数据访问与事务
-- **查询**：`Select` 返回切片、`Find` 返回单条；`options` 支持 `page`、`pageSize`、`field`、`order`、`join`；
-- **增删改**：`Insert` / `Update` / `Delete` 入参均为 `map[string]any`，方便接受 `c.Input` 解析后的数据；
-- **事务**：
-  ```go
-  err := orm.Transaction(ctx, func(txCtx context.Context) error {
-      userModel := model.NewUserModel()
-      user := userModel.Find(txCtx, map[string]any{"id": id}, nil)
-      if len(user) == 0 {
-          return fmt.Errorf("用户不存在")
-      }
-      _, err := userModel.Update(txCtx, map[string]any{"id": id}, map[string]any{"status": 1})
-      return err
-  })
-  ```
-- **锁策略**：
-  - 乐观锁：`userModel.Update(ctx, filters, data, true)`，冲突时返回 `orm.ErrVersionConflict`；
-  - 悲观锁：`userModel.Select(ctx, filters, options, true)` 自动追加 `FOR UPDATE`。
+- API 必须是结构体方法。
+- 方法名前缀必须是 `Get`、`Post`、`Put`、`Delete`。
+- `module/user/api/user.go` 中的 `func (User) GetInfo` 会生成 `GET /user/user/info`。
+- 模块名为 `main` 时，路由省略模块前缀。
 
-## 8. Redis 原子扣减（`dever/lock`）
+## 7. ORM 用法
+
+查询：
+
+```go
+users := model.NewUserModel().Select(ctx,
+    map[string]any{"status": 1},
+    map[string]any{
+        "field": "main.id, main.name, main.status",
+        "order": "main.id desc",
+        "page":  1,
+        "pageSize": 20,
+    },
+)
+
+user := model.NewUserModel().Find(ctx, map[string]any{"id": id})
+```
+
+返回值：
+
+- `Select` 返回 `[]*T`，没有结果时返回空切片。
+- `Find` 返回 `*T`，没有结果时返回 `nil`。
+- `SelectMap` / `FindMap` 返回 map 结果，适合自定义字段或 join。
+- `Count` / `Sum` 支持与 `Select` 类似的 `join`、`field` 选项。
+
+写入：
+
+```go
+id := model.NewUserModel().Insert(ctx, map[string]any{
+    "name": "admin",
+    "email": "admin@example.com",
+})
+
+rows := model.NewUserModel().Update(ctx,
+    map[string]any{"id": id, "version": version},
+    map[string]any{"status": 2},
+    true,
+)
+
+deleted := model.NewUserModel().Delete(ctx, map[string]any{"id": id})
+```
+
+说明：
+
+- `Insert` 返回自增主键，驱动不支持时返回 `0`。
+- `Update` / `Delete` 返回影响行数。
+- `Update(..., true)` 使用乐观锁，要求模型存在 `version` 字段；冲突时触发 `orm.ErrVersionConflict`。
+- 公共 `Select` API 当前不暴露 `FOR UPDATE` 参数；需要悲观锁时优先用事务和业务约束保证一致性，或在 ORM 层补明确的公共方法后再使用。
+
+事务：
+
+```go
+err := orm.Transaction(ctx, func(txCtx context.Context) error {
+    userModel := model.NewUserModel()
+    user := userModel.Find(txCtx, map[string]any{"id": id})
+    if user == nil {
+        return fmt.Errorf("用户不存在")
+    }
+
+    userModel.Update(txCtx, map[string]any{"id": id}, map[string]any{"status": 1})
+    return nil
+})
+```
+
+## 8. 中间件、JWT 与 observe
+
+默认生成的 `data/router.go` 会调用项目侧 `middleware.Register()`，项目可以在这里统一注册全局或路由中间件：
+
+```go
+package middleware
+
+import (
+    deverjwt "github.com/shemic/dever/auth/jwt"
+    devermiddleware "github.com/shemic/dever/middleware"
+)
+
+func Register() {
+    jwtGuard := deverjwt.UseConfigured(deverjwt.Options{})
+
+    devermiddleware.UseGlobal(devermiddleware.Init())
+    devermiddleware.UseRouteFunc("POST", "/user/user/info", jwtGuard)
+}
+```
+
+要点：
+
+- `middleware.Init()` 是 Recover + Log。
+- `UseGlobal` / `UseRoute` 接收完整中间件链；`UseGlobalFunc` / `UseRouteFunc` 适合只依赖上下文的简单逻辑。
+- JWT 配置由 `auth/jwt.Configure(config.Auth)` 建立运行时 scheme；项目可在启动或中间件注册阶段按需调用。
+- observe 由 `cmd.Run` 根据配置自动初始化；请求日志中会带 `trace_id`、`span_id`。
+
+## 9. Redis 原子扣减
+
 ```go
 remaining, err := lock.Dec(ctx, "quota:user:1", 1, lock.WithFloor(0))
 if errors.Is(err, lock.ErrInsufficient) {
     return c.Error("额度不足")
 }
 
-defer func(success *bool) {
-    if !*success {
-        _, _ = lock.Inc(ctx, "quota:user:1", 1)
-    }
-}(&success)
+_, _ = remaining, err
 ```
-- `lock.Configure` 在 `cmd.Run` 启动时调用；
-- `WithCeiling` 用于充值或防止超发；
-- `WithTTL` 支持在操作成功后设置过期时间（毫秒精度）。
 
-## 9. 日志与监控
-- `dlog.Configure(cfg.Log)` 会启动访问日志（Access）和错误日志（Error），输出路径由 `successFile`、`errorFile` 决定；
-- `middleware.Log` 自动记录 `method/path/duration/err`；若需要接入自定义监控，可在中间件中调用统计组件。
+`lock.Configure` 已由 `cmd.Run` 根据 `redis` 配置调用。常用选项：
 
-## 10. 验证与发布
-- **路由**：新增 API 后必须重新生成路由并确认 `data/router.go` 已更新。
-- **测试**：`go test ./module/<name>/...`、`go test ./dever/...`（如实现了对应测试）。
-- **运行**：`go run .` 验证 HTTP 服务及配置加载；
-- **配置/迁移**：若修改 `config/setting.json` 或模型，需要同步说明部署环境的差异、数据库迁移方式、是否要求 `go run ./dever/cmd/dever migrate`。
-- **风险提示**：
-  - 未限制分页/排序时应记录潜在性能风险；
-  - 缺少鉴权时需在 PR 描述或 README 中标注；
-  - Redis/数据库连接信息属敏感数据，避免硬编码。
+- `WithFloor`：扣减下限，防止扣成负数。
+- `WithCeiling`：增加上限，防止超过额度。
+- `WithTTL`：操作成功后设置过期时间。
 
-掌握以上模块化功能，即可在 `module/*` 中快速实现业务逻辑，并通过 `dever` 脚手架完成配置、启动、验证与发布。
+## 10. 发布与提交
+
+常规流程：
+
+```sh
+dever run
+dever build
+dever push
+```
+
+`dever build` 可指定目标：
+
+```sh
+dever build
+dever build cmd/worker
+dever build cmd/worker/main.go -o data/bin/worker --os=linux --arch=amd64
+```
+
+`dever push` 默认操作当前 shell 所在目录，即使 `dever` 启动脚本内部会切到框架源码目录运行，也不会改变 git 目标目录。可指定提交信息：
+
+```sh
+dever push -m "edit"
+dever push --message "update user module"
+```
+
+提交前建议人工确认：
+
+- `data/router.go` 是否因 API 变化更新。
+- `data/load/service.go` 是否因 Provider 变化更新。
+- `data/load/model.go` 是否因 Model 构造函数变化更新。
+- `data/table` 是否因模型结构变化更新，并确认是否需要执行 `dever migrate <database>`。
+
+核心原则：业务代码写在 `module/*`，生成文件交给 `dever run` 或 `dever init`，发布用 `dever build`，提交用 `dever push`。

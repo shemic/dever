@@ -12,6 +12,8 @@ import (
 	devercmd "github.com/shemic/dever/cmd"
 )
 
+const callerDirEnv = "DEVER_CALLER_DIR"
+
 func runProjectInit(projectRoot string, skipTidy bool) error {
 	if !skipTidy {
 		if err := runGoModTidy(projectRoot); err != nil {
@@ -40,8 +42,14 @@ func runGoModTidy(projectRoot string) error {
 }
 
 func resolveProjectRoot(root string) string {
+	root = strings.TrimSpace(root)
 	if root == "" {
 		root = "."
+	}
+	if !filepath.IsAbs(root) {
+		if callerDir := strings.TrimSpace(os.Getenv(callerDirEnv)); callerDir != "" {
+			root = filepath.Join(callerDir, root)
+		}
 	}
 	wd, err := filepath.Abs(root)
 	if err != nil {

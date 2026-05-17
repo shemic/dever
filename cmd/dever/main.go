@@ -35,6 +35,8 @@ func main() {
 		runMigrate(os.Args[2:])
 	case "install":
 		runInstall(os.Args[2:])
+	case "push":
+		runPush(os.Args[2:])
 	default:
 		printUsage()
 		os.Exit(1)
@@ -45,14 +47,15 @@ func printUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `dever - 开发辅助命令
 
 Usage:
-    dever run [--project-root=.] [--entry=main.go] [--interval=800ms]  # 热重载运行当前项目
+    dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init] # 热重载运行当前项目
     dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [target]
-    dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成路由
+    dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成 routes/service/model 注册
     dever routes [--project-root=.]               # 仅生成路由
     dever service [--project-root=.]              # 仅生成 service 注册
     dever model [--project-root=.]                # 仅生成 model 注册
     dever migrate [--project-root=.] <database>   # 应用 data/table 中记录的表结构到目标数据库
     dever install [--project-root=.] [--bin-dir=] # 直接写入一个启动脚本到用户 bin 目录
+    dever push [--project-root=.] [--message=edit|-m edit] # git status/add/commit/push
 `)
 }
 

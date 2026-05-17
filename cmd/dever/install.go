@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -97,16 +98,73 @@ func writeInstallLauncher(root, targetPath string) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	content := buildLauncherScript(root)
+	content, err := buildLauncherScript(root)
+	if err != nil {
+		return err
+	}
 	if err := os.WriteFile(targetPath, []byte(content), 0o755); err != nil {
 		return err
 	}
 	return os.Chmod(targetPath, 0o755)
 }
 
-func buildLauncherScript(root string) string {
-	sourceDir := filepath.ToSlash(filepath.Join(root, "dever", "cmd", "dever"))
-	return fmt.Sprintf("#!/usr/bin/env bash\nset -e\nexec go run %s/*.go \"$@\"\n", quoteShellPath(sourceDir))
+func buildLauncherScript(root string) (string, error) {
+	sourceRoot, err := resolveLauncherSourceRoot(root)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(`#!/usr/bin/env bash
+set -e
+%scaller_dir="${PWD}"
+source_root=%s
+cd "$source_root"
+export %s="$caller_dir"
+exec go run ./cmd/dever "$@"
+`, launcherPathExport(), quoteShellPath(filepath.ToSlash(sourceRoot)), callerDirEnv), nil
+}
+
+func resolveLauncherSourceRoot(root string) (string, error) {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		root = "."
+	}
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+
+	candidates := []string{
+		root,
+		filepath.Join(root, "dever"),
+	}
+	for _, candidate := range candidates {
+		if isDeverCommandRoot(candidate) {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("未找到 dever 命令源码，请在项目根目录或 dever 源码目录执行 install: %s", root)
+}
+
+func isDeverCommandRoot(root string) bool {
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(root, "cmd", "dever", "main.go")); err != nil {
+		return false
+	}
+	return true
+}
+
+func launcherPathExport() string {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		return ""
+	}
+	goDir := strings.TrimSpace(filepath.Dir(goPath))
+	if goDir == "" {
+		return ""
+	}
+	return fmt.Sprintf("export PATH=%s:\"$PATH\"\n", quoteShellPath(filepath.ToSlash(goDir)))
 }
 
 func quoteShellPath(path string) string {
