@@ -54,14 +54,15 @@ func (d Duration) Duration() time.Duration {
 
 // App 定义应用配置结构。
 type App struct {
-	Log      Log      `json:"log"`
-	Observe  Observe  `json:"observe"`
-	HTTP     HTTP     `json:"http"`
-	Database Database `json:"database"`
-	Redis    Redis    `json:"redis"`
-	Temporal Temporal `json:"temporal"`
-	Auth     Auth     `json:"auth"`
-	Qiniu    Qiniu    `json:"qiniu"`
+	Log       Log       `json:"log"`
+	Observe   Observe   `json:"observe"`
+	HTTP      HTTP      `json:"http"`
+	FrontSite FrontSite `json:"frontSite"`
+	Database  Database  `json:"database"`
+	Redis     Redis     `json:"redis"`
+	Temporal  Temporal  `json:"temporal"`
+	Auth      Auth      `json:"auth"`
+	Qiniu     Qiniu     `json:"qiniu"`
 }
 
 // Log 表示日志相关配置。
@@ -111,6 +112,13 @@ type HTTP struct {
 	ReadTimeout       Duration `json:"readTimeout"`
 	WriteTimeout      Duration `json:"writeTimeout"`
 	IdleTimeout       Duration `json:"idleTimeout"`
+}
+
+// FrontSite 表示后端托管的前端静态站点配置。
+type FrontSite struct {
+	Enabled *bool  `json:"enabled,omitempty"`
+	Path    string `json:"path"`
+	Dir     string `json:"dir"`
 }
 
 // CORS 表示跨域配置。
