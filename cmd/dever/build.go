@@ -25,6 +25,7 @@ type releaseBuildOptions struct {
 	goos        string
 	goarch      string
 	cgoEnabled  bool
+	skipFront   bool
 }
 
 type releaseBuildTarget struct {
@@ -40,6 +41,7 @@ func runBuild(args []string) {
 	goos := fs.String("os", defaultBuildOS, "目标操作系统")
 	goarch := fs.String("arch", defaultBuildArch, "目标架构")
 	cgoEnabled := fs.Bool("cgo", defaultBuildCGO, "是否启用 CGO")
+	skipFront := fs.Bool("skip-front", false, "跳过构建 module/package 前端插件")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("build 参数解析失败: %v", err)
 	}
@@ -59,6 +61,7 @@ func runBuild(args []string) {
 		goos:        normalizeBuildValue(*goos, defaultBuildOS),
 		goarch:      normalizeBuildValue(*goarch, defaultBuildArch),
 		cgoEnabled:  *cgoEnabled,
+		skipFront:   *skipFront,
 	}
 
 	if err := runReleaseBuild(options); err != nil {
@@ -87,6 +90,12 @@ func runReleaseBuild(options releaseBuildOptions) error {
 		boolToEnvValue(options.cgoEnabled),
 	)
 	fmt.Println("dever build: 开始构建...")
+
+	if !options.skipFront {
+		if err := runFrontBuild(frontBuildOptions{projectRoot: options.projectRoot}); err != nil {
+			return fmt.Errorf("前端插件构建失败: %w", err)
+		}
+	}
 
 	if err := runGoBuild(goBuildSpec{
 		dir:    options.projectRoot,

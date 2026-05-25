@@ -23,6 +23,10 @@ func main() {
 		runWatchMode(os.Args[2:])
 	case "build":
 		runBuild(os.Args[2:])
+	case "front":
+		runFront(os.Args[2:])
+	case "package":
+		runPackage(os.Args[2:])
 	case "init":
 		runInit(os.Args[2:])
 	case "routes":
@@ -48,7 +52,9 @@ func printUsage() {
 
 Usage:
     dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init] # 热重载运行当前项目
-    dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [target]
+    dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [--skip-front] [target]
+    dever front build [--project-root=.] [name]       # 构建 module/package 下的前端插件
+    dever package add [--project-root=.] [name]       # 拉取并引入 github.com/dever-package/<name>
     dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成 routes/service/model 注册
     dever routes [--project-root=.]               # 仅生成路由
     dever service [--project-root=.]              # 仅生成 service 注册
