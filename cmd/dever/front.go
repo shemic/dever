@@ -92,17 +92,10 @@ func runFrontBuild(options frontBuildOptions) error {
 
 func discoverFrontPluginTargets(projectRoot, rawTarget string) ([]frontPluginTarget, error) {
 	target := strings.TrimSpace(rawTarget)
-	roots := []struct {
-		kind string
-		dir  string
-	}{
-		{kind: "package", dir: filepath.Join(projectRoot, "backend", "package")},
-		{kind: "module", dir: filepath.Join(projectRoot, "backend", "module")},
-	}
 
 	var targets []frontPluginTarget
-	for _, root := range roots {
-		entries, err := os.ReadDir(root.dir)
+	for _, root := range frontPluginSourceRoots(projectRoot) {
+		entries, err := os.ReadDir(root)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -117,7 +110,7 @@ func discoverFrontPluginTargets(projectRoot, rawTarget string) ([]frontPluginTar
 			if target != "" && target != name {
 				continue
 			}
-			frontRoot := filepath.Join(root.dir, name, "front")
+			frontRoot := filepath.Join(root, name, "front")
 			pluginEntry := filepath.Join(frontRoot, "src", "plugin.ts")
 			if _, err := os.Stat(pluginEntry); err != nil {
 				if os.IsNotExist(err) {
@@ -127,7 +120,7 @@ func discoverFrontPluginTargets(projectRoot, rawTarget string) ([]frontPluginTar
 			}
 			targets = append(targets, frontPluginTarget{
 				name: name,
-				kind: root.kind,
+				kind: filepath.Base(root),
 				root: frontRoot,
 			})
 		}
@@ -137,31 +130,32 @@ func discoverFrontPluginTargets(projectRoot, rawTarget string) ([]frontPluginTar
 }
 
 func buildFrontPlugin(projectRoot string, target frontPluginTarget) error {
-	frontRoot := filepath.Join(projectRoot, "front")
-	if info, err := os.Stat(frontRoot); err != nil || !info.IsDir() {
-		if err != nil {
-			return fmt.Errorf("无法读取 front 目录: %w", err)
-		}
-		return fmt.Errorf("front 路径不是目录: %s", frontRoot)
+	compilerRoot, err := resolveFrontCompilerRoot(projectRoot)
+	if err != nil {
+		return err
+	}
+	if err := ensureFrontCompilerDependencies(compilerRoot); err != nil {
+		return err
 	}
 
 	fmt.Printf("dever front build: 构建 %s/%s\n", target.kind, target.name)
 	cmd := exec.Command(
 		"pnpm",
 		"--dir",
-		frontRoot,
+		compilerRoot,
 		"exec",
 		"vite",
 		"build",
 		"--config",
-		"vite.plugin.config.ts",
+		"vite.config.ts",
 	)
 	cmd.Dir = projectRoot
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = mergeCommandEnv(os.Environ(), map[string]string{
-		"DEVER_FRONT_PLUGIN_NAME": target.name,
-		"DEVER_FRONT_PLUGIN_ROOT": target.root,
+		"DEVER_FRONT_PLUGIN_NAME":         target.name,
+		"DEVER_FRONT_PLUGIN_ROOT":         target.root,
+		"DEVER_FRONT_PLUGIN_PROJECT_ROOT": projectRoot,
 	})
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s/%s 构建失败: %w", target.kind, target.name, err)

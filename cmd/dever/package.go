@@ -22,6 +22,14 @@ type packageAddOptions struct {
 	skipInit    bool
 }
 
+type packageUpdateOptions struct {
+	projectRoot string
+	name        string
+	repoBase    string
+	skipInit    bool
+	force       bool
+}
+
 func runPackage(args []string) {
 	if len(args) == 0 {
 		printPackageUsage()
@@ -31,6 +39,8 @@ func runPackage(args []string) {
 	switch args[0] {
 	case "add":
 		runPackageAddCommand(args[1:])
+	case "update":
+		runPackageUpdateCommand(args[1:])
 	default:
 		printPackageUsage()
 		os.Exit(1)
@@ -42,6 +52,7 @@ func printPackageUsage() {
 
 Usage:
     dever package add [--project-root=.] [--repo-base=https://github.com/dever-package] [--skip-init] <name>
+    dever package update [--project-root=.] [--repo-base=https://github.com/dever-package] [--skip-init] [--force] <name>
 `)
 }
 
@@ -66,6 +77,32 @@ func runPackageAddCommand(args []string) {
 	}
 	if err := runPackageAdd(options); err != nil {
 		log.Fatalf("package add 执行失败: %v", err)
+	}
+}
+
+func runPackageUpdateCommand(args []string) {
+	fs := flag.NewFlagSet("package update", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	repoBase := fs.String("repo-base", defaultPackageRepoBase, "package GitHub 组织或仓库基础地址")
+	skipInit := fs.Bool("skip-init", false, "跳过刷新 routes/model/service 注册")
+	force := fs.Bool("force", false, "删除本地 package 后重新拉取")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("package update 参数解析失败: %v", err)
+	}
+	if fs.NArg() != 1 {
+		log.Fatal("package update 需要一个组件名称，例如：dever package update bot")
+	}
+
+	root := resolvePackageProjectRoot(*projectRoot)
+	options := packageUpdateOptions{
+		projectRoot: root,
+		name:        strings.TrimSpace(fs.Arg(0)),
+		repoBase:    strings.TrimSpace(*repoBase),
+		skipInit:    *skipInit,
+		force:       *force,
+	}
+	if err := runPackageUpdate(options); err != nil {
+		log.Fatalf("package update 执行失败: %v", err)
 	}
 }
 
@@ -112,6 +149,53 @@ func runPackageAdd(options packageAddOptions) error {
 			return fmt.Errorf("刷新生成文件失败: %w", err)
 		}
 		fmt.Println("dever package add: 已刷新 routes/model/service 注册")
+	}
+	return nil
+}
+
+func runPackageUpdate(options packageUpdateOptions) error {
+	if err := validatePackageName(options.name); err != nil {
+		return err
+	}
+	if err := ensurePackageProjectRoot(options.projectRoot); err != nil {
+		return err
+	}
+
+	projectModule, err := readPackageProjectModuleName(filepath.Join(options.projectRoot, "go.mod"))
+	if err != nil {
+		return err
+	}
+
+	importPath := projectModule + "/package/" + options.name
+	repoURL := buildPackageRepoURL(options.repoBase, options.name)
+	packageDir := filepath.Join(options.projectRoot, "package", options.name)
+	moduleDir := filepath.Join(options.projectRoot, "module", options.name)
+
+	if options.force {
+		if err := forceReplacePackageSource(packageDir, repoURL); err != nil {
+			return err
+		}
+		fmt.Printf("dever package update: 已重新拉取 %s 到 %s\n", repoURL, packageDir)
+	} else {
+		if err := updatePackageSource(packageDir); err != nil {
+			return err
+		}
+		fmt.Printf("dever package update: 已更新 package/%s\n", options.name)
+	}
+
+	createdShim, err := ensurePackageModuleShim(moduleDir, options.name, importPath)
+	if err != nil {
+		return err
+	}
+	if createdShim {
+		fmt.Printf("dever package update: 已创建 module/%s/main.go\n", options.name)
+	}
+
+	if !options.skipInit {
+		if err := runProjectInit(options.projectRoot, true); err != nil {
+			return fmt.Errorf("刷新生成文件失败: %w", err)
+		}
+		fmt.Println("dever package update: 已刷新 routes/model/service 注册")
 	}
 	return nil
 }
@@ -225,6 +309,64 @@ func runGitClone(repoURL, packageDir string) error {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("拉取 package 失败: %w", err)
+	}
+	return nil
+}
+
+func forceReplacePackageSource(packageDir, repoURL string) error {
+	if err := os.RemoveAll(packageDir); err != nil {
+		return fmt.Errorf("删除本地 package 失败: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(packageDir), 0o755); err != nil {
+		return err
+	}
+	return runGitClone(repoURL, packageDir)
+}
+
+func updatePackageSource(packageDir string) error {
+	info, err := os.Stat(packageDir)
+	switch {
+	case os.IsNotExist(err):
+		return fmt.Errorf("package 未安装: %s，请先执行 dever package add", packageDir)
+	case err != nil:
+		return err
+	case !info.IsDir():
+		return fmt.Errorf("package 目标不是目录: %s", packageDir)
+	}
+
+	if !isGitWorkTree(packageDir) {
+		return fmt.Errorf("package 不是 git 仓库，无法自动更新: %s", packageDir)
+	}
+	clean, err := isGitWorkTreeClean(packageDir)
+	if err != nil {
+		return err
+	}
+	if !clean {
+		return fmt.Errorf("package/%s 有本地改动，请先提交/处理改动，或使用 --force 重新拉取", filepath.Base(packageDir))
+	}
+	return runGitPullFastForward(packageDir)
+}
+
+func isGitWorkTree(dir string) bool {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--is-inside-work-tree")
+	return cmd.Run() == nil
+}
+
+func isGitWorkTreeClean(dir string) (bool, error) {
+	cmd := exec.Command("git", "-C", dir, "status", "--porcelain")
+	output, err := cmd.Output()
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(output)) == "", nil
+}
+
+func runGitPullFastForward(dir string) error {
+	cmd := exec.Command("git", "-C", dir, "pull", "--ff-only")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("更新 package 失败: %w", err)
 	}
 	return nil
 }

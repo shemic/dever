@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	dlog "github.com/shemic/dever/log"
@@ -14,7 +15,15 @@ import (
 var (
 	defaultRecover = Recover()
 	defaultLog     = Log()
+	defaultOnce    sync.Once
 )
+
+// UseDefault 注册框架默认中间件组合；多次调用只生效一次。
+func UseDefault() {
+	defaultOnce.Do(func() {
+		UseGlobal(Init())
+	})
+}
 
 // Init 提供框架默认中间件组合：Recover + Log。
 func Init() Middleware {

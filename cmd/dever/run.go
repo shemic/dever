@@ -42,6 +42,7 @@ type watchedProcess struct {
 	entry      string
 	binaryPath string
 	listenPort int
+	env        map[string]string
 	cmd        *exec.Cmd
 	done       chan error
 }
@@ -82,6 +83,14 @@ func runHotReload(options watchRunOptions) error {
 		}
 	}
 
+	frontDev, err := startFrontPluginDevServer(options.projectRoot)
+	if err != nil {
+		return err
+	}
+	if frontDev != nil {
+		defer frontDev.stop(processStopTimeout)
+	}
+
 	snapshot, err := scanWatchedFiles(options.projectRoot)
 	if err != nil {
 		return err
@@ -91,6 +100,9 @@ func runHotReload(options watchRunOptions) error {
 		root:       options.projectRoot,
 		entry:      options.entry,
 		binaryPath: filepath.Join(options.projectRoot, "tmp", "dever-run", "app"),
+	}
+	if frontDev != nil {
+		process.env = frontDev.backendEnv()
 	}
 	if listenPort, err := loadRunListenPort(options.projectRoot); err != nil {
 		log.Printf("读取监听端口失败，跳过旧进程清理: %v", err)
@@ -174,6 +186,7 @@ func (p *watchedProcess) restart(reason string, rebuild bool) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+	cmd.Env = mergeCommandEnv(os.Environ(), p.env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 	}

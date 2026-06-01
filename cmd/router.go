@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"go/format"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,6 +18,11 @@ type routeEntry struct {
 	path   string
 	method string
 	line   string
+}
+
+type middlewareEntry struct {
+	importPath string
+	line       string
 }
 
 // GenerateRoutes 扫描项目 API 目录，生成统一的路由注册文件。
@@ -48,6 +54,8 @@ func GenerateRoutes(projectRoot string) error {
 	if err != nil {
 		return fmt.Errorf("读取模块目录失败: %w", err)
 	}
+
+	middlewares := discoverMiddlewareEntries(rootPath, moduleName, moduleSources, importAliases, aliasUsage)
 
 	for _, source := range moduleSources {
 		walkErr := filepath.Walk(source.Root, func(path string, info os.FileInfo, err error) error {
@@ -142,36 +150,27 @@ func GenerateRoutes(projectRoot string) error {
 `, time.Now().Format("2006-01-02 15:04:05"))
 
 	serverImport := "github.com/shemic/dever/server"
-	middlewareImport := fmt.Sprintf(`    "%s/middleware"`, moduleName)
+	deverMiddlewareImport := "github.com/shemic/dever/middleware"
+	middlewareLines := []string{"devermiddleware.UseDefault()"}
+	for _, entry := range middlewares {
+		middlewareLines = append(middlewareLines, entry.line)
+	}
 
 	var code string
-	var resultMsg string
+	bodyLines := make([]string, 0, len(middlewareLines)+len(routes)+1)
+	bodyLines = append(bodyLines, middlewareLines...)
+	resultMsg := "✅ Routes generated successfully → " + output
 	if len(routes) == 0 {
-		code = fmt.Sprintf(`%spackage data
-
-import (
-    "%s"
-    "%s/middleware"
-)
-
-// RegisterRoutes 自动注册所有模块路由
-func RegisterRoutes(r server.Server) {
-    middleware.Register()
-    // 当前没有可注册的 API 路由
-}
-`, header, serverImport, moduleName)
+		bodyLines = append(bodyLines, "// 当前没有可注册的 API 路由")
 		resultMsg = "⚠️ 未检测到路由函数，已生成空的 data/router.go"
 	} else {
-		bodyLines := make([]string, 0, len(routes)+1)
-		bodyLines = append(bodyLines, "middleware.Register()")
-		for _, line := range routeLines {
-			bodyLines = append(bodyLines, line)
-		}
-		code = fmt.Sprintf(`%spackage data
+		bodyLines = append(bodyLines, routeLines...)
+	}
+	code = fmt.Sprintf(`%spackage data
 
 import (
+    devermiddleware "%s"
     "%s"
-    %s
 %s
 )
 
@@ -179,13 +178,16 @@ import (
 func RegisterRoutes(r server.Server) {
 %s
 }
-`, header, serverImport, middlewareImport, strings.Join(importLines, "\n"), "    "+strings.Join(bodyLines, "\n    "))
-		resultMsg = "✅ Routes generated successfully → " + output
-	}
+`, header, deverMiddlewareImport, serverImport, formatGeneratedImports(importLines), "    "+strings.Join(bodyLines, "\n    "))
 
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
 		return fmt.Errorf("创建路由输出目录失败: %w", err)
 	}
+	formatted, err := format.Source([]byte(code))
+	if err != nil {
+		return fmt.Errorf("格式化路由输出失败: %w", err)
+	}
+	code = string(formatted)
 	if err := os.WriteFile(output, []byte(code), 0644); err != nil {
 		return err
 	}
@@ -195,6 +197,74 @@ func RegisterRoutes(r server.Server) {
 }
 
 // ------------------------ 工具函数 ------------------------
+func discoverMiddlewareEntries(rootPath, moduleName string, moduleSources []util.ModuleSource, importAliases map[string]string, aliasUsage map[string]int) []middlewareEntry {
+	entries := make([]middlewareEntry, 0)
+	seen := make(map[string]struct{})
+	add := func(importPath, relDir string) {
+		importPath = strings.TrimSpace(importPath)
+		if importPath == "" {
+			return
+		}
+		if _, ok := seen[importPath]; ok {
+			return
+		}
+		seen[importPath] = struct{}{}
+		alias := ensureAlias(importAliases, aliasUsage, importPath, relDir)
+		entries = append(entries, middlewareEntry{
+			importPath: importPath,
+			line:       alias + ".Register()",
+		})
+	}
+
+	if middlewarePackageHasRegister(filepath.Join(rootPath, "middleware")) {
+		add(joinImportPath(moduleName, "middleware"), "project_middleware")
+	}
+
+	for _, source := range moduleSources {
+		if !middlewarePackageHasRegister(filepath.Join(source.Root, "middleware")) {
+			continue
+		}
+		add(joinImportPath(source.Import, "middleware"), filepath.Join(source.Name, "middleware"))
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].importPath < entries[j].importPath
+	})
+	return entries
+}
+
+func middlewarePackageHasRegister(dir string) bool {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	registerRegexp := regexp.MustCompile(`(?m)^\s*func\s+Register\s*\(`)
+	for _, file := range files {
+		if file == nil || file.IsDir() {
+			continue
+		}
+		name := file.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			continue
+		}
+		if registerRegexp.Match(content) {
+			return true
+		}
+	}
+	return false
+}
+
+func formatGeneratedImports(importLines []string) string {
+	if len(importLines) == 0 {
+		return ""
+	}
+	return strings.Join(importLines, "\n") + "\n"
+}
+
 func indexOf(parts []string, target string) int {
 	for i, p := range parts {
 		if p == target {

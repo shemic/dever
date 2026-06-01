@@ -116,9 +116,17 @@ type HTTP struct {
 
 // FrontSite 表示后端托管的前端静态站点配置。
 type FrontSite struct {
+	Enabled   *bool              `json:"enabled,omitempty"`
+	Path      string             `json:"path"`
+	Dir       string             `json:"dir"`
+	PluginDev FrontSitePluginDev `json:"pluginDev"`
+}
+
+// FrontSitePluginDev 表示后端托管页面加载前端插件源码的开发模式。
+type FrontSitePluginDev struct {
 	Enabled *bool  `json:"enabled,omitempty"`
-	Path    string `json:"path"`
-	Dir     string `json:"dir"`
+	Port    int    `json:"port"`
+	URL     string `json:"url"`
 }
 
 // CORS 表示跨域配置。
