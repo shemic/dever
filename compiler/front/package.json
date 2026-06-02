@@ -1,0 +1,29 @@
+{
+  "name": "@dever/front-plugin-compiler",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.23.0",
+  "dependencies": {
+    "@vitejs/plugin-react-swc": "^4.2.2",
+    "@xyflow/react": "^12.10.2",
+    "lucide-react": "^0.561.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "sonner": "^2.0.7",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.0",
+    "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "esbuild"
+    ]
+  }
+}

@@ -96,9 +96,7 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 	cmd.Dir = projectRoot
 	cmd.Stdout = output
 	cmd.Stderr = output
-	cmd.Env = mergeCommandEnv(os.Environ(), map[string]string{
-		"DEVER_FRONT_PLUGIN_PROJECT_ROOT": projectRoot,
-	})
+	cmd.Env = frontCompilerEnv(projectRoot, nil)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 	}
@@ -225,61 +223,6 @@ func uniqueExistingParentDirs(items []string) []string {
 		result = append(result, abs)
 	}
 	return result
-}
-
-func resolveFrontCompilerRoot(projectRoot string) (string, error) {
-	candidates := []string{
-		filepath.Join(projectRoot, "package", "front", "compiler"),
-		filepath.Join(projectRoot, "backend", "package", "front", "compiler"),
-	}
-	for _, candidate := range candidates {
-		compilerRoot, err := filepath.Abs(candidate)
-		if err != nil {
-			continue
-		}
-		if hasFrontCompilerConfig(compilerRoot) {
-			return compilerRoot, nil
-		}
-	}
-	return "", fmt.Errorf("检测到前端插件源码，但找不到 package/front/compiler")
-}
-
-func hasFrontCompilerConfig(compilerRoot string) bool {
-	for _, file := range []string{"package.json", "vite.config.ts"} {
-		info, err := os.Stat(filepath.Join(compilerRoot, file))
-		if err != nil || info.IsDir() {
-			return false
-		}
-	}
-	return true
-}
-
-func ensureFrontCompilerDependencies(compilerRoot string) error {
-	if frontCompilerDependenciesReady(compilerRoot) {
-		return nil
-	}
-
-	log.Printf("dever front: 安装前端插件编译器依赖: %s", compilerRoot)
-	cmd := exec.Command("pnpm", "--dir", compilerRoot, "install", "--lockfile=false")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("安装前端插件编译器依赖失败: %w", err)
-	}
-	return nil
-}
-
-func frontCompilerDependenciesReady(compilerRoot string) bool {
-	for _, file := range []string{
-		filepath.Join("node_modules", ".bin", "vite"),
-		filepath.Join("node_modules", "@vitejs", "plugin-react-swc"),
-	} {
-		info, err := os.Stat(filepath.Join(compilerRoot, file))
-		if err != nil || info.IsDir() && filepath.Base(file) == "vite" {
-			return false
-		}
-	}
-	return true
 }
 
 func frontPluginDevPort() int {
