@@ -21,6 +21,13 @@ const pluginEntry = pluginRoot ? path.join(pluginRoot, "src", "plugin.ts") : "";
 const compatModulePrefix = "virtual:dever-front-compat:";
 const resolvedCompatModulePrefix = "\0" + compatModulePrefix;
 
+const shimModuleFiles: Record<string, string> = {
+  react: "react.ts",
+  "react-jsx-runtime": "react-jsx-runtime.ts",
+  "react-dom": "react-dom.ts",
+  "react-dom-client": "react-dom-client.ts",
+};
+
 function resolveFrontPackageRoot() {
   const configured = process.env.DEVER_FRONT_PACKAGE_ROOT || "";
   if (hasFrontSDK(configured)) {
@@ -325,6 +332,14 @@ function dependencyEntry(name: string) {
   return path.resolve(compilerRoot, "node_modules", ...name.split("/"));
 }
 
+function shimFile(name: string) {
+  const file = shimModuleFiles[name];
+  if (!file) {
+    throw new Error(`Unknown front plugin shim: ${name}`);
+  }
+  return path.join(shimRoot, file);
+}
+
 function runtimeAlias(command: string) {
   const serve = command === "serve";
   return [
@@ -344,32 +359,28 @@ function runtimeAlias(command: string) {
     {
       find: "react/jsx-dev-runtime",
       replacement: serve
-        ? path.join(shimRoot, "react-jsx-runtime.ts")
+        ? shimFile("react-jsx-runtime")
         : dependency("react/jsx-dev-runtime.js"),
     },
     {
       find: "react/jsx-runtime",
       replacement: serve
-        ? path.join(shimRoot, "react-jsx-runtime.ts")
+        ? shimFile("react-jsx-runtime")
         : dependency("react/jsx-runtime.js"),
     },
     {
       find: "react-dom/client",
       replacement: serve
-        ? path.join(shimRoot, "react-dom-client.ts")
+        ? shimFile("react-dom-client")
         : dependency("react-dom/client"),
     },
     {
       find: "react-dom",
-      replacement: serve
-        ? path.join(shimRoot, "react-dom.ts")
-        : dependency("react-dom"),
+      replacement: serve ? shimFile("react-dom") : dependency("react-dom"),
     },
     {
       find: "react",
-      replacement: serve
-        ? path.join(shimRoot, "react.ts")
-        : dependency("react"),
+      replacement: serve ? shimFile("react") : dependency("react"),
     },
     { find: "@xyflow/react", replacement: dependency("@xyflow/react") },
     { find: "lucide-react", replacement: dependency("lucide-react") },

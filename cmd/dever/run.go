@@ -87,12 +87,10 @@ func runHotReload(options watchRunOptions) error {
 	if err != nil {
 		return err
 	}
-	if frontDev != nil {
-		defer frontDev.stop(processStopTimeout)
-	}
 
 	snapshot, err := scanWatchedFiles(options.projectRoot)
 	if err != nil {
+		_ = frontDev.stop(processStopTimeout)
 		return err
 	}
 
@@ -110,6 +108,7 @@ func runHotReload(options watchRunOptions) error {
 		process.listenPort = listenPort
 	}
 	if err := process.restart("初始启动", true); err != nil {
+		_ = frontDev.stop(processStopTimeout)
 		return err
 	}
 
@@ -123,7 +122,25 @@ func runHotReload(options watchRunOptions) error {
 		select {
 		case <-ctx.Done():
 			fmt.Println("\ndever run: 正在停止...")
-			return process.stop(processStopTimeout)
+			if err := process.stop(processStopTimeout); err != nil {
+				_ = frontDev.stop(processStopTimeout)
+				return err
+			}
+			return frontDev.stop(processStopTimeout)
+		case err := <-frontDev.doneChannel():
+			log.Printf("%v", frontDev.exitError(err))
+			restarted, restartErr := startFrontPluginDevServer(options.projectRoot)
+			if restartErr != nil {
+				log.Printf("重启前端插件源码编译服务失败: %v", restartErr)
+				frontDev = nil
+				continue
+			}
+			frontDev = restarted
+			if frontDev != nil {
+				process.env = frontDev.backendEnv()
+			} else {
+				process.env = nil
+			}
 		case err := <-process.doneChannel():
 			process.clear()
 			if err != nil {

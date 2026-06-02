@@ -22,9 +22,10 @@ const (
 )
 
 type frontPluginDevServer struct {
-	cmd  *exec.Cmd
-	done chan error
-	url  string
+	cmd    *exec.Cmd
+	done   chan error
+	url    string
+	output *frontPluginDevOutput
 }
 
 type frontPluginDevOutput struct {
@@ -87,6 +88,8 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 		compilerRoot,
 		"exec",
 		"vite",
+		"--config",
+		filepath.Join(compilerRoot, frontCompilerViteConfig),
 		"--host",
 		"127.0.0.1",
 		"--port",
@@ -106,9 +109,10 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 	}
 
 	server := &frontPluginDevServer{
-		cmd:  cmd,
-		done: make(chan error, 1),
-		url:  url,
+		cmd:    cmd,
+		done:   make(chan error, 1),
+		url:    url,
+		output: output,
 	}
 	go func() {
 		server.done <- cmd.Wait()
@@ -145,6 +149,21 @@ func (s *frontPluginDevServer) backendEnv() map[string]string {
 		"DEVER_FRONT_PLUGIN_DEV":     "1",
 		"DEVER_FRONT_PLUGIN_DEV_URL": s.url,
 	}
+}
+
+func (s *frontPluginDevServer) doneChannel() <-chan error {
+	if s == nil {
+		return nil
+	}
+	return s.done
+}
+
+func (s *frontPluginDevServer) exitError(err error) error {
+	err = normalizeProcessExitError(err)
+	if err == nil {
+		return fmt.Errorf("前端插件源码编译服务已退出")
+	}
+	return withFrontPluginDevOutput(err, s.output)
 }
 
 func (s *frontPluginDevServer) stop(timeout time.Duration) error {
