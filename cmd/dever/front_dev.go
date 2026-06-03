@@ -17,9 +17,11 @@ import (
 
 const (
 	defaultFrontPluginDevPort = 5174
+	frontPluginDevPortOffset  = 10000
 	frontPluginDevPortRange   = 20
 	frontPluginDevWait        = 8 * time.Second
 	frontPluginDevOutputLimit = 32 * 1024
+	maxTCPPort                = 65535
 )
 
 type frontPluginDevPortConfig struct {
@@ -85,7 +87,7 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 		return nil, err
 	}
 
-	port, err := resolveFrontPluginDevPort(projectRoot, compilerRoot, frontPluginDevPortFromEnv())
+	port, err := resolveFrontPluginDevPort(projectRoot, compilerRoot, frontPluginDevPortConfigForProject(projectRoot))
 	if err != nil {
 		return nil, err
 	}
@@ -253,16 +255,38 @@ func uniqueExistingParentDirs(items []string) []string {
 	return result
 }
 
-func frontPluginDevPortFromEnv() frontPluginDevPortConfig {
+func frontPluginDevPortConfigForProject(projectRoot string) frontPluginDevPortConfig {
+	if config, ok := frontPluginDevPortFromEnv(); ok {
+		return config
+	}
+	return frontPluginDevPortConfig{
+		port: derivedFrontPluginDevPort(projectRoot),
+	}
+}
+
+func frontPluginDevPortFromEnv() (frontPluginDevPortConfig, bool) {
 	value := strings.TrimSpace(os.Getenv("DEVER_FRONT_PLUGIN_DEV_PORT"))
 	if value == "" {
-		return frontPluginDevPortConfig{port: defaultFrontPluginDevPort}
+		return frontPluginDevPortConfig{}, false
 	}
 	port, err := strconv.Atoi(value)
 	if err != nil || port <= 0 {
-		return frontPluginDevPortConfig{port: defaultFrontPluginDevPort}
+		return frontPluginDevPortConfig{port: defaultFrontPluginDevPort}, true
 	}
-	return frontPluginDevPortConfig{port: port, strict: true}
+	return frontPluginDevPortConfig{port: port, strict: true}, true
+}
+
+func derivedFrontPluginDevPort(projectRoot string) int {
+	httpPort, err := loadRunListenPort(projectRoot)
+	if err != nil || httpPort <= 0 {
+		return defaultFrontPluginDevPort
+	}
+
+	port := httpPort + frontPluginDevPortOffset
+	if port > 0 && port <= maxTCPPort {
+		return port
+	}
+	return defaultFrontPluginDevPort
 }
 
 func frontPluginDevEnabledFromEnv() (bool, bool) {
