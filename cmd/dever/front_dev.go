@@ -190,7 +190,7 @@ func (s *frontPluginDevServer) stop(timeout time.Duration) error {
 
 	select {
 	case err := <-s.done:
-		return normalizeProcessExitError(err)
+		return normalizeStoppedProcessExitError(err)
 	case <-time.After(timeout):
 		_ = syscall.Kill(processGroupID, syscall.SIGKILL)
 		<-s.done

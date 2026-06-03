@@ -263,7 +263,7 @@ func (p *watchedProcess) stop(timeout time.Duration) error {
 
 	select {
 	case err := <-done:
-		return normalizeProcessExitError(err)
+		return normalizeStoppedProcessExitError(err)
 	case <-time.After(timeout):
 		_ = syscall.Kill(processGroupID, syscall.SIGKILL)
 		<-done
@@ -551,6 +551,26 @@ func normalizeProcessExitError(err error) error {
 		return nil
 	}
 	return err
+}
+
+func normalizeStoppedProcessExitError(err error) error {
+	if err == nil || errors.Is(err, os.ErrProcessDone) {
+		return nil
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	if !ok || !status.Signaled() {
+		return err
+	}
+	switch status.Signal() {
+	case syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL:
+		return nil
+	default:
+		return err
+	}
 }
 
 func isMissingProcessError(err error) bool {
