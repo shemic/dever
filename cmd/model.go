@@ -119,7 +119,7 @@ func analyzeModelFile(moduleName, importRoot, relPath, fullPath string, importAl
 	var entries []modelEntry
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Recv != nil || fn.Name == nil || !fn.Name.IsExported() {
+		if !ok || !isModelConstructorFunc(fn) {
 			continue
 		}
 
@@ -148,6 +148,17 @@ func analyzeModelFile(moduleName, importRoot, relPath, fullPath string, importAl
 		})
 	}
 	return entries, nil
+}
+
+func isModelConstructorFunc(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Recv != nil || fn.Name == nil || !fn.Name.IsExported() {
+		return false
+	}
+	name := fn.Name.Name
+	if !strings.HasPrefix(name, "New") || !strings.HasSuffix(name, "Model") {
+		return false
+	}
+	return fn.Type != nil && (fn.Type.Params == nil || len(fn.Type.Params.List) == 0)
 }
 
 func buildModelFile(entries []modelEntry, importAliases map[string]string) (string, error) {

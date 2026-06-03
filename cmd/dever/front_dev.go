@@ -17,9 +17,15 @@ import (
 
 const (
 	defaultFrontPluginDevPort = 5174
+	frontPluginDevPortRange   = 20
 	frontPluginDevWait        = 8 * time.Second
 	frontPluginDevOutputLimit = 32 * 1024
 )
+
+type frontPluginDevPortConfig struct {
+	port   int
+	strict bool
+}
 
 type frontPluginDevServer struct {
 	cmd    *exec.Cmd
@@ -79,7 +85,10 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 		return nil, err
 	}
 
-	port := frontPluginDevPort()
+	port, err := resolveFrontPluginDevPort(projectRoot, compilerRoot, frontPluginDevPortFromEnv())
+	if err != nil {
+		return nil, err
+	}
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
 	output := newFrontPluginDevOutput(frontPluginDevOutputLimit)
 	cmd := exec.Command(
@@ -126,7 +135,7 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 		return nil, withFrontPluginDevOutput(err, output)
 	}
 
-	log.Printf("已启动前端插件源码编译服务（plugins=%s）", strings.Join(plugins, ","))
+	log.Printf("已启动前端插件源码编译服务（plugins=%s, port=%d）", strings.Join(plugins, ","), port)
 	return server, nil
 }
 
@@ -244,16 +253,16 @@ func uniqueExistingParentDirs(items []string) []string {
 	return result
 }
 
-func frontPluginDevPort() int {
+func frontPluginDevPortFromEnv() frontPluginDevPortConfig {
 	value := strings.TrimSpace(os.Getenv("DEVER_FRONT_PLUGIN_DEV_PORT"))
 	if value == "" {
-		return defaultFrontPluginDevPort
+		return frontPluginDevPortConfig{port: defaultFrontPluginDevPort}
 	}
 	port, err := strconv.Atoi(value)
 	if err != nil || port <= 0 {
-		return defaultFrontPluginDevPort
+		return frontPluginDevPortConfig{port: defaultFrontPluginDevPort}
 	}
-	return port
+	return frontPluginDevPortConfig{port: port, strict: true}
 }
 
 func frontPluginDevEnabledFromEnv() (bool, bool) {
@@ -266,6 +275,134 @@ func frontPluginDevEnabledFromEnv() (bool, bool) {
 	default:
 		return false, false
 	}
+}
+
+func resolveFrontPluginDevPort(projectRoot, compilerRoot string, config frontPluginDevPortConfig) (int, error) {
+	if config.port <= 0 {
+		config.port = defaultFrontPluginDevPort
+	}
+
+	attempts := frontPluginDevPortRange
+	if config.strict {
+		attempts = 1
+	}
+
+	for offset := 0; offset < attempts; offset++ {
+		port := config.port + offset
+		free, err := releaseOwnedFrontPluginDevPort(projectRoot, compilerRoot, port)
+		if err != nil {
+			return 0, err
+		}
+		if free {
+			return port, nil
+		}
+	}
+
+	if config.strict {
+		return 0, fmt.Errorf("前端插件源码编译端口 %d 已被占用", config.port)
+	}
+	return 0, fmt.Errorf("前端插件源码编译端口 %d-%d 均已被占用", config.port, config.port+attempts-1)
+}
+
+func releaseOwnedFrontPluginDevPort(projectRoot, compilerRoot string, port int) (bool, error) {
+	pids, err := listeningPIDsOnPort(port)
+	if err != nil {
+		return false, fmt.Errorf("检查前端插件源码编译端口 %d 占用失败: %w", port, err)
+	}
+	if len(pids) == 0 {
+		return true, nil
+	}
+
+	ownedPIDs := make([]int, 0, len(pids))
+	foreignPIDs := make([]int, 0, len(pids))
+	for _, pid := range pids {
+		if isProjectFrontPluginDevProcess(pid, projectRoot, compilerRoot) {
+			ownedPIDs = append(ownedPIDs, pid)
+			continue
+		}
+		foreignPIDs = append(foreignPIDs, pid)
+	}
+
+	for _, pid := range ownedPIDs {
+		log.Printf("检测到旧前端插件源码编译服务占用端口 %d，正在关闭 pid=%d", port, pid)
+		if err := terminateFrontPluginDevProcess(pid, processStopTimeout); err != nil {
+			return false, fmt.Errorf("关闭旧前端插件源码编译服务 pid=%d 失败: %w", pid, err)
+		}
+	}
+	if len(foreignPIDs) > 0 {
+		return false, nil
+	}
+	if len(ownedPIDs) == 0 {
+		return false, nil
+	}
+	if err := waitPortReleased(port, processStopTimeout); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func terminateFrontPluginDevProcess(pid int, timeout time.Duration) error {
+	pgid, err := syscall.Getpgid(pid)
+	currentPGID, currentErr := syscall.Getpgid(os.Getpid())
+	if err != nil || pgid <= 0 || (currentErr == nil && pgid == currentPGID) {
+		return terminateProcess(pid, timeout)
+	}
+
+	if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil && !isMissingProcessError(err) {
+		return terminateProcess(pid, timeout)
+	}
+	if waitProcessExit(pid, timeout) {
+		return nil
+	}
+
+	_ = syscall.Kill(-pgid, syscall.SIGKILL)
+	if waitProcessExit(pid, timeout) {
+		return nil
+	}
+	return fmt.Errorf("进程未退出")
+}
+
+func isProjectFrontPluginDevProcess(pid int, projectRoot, compilerRoot string) bool {
+	if sameProcessPath(procEnvValue(pid, frontPluginProjectRootEnv), projectRoot) {
+		return true
+	}
+
+	if !sameProcessPath(readProcLink(pid, "cwd"), projectRoot) {
+		return false
+	}
+	cmdline := readProcCmdline(pid)
+	if !strings.Contains(cmdline, "vite") {
+		return false
+	}
+	return strings.Contains(filepath.ToSlash(cmdline), filepath.ToSlash(compilerRoot))
+}
+
+func procEnvValue(pid int, name string) string {
+	if pid <= 0 || strings.TrimSpace(name) == "" {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "environ"))
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	prefix := name + "="
+	for _, item := range strings.Split(string(data), "\x00") {
+		if strings.HasPrefix(item, prefix) {
+			return strings.TrimPrefix(item, prefix)
+		}
+	}
+	return ""
+}
+
+func readProcCmdline(pid int) string {
+	if pid <= 0 {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(strings.ReplaceAll(string(data), "\x00", " "))
 }
 
 func waitForFrontPluginDevServer(url string, done <-chan error, timeout time.Duration) (bool, error) {

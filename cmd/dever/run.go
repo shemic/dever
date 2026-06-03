@@ -662,7 +662,7 @@ func shouldSkipWatchDir(relativePath string) bool {
 	}
 
 	switch relativePath {
-	case ".git", ".idea", ".vscode", "node_modules", "tmp", "vendor", "data/log":
+	case ".git", ".idea", ".vscode", "node_modules", "tmp", "vendor", "data/log", "data/table":
 		return true
 	default:
 		return false
@@ -680,6 +680,8 @@ func shouldWatchFile(relativePath string) bool {
 	case relativePath == "data/load/model.go":
 		return false
 	case relativePath == "data/load/service.go":
+		return false
+	case strings.HasPrefix(relativePath, "data/table/"):
 		return false
 	case strings.HasPrefix(relativePath, "data/migrations/"):
 		return false
