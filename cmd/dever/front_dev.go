@@ -347,7 +347,20 @@ func releaseOwnedFrontPluginDevPort(projectRoot, compilerRoot string, port int) 
 		foreignPIDs = append(foreignPIDs, pid)
 	}
 
+	handledSupervisors := map[int]bool{}
 	for _, pid := range ownedPIDs {
+		if supervisorPID := projectRunAncestorPID(pid); supervisorPID > 0 {
+			if handledSupervisors[supervisorPID] {
+				continue
+			}
+			handledSupervisors[supervisorPID] = true
+			log.Printf("检测到旧 dever run 监督进程持有前端插件端口 %d，正在关闭 pid=%d", port, supervisorPID)
+			if err := terminateProcess(supervisorPID, processStopTimeout); err != nil {
+				return false, fmt.Errorf("关闭旧 dever run 监督进程 pid=%d 失败: %w", supervisorPID, err)
+			}
+			continue
+		}
+
 		log.Printf("检测到旧前端插件源码编译服务占用端口 %d，正在关闭 pid=%d", port, pid)
 		if err := terminateFrontPluginDevProcess(pid, processStopTimeout); err != nil {
 			return false, fmt.Errorf("关闭旧前端插件源码编译服务 pid=%d 失败: %w", pid, err)
@@ -399,6 +412,19 @@ func isProjectFrontPluginDevProcess(pid int, projectRoot, compilerRoot string) b
 		return false
 	}
 	return strings.Contains(filepath.ToSlash(cmdline), filepath.ToSlash(compilerRoot))
+}
+
+func projectRunAncestorPID(pid int) int {
+	currentPID := os.Getpid()
+	for parentPID := procParentPID(pid); parentPID > 1; parentPID = procParentPID(parentPID) {
+		if parentPID == currentPID {
+			return 0
+		}
+		if isDeverRunSupervisorProcess(parentPID) {
+			return parentPID
+		}
+	}
+	return 0
 }
 
 func procEnvValue(pid int, name string) string {

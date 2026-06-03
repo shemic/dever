@@ -23,6 +23,7 @@ import (
 const (
 	defaultWatchInterval = 800 * time.Millisecond
 	processStopTimeout   = 5 * time.Second
+	runLockFileName      = "dever-run.pid"
 )
 
 type watchRunOptions struct {
@@ -76,6 +77,12 @@ func runWatchMode(args []string) {
 }
 
 func runHotReload(options watchRunOptions) error {
+	lock, err := acquireRunLock(options.projectRoot, processStopTimeout)
+	if err != nil {
+		return err
+	}
+	defer lock.release()
+
 	if !options.skipInit {
 		fmt.Println("dever run: 启动前执行 init --skip-tidy")
 		if err := runProjectInit(options.projectRoot, true); err != nil {
@@ -181,6 +188,56 @@ func runHotReload(options watchRunOptions) error {
 			}
 			snapshot = current
 		}
+	}
+}
+
+type runLock struct {
+	path string
+}
+
+func acquireRunLock(projectRoot string, timeout time.Duration) (*runLock, error) {
+	lockPath := filepath.Join(projectRoot, "tmp", "dever-run", runLockFileName)
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
+		return nil, fmt.Errorf("创建 dever run 锁目录失败: %w", err)
+	}
+
+	currentPID := os.Getpid()
+	lockedPID := readRunLockPID(lockPath)
+	if lockedPID > 0 && lockedPID != currentPID && processExists(lockedPID) {
+		if isDeverRunSupervisorProcess(lockedPID) {
+			log.Printf("检测到旧 dever run 监督进程，正在关闭 pid=%d", lockedPID)
+			if err := terminateProcess(lockedPID, timeout); err != nil {
+				return nil, fmt.Errorf("关闭旧 dever run 监督进程 pid=%d 失败: %w", lockedPID, err)
+			}
+		} else {
+			log.Printf("忽略已失效的 dever run 锁，pid=%d 不是 dever run 监督进程", lockedPID)
+		}
+	}
+
+	if err := os.WriteFile(lockPath, []byte(strconv.Itoa(currentPID)), 0o644); err != nil {
+		return nil, fmt.Errorf("写入 dever run 锁失败: %w", err)
+	}
+	return &runLock{path: lockPath}, nil
+}
+
+func readRunLockPID(path string) int {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(content)))
+	if err != nil || pid <= 0 {
+		return 0
+	}
+	return pid
+}
+
+func (l *runLock) release() {
+	if l == nil || strings.TrimSpace(l.path) == "" {
+		return
+	}
+	if readRunLockPID(l.path) == os.Getpid() {
+		_ = os.Remove(l.path)
 	}
 }
 
@@ -417,6 +474,36 @@ func isProjectRunProcess(pid int, projectRoot string, binaryPath string) bool {
 		return true
 	}
 	return sameProcessPath(readProcLink(pid, "cwd"), projectRoot)
+}
+
+func isDeverRunSupervisorProcess(pid int) bool {
+	cmdline := readProcCmdline(pid)
+	if cmdline == "" {
+		return false
+	}
+	return strings.Contains(cmdline, "dever run")
+}
+
+func procParentPID(pid int) int {
+	if pid <= 0 {
+		return 0
+	}
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "status"))
+	if err != nil || len(data) == 0 {
+		return 0
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok || key != "PPid" {
+			continue
+		}
+		parentPID, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return 0
+		}
+		return parentPID
+	}
+	return 0
 }
 
 func readProcLink(pid int, name string) string {
