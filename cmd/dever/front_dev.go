@@ -416,15 +416,16 @@ func isProjectFrontPluginDevProcess(pid int, projectRoot, compilerRoot string) b
 
 func projectRunAncestorPID(pid int) int {
 	currentPID := os.Getpid()
+	supervisorPID := 0
 	for parentPID := procParentPID(pid); parentPID > 1; parentPID = procParentPID(parentPID) {
 		if parentPID == currentPID {
 			return 0
 		}
 		if isDeverRunSupervisorProcess(parentPID) {
-			return parentPID
+			supervisorPID = parentPID
 		}
 	}
-	return 0
+	return supervisorPID
 }
 
 func procEnvValue(pid int, name string) string {

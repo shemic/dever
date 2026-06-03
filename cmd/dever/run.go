@@ -560,6 +560,18 @@ func terminateProcess(pid int, timeout time.Duration) error {
 }
 
 func signalProcessGroupOrPID(pid int, signal syscall.Signal) {
+	if pid <= 0 {
+		return
+	}
+
+	pgid, pgidErr := syscall.Getpgid(pid)
+	currentPGID, currentErr := syscall.Getpgid(os.Getpid())
+	if pgidErr == nil && pgid > 0 && !(currentErr == nil && pgid == currentPGID) {
+		if err := syscall.Kill(-pgid, signal); err == nil || isMissingProcessError(err) {
+			return
+		}
+	}
+
 	if err := syscall.Kill(-pid, signal); err != nil && !isMissingProcessError(err) {
 		_ = syscall.Kill(pid, signal)
 	}
@@ -582,8 +594,33 @@ func processExists(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
+	if procState(pid) == "Z" {
+		return false
+	}
 	err := syscall.Kill(pid, 0)
 	return err == nil || !isMissingProcessError(err)
+}
+
+func procState(pid int) string {
+	if pid <= 0 {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "status"))
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok || key != "State" {
+			continue
+		}
+		state := strings.TrimSpace(value)
+		if state == "" {
+			return ""
+		}
+		return state[:1]
+	}
+	return ""
 }
 
 func waitPortReleased(port int, timeout time.Duration) error {
