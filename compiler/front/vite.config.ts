@@ -198,6 +198,7 @@ const compatExports: Record<string, string[]> = {
     "formatAssistantReferenceSize",
   ],
   "@/lib/auth-redirect": ["resolvePostLoginTarget"],
+  "@/lib/icon": ["resolveLucideIcon"],
   "@/lib/page-schema-reload": ["reloadStorePageSchema"],
   "@/lib/plugin/types": ["defineFrontPlugin", "lazyNode", "mergePluginNodes"],
   "@/lib/request": [
@@ -273,6 +274,7 @@ const compatExports: Record<string, string[]> = {
     "streamValueText",
   ],
   "@/lib/utils": ["cn", "sleep", "getPageNumbers", "formatDisplayValue"],
+  "@/page/nodes/show/tooltip": ["HoverTip", "InlineTip", "ShowTooltip"],
   "@/stores/auth-store": [
     "useAuthStore",
     "getAccessTokenKey",
