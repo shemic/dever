@@ -273,6 +273,16 @@ const compatExports: Record<string, string[]> = {
     "assertRuntimeStreamFrameSuccess",
     "streamValueText",
   ],
+  "@/lib/upload": [
+    "uploadFileByRule",
+    "importRemoteFileByRule",
+    "importRemoteFileByRuleStream",
+    "listUploadRuleMetas",
+    "getCachedUploadRuleMetas",
+    "downloadUploadFile",
+    "uploadFileDirect",
+    "digestUploadFile",
+  ],
   "@/lib/utils": ["cn", "sleep", "getPageNumbers", "formatDisplayValue"],
   "@/page/nodes/show/tooltip": ["HoverTip", "InlineTip", "ShowTooltip"],
   "@/stores/auth-store": [
