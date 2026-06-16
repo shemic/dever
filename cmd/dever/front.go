@@ -94,36 +94,27 @@ func discoverFrontPluginTargets(projectRoot, rawTarget string) ([]frontPluginTar
 	target := strings.TrimSpace(rawTarget)
 
 	var targets []frontPluginTarget
-	for _, root := range frontPluginSourceRoots(projectRoot) {
-		entries, err := os.ReadDir(root)
-		if err != nil {
+	components, err := listActiveComponentSources(projectRoot)
+	if err != nil {
+		return nil, err
+	}
+	for _, current := range components {
+		if target != "" && target != current.name {
+			continue
+		}
+		frontRoot := filepath.Join(current.root, "front")
+		pluginEntry := filepath.Join(frontRoot, "src", "plugin.ts")
+		if _, err := os.Stat(pluginEntry); err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
 			return nil, err
 		}
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			name := entry.Name()
-			if target != "" && target != name {
-				continue
-			}
-			frontRoot := filepath.Join(root, name, "front")
-			pluginEntry := filepath.Join(frontRoot, "src", "plugin.ts")
-			if _, err := os.Stat(pluginEntry); err != nil {
-				if os.IsNotExist(err) {
-					continue
-				}
-				return nil, err
-			}
-			targets = append(targets, frontPluginTarget{
-				name: name,
-				kind: filepath.Base(root),
-				root: frontRoot,
-			})
-		}
+		targets = append(targets, frontPluginTarget{
+			name: current.name,
+			kind: current.source,
+			root: frontRoot,
+		})
 	}
 
 	return targets, nil

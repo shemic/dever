@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/shemic/dever/util"
 )
 
 type serviceEntry struct {
@@ -31,48 +29,22 @@ type providerEntry struct {
 
 // GenerateServices 扫描项目 service 目录，生成统一的 service 注册文件。
 func GenerateServices(projectRoot string) error {
-	if projectRoot == "" {
-		projectRoot = "."
-	}
-	rootPath, err := filepath.Abs(projectRoot)
+	sources, err := LoadProjectSources(projectRoot)
 	if err != nil {
-		return fmt.Errorf("解析项目根目录失败: %w", err)
+		return err
 	}
+	return GenerateServicesForSources(sources)
+}
 
-	output := filepath.Join(rootPath, "data", "load", "service.go")
-
+func GenerateServicesForSources(sources ProjectSources) error {
 	var entries []serviceEntry
 	var providerEntries []providerEntry
 	importAliases := make(map[string]string)
 	aliasUsage := make(map[string]int)
 
-	moduleSources, err := util.ListModuleSources(rootPath)
-	if err != nil {
-		return fmt.Errorf("读取模块目录失败: %w", err)
-	}
-
-	for _, source := range moduleSources {
-		walkErr := filepath.Walk(source.Root, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info == nil || info.IsDir() {
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			if !strings.Contains(path, string(os.PathSeparator)+"service"+string(os.PathSeparator)) &&
-				!strings.HasSuffix(filepath.Dir(path), string(os.PathSeparator)+"service") {
-				return nil
-			}
-
-			relPath, err := filepath.Rel(source.Root, path)
-			if err != nil {
-				return nil
-			}
-
-			entry, providers, err := analyzeServiceFile(source.Name, source.Import, relPath, path, importAliases, aliasUsage)
+	for _, source := range sources.ModuleSources {
+		walkErr := walkGoFilesUnder(source, "service", func(file goSourceFile) error {
+			entry, providers, err := analyzeServiceFile(source.Name, source.Import, file.RelPath, file.FullPath, importAliases, aliasUsage)
 			if err != nil {
 				return err
 			}
@@ -111,6 +83,7 @@ func GenerateServices(projectRoot string) error {
 		return err
 	}
 
+	output := filepath.Join(sources.Root, "data", "load", "service.go")
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
 		return fmt.Errorf("创建 data/load 目录失败: %w", err)
 	}

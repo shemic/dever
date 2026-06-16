@@ -207,9 +207,9 @@ func buildComparisonClause(field, op string, value any, quoter func(string) stri
 	case "LIKE", "NOT LIKE":
 		return fmt.Sprintf("%s %s ?", quotedField, op), []any{value}
 	case "IS", "IS NOT":
-		valStr := util.ToStringTrimmed(value)
-		if strings.EqualFold(valStr, "null") || value == nil {
-			return fmt.Sprintf("%s %s NULL", quotedField, op), nil
+		valStr := safeISValue(value)
+		if valStr == "" {
+			return "", nil
 		}
 		return fmt.Sprintf("%s %s %s", quotedField, op, valStr), nil
 	default:
@@ -226,7 +226,8 @@ func buildComparisonClause(field, op string, value any, quoter func(string) stri
 }
 
 func normalizeComparisonOperator(op string) string {
-	switch strings.TrimSpace(strings.ToUpper(op)) {
+	normalized := strings.TrimSpace(strings.ToUpper(op))
+	switch normalized {
 	case "GT":
 		return ">"
 	case "GTE":
@@ -239,8 +240,10 @@ func normalizeComparisonOperator(op string) string {
 		return "!="
 	case "EQ":
 		return "="
+	case "=", "!=", "<>", ">", ">=", "<", "<=", "LIKE", "NOT LIKE", "IN", "NOT IN", "BETWEEN", "IS", "IS NOT":
+		return normalized
 	default:
-		return strings.TrimSpace(strings.ToUpper(op))
+		return ""
 	}
 }
 
@@ -327,7 +330,7 @@ func appendLimit(query string, options map[string]any) string {
 	if options == nil {
 		return query
 	}
-	if limit, ok := options["limit"].(string); ok && strings.TrimSpace(limit) != "" {
+	if limit := safeLimitClause(options["limit"]); limit != "" {
 		return query + " LIMIT " + limit
 	}
 	page, hasPage := util.ParseInt64(options["page"])

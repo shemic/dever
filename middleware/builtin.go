@@ -40,6 +40,10 @@ func Recover() Middleware {
 		c := extractContext(ctx)
 		defer func() {
 			if r := recover(); r != nil {
+				if _, ok := r.(server.Abort); ok {
+					err = nil
+					return
+				}
 				method, path, traceID, spanID := requestLogFields(c)
 				fields := requestSourceFields(c)
 				if fields == nil {
@@ -52,7 +56,7 @@ func Recover() Middleware {
 				fields["error"] = fmt.Sprintf("%v", r)
 				dlog.ErrorFields("http_recover", "panic recovered", fields)
 				if c != nil {
-					_ = c.Error(fmt.Sprintf("%v", r), http.StatusInternalServerError)
+					_ = c.Error(http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				}
 				err = nil
 			}

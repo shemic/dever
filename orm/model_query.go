@@ -71,8 +71,8 @@ func (m *modelCore) Count(ctx context.Context, filters any, options ...map[strin
 	}
 	expr := "COUNT(*)"
 	if opt != nil {
-		if field, ok := opt["field"].(string); ok && strings.TrimSpace(field) != "" {
-			expr = field
+		if field, ok := opt["field"]; ok {
+			expr = safeAggregateExpression(field, expr)
 		}
 	}
 	return m.aggregateInt(ctx, expr, filters, opt)
@@ -88,10 +88,10 @@ func (m *modelCore) Sum(ctx context.Context, column string, filters any, options
 	if len(options) > 0 {
 		opt = options[0]
 	}
-	expr := fmt.Sprintf("SUM(%s)", trimmed)
+	expr := fmt.Sprintf("SUM(%s)", safeAggregateExpression(trimmed, "0"))
 	if opt != nil {
-		if field, ok := opt["field"].(string); ok && strings.TrimSpace(field) != "" {
-			expr = field
+		if field, ok := opt["field"]; ok {
+			expr = safeAggregateExpression(field, expr)
 		}
 	}
 	return m.aggregateFloat(ctx, expr, filters, opt)
@@ -153,7 +153,7 @@ func (m *Model[T]) SelectMap(ctx context.Context, filters any, options ...map[st
 	}
 	normalizeKeys := true
 	if opt != nil {
-		if field, ok := opt["field"].(string); ok && strings.TrimSpace(field) != "" {
+		if field, ok := opt["field"]; ok && strings.TrimSpace(safeSelectFields(field, "")) != "" {
 			normalizeKeys = false
 		}
 	}
@@ -178,7 +178,7 @@ func (m *Model[T]) FindMap(ctx context.Context, filters any, options ...map[stri
 		return map[string]any{}
 	}
 	if len(options) > 0 && options[0] != nil {
-		if field, ok := options[0]["field"].(string); ok && strings.TrimSpace(field) != "" {
+		if field, ok := options[0]["field"]; ok && strings.TrimSpace(safeSelectFields(field, "")) != "" {
 			normalizeMapValues(record)
 			return record
 		}
@@ -257,25 +257,20 @@ type resolvedSelectOptions struct {
 func resolveSelectOptions(options map[string]any, defaultOrder string, allowOrder bool) resolvedSelectOptions {
 	resolved := resolvedSelectOptions{
 		fields: "main.*",
-		order:  defaultOrder,
+		order:  safeOrderClause(defaultOrder, ""),
 	}
 	if options == nil {
 		return resolved
 	}
-	if val, ok := options["field"].(string); ok && strings.TrimSpace(val) != "" {
-		resolved.fields = val
+	if val, ok := options["field"]; ok {
+		resolved.fields = safeSelectFields(val, resolved.fields)
 	}
 	if joinRaw, ok := options["join"]; ok {
 		resolved.joinRaw = joinRaw
 	}
 	if allowOrder {
-		if val, ok := options["order"].(string); ok {
-			trimmed := strings.TrimSpace(val)
-			if trimmed != "" {
-				resolved.order = trimmed
-			} else {
-				resolved.order = ""
-			}
+		if val, ok := options["order"]; ok {
+			resolved.order = safeOrderClause(val, resolved.order)
 		}
 	}
 	if dest, ok := options["into"]; ok {

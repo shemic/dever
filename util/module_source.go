@@ -28,9 +28,18 @@ func ListModuleSources(projectRoot string) ([]ModuleSource, error) {
 		return nil, fmt.Errorf("解析项目根目录失败: %w", err)
 	}
 
-	projectModule, err := readProjectModuleName(filepath.Join(rootPath, "go.mod"))
+	projectModule, err := ReadProjectModuleName(filepath.Join(rootPath, "go.mod"))
 	if err != nil {
 		return nil, err
+	}
+
+	return ListModuleSourcesForModule(rootPath, projectModule)
+}
+
+func ListModuleSourcesForModule(projectRoot, projectModule string) ([]ModuleSource, error) {
+	rootPath, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return nil, fmt.Errorf("解析项目根目录失败: %w", err)
 	}
 
 	moduleRoot := filepath.Join(rootPath, "module")
@@ -143,7 +152,7 @@ func resolveModuleImportPath(projectRoot, importPath string) (string, error) {
 	return resolvedRoot, nil
 }
 
-func readProjectModuleName(path string) (string, error) {
+func ReadProjectModuleName(path string) (string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err

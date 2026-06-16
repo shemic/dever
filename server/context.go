@@ -23,11 +23,14 @@ var errNoJSONMethod = errors.New("context: JSON method not found")
 type JSONAdapter func(raw any, status int, data any) (handled bool, err error)
 
 var (
+	maxValidatorCacheEntries = 256
+
 	jsonAdapters      []JSONAdapter
 	jsonAdapterMux    sync.Mutex
 	jsonAdapterStored atomic.Value // stores []JSONAdapter
 
 	validatorCache util.ConcurrentMap[string, validatorCacheEntry]
+	validatorSize  atomic.Int64
 
 	// payloadPool reduces GC pressure by reusing payload maps
 	payloadPool = sync.Pool{
@@ -265,7 +268,13 @@ func normalizeErrorPayload(status int, err error) map[string]any {
 	payload["code"] = status
 	payload["status"] = 2
 	payload["data"] = nil
-	if err != nil && err.Error() != "" {
+	if status >= http.StatusInternalServerError {
+		if txt := http.StatusText(status); txt != "" {
+			payload["msg"] = txt
+		} else {
+			payload["msg"] = "server error"
+		}
+	} else if err != nil && err.Error() != "" {
 		payload["msg"] = err.Error()
 	} else if txt := http.StatusText(status); txt != "" {
 		payload["msg"] = txt
@@ -797,8 +806,18 @@ func compileValidator(rule string) (*regexp.Regexp, error) {
 	}
 
 	re, err := regexp.Compile(pattern)
-	validatorCache.Store(cacheKey, validatorCacheEntry{re: re, err: err})
+	storeValidator(cacheKey, validatorCacheEntry{re: re, err: err})
 	return re, err
+}
+
+func storeValidator(cacheKey string, entry validatorCacheEntry) {
+	if _, exists := validatorCache.Load(cacheKey); !exists {
+		if validatorSize.Add(1) > int64(maxValidatorCacheEntries) {
+			validatorCache.Clear()
+			validatorSize.Store(1)
+		}
+	}
+	validatorCache.Store(cacheKey, entry)
 }
 
 func (c *Context) abort(err error) {

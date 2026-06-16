@@ -27,11 +27,17 @@ func UseConfigured(options Options) middleware.ContextFunc {
 		if shouldBypass(c, options.Allow) {
 			return nil
 		}
+		if isPublicPath(c.Path(), options.PublicPaths) {
+			return nil
+		}
 
 		runtime := currentState()
 		if len(runtime.guards) > 0 {
 			guard, ok := matchGuard(runtime.guards, c.Path())
-			if !ok || guard.isPublic(c.Path()) {
+			if !ok {
+				return unauthorized(c, options, "未匹配认证保护规则")
+			}
+			if guard.isPublic(c.Path()) {
 				return nil
 			}
 			scheme, ok := runtime.schemes[guard.scheme]
@@ -41,11 +47,8 @@ func UseConfigured(options Options) middleware.ContextFunc {
 			return verify(c, scheme, options)
 		}
 
-		if isPublicPath(c.Path(), options.PublicPaths) {
-			return nil
-		}
 		if runtime.primary == "" {
-			return nil
+			return unauthorized(c, options, "未配置认证方案")
 		}
 		scheme, ok := runtime.schemes[runtime.primary]
 		if !ok {
@@ -98,11 +101,30 @@ func parseToken(tokenText string, scheme Scheme) (jwtlib.MapClaims, error) {
 			return nil, errors.New("签名算法不匹配")
 		}
 		return []byte(scheme.secret), nil
-	})
+	}, parserOptions(scheme)...)
 	if err != nil || token == nil || !token.Valid {
 		return nil, errors.New("无效的令牌")
 	}
 	return cloneClaims(claims), nil
+}
+
+func parserOptions(scheme Scheme) []jwtlib.ParserOption {
+	options := []jwtlib.ParserOption{
+		jwtlib.WithValidMethods([]string{scheme.alg}),
+	}
+	if scheme.requireExp {
+		options = append(options, jwtlib.WithExpirationRequired())
+	}
+	if scheme.leeway > 0 {
+		options = append(options, jwtlib.WithLeeway(scheme.leeway))
+	}
+	if scheme.issuer != "" {
+		options = append(options, jwtlib.WithIssuer(scheme.issuer))
+	}
+	if scheme.audience != "" {
+		options = append(options, jwtlib.WithAudience(scheme.audience))
+	}
+	return options
 }
 
 func extractToken(c *server.Context, header, prefix string) string {
@@ -123,12 +145,15 @@ func extractToken(c *server.Context, header, prefix string) string {
 	if strings.HasPrefix(lower, expected) {
 		return strings.TrimSpace(value[len(expected):])
 	}
-	return value
+	return ""
 }
 
 func unauthorized(c *server.Context, options Options, msg string) error {
 	if options.OnUnauthorized != nil {
-		return options.OnUnauthorized(c, msg)
+		if err := options.OnUnauthorized(c, msg); err != nil {
+			return err
+		}
+		panic(server.Abort{Err: errors.New(msg)})
 	}
 	if c != nil {
 		_ = c.Error(msg, http.StatusUnauthorized)

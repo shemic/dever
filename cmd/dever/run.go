@@ -170,7 +170,7 @@ func runHotReload(options watchRunOptions) error {
 			log.Printf("检测到文件变更: %s", formatChangedPaths(changes))
 
 			if !options.skipInit && requiresProjectInit(changes) {
-				log.Printf("检测到 model/service/api 变更，执行 init --skip-tidy")
+				log.Printf("检测到 component/model/service/api 变更，执行 init --skip-tidy")
 				if err := runProjectInit(options.projectRoot, true); err != nil {
 					log.Printf("init 执行失败，保留当前进程: %v", err)
 					snapshot = current
@@ -805,12 +805,37 @@ func shouldSkipWatchDir(relativePath string) bool {
 		return false
 	}
 
+	if isIgnoredWatchDirName(filepath.Base(relativePath)) {
+		return true
+	}
 	switch relativePath {
-	case ".git", ".idea", ".vscode", "node_modules", "tmp", "vendor", "data/log", "data/table":
+	case "data/log", "data/table", "package/front/html":
+		return true
+	}
+	return strings.HasPrefix(relativePath, "data/log/") ||
+		strings.HasPrefix(relativePath, "data/table/") ||
+		strings.HasPrefix(relativePath, "package/front/html/") ||
+		isComponentFrontDistDir(relativePath)
+}
+
+func isIgnoredWatchDirName(name string) bool {
+	switch name {
+	case ".git", ".idea", ".vscode", "node_modules", "tmp", "vendor":
 		return true
 	default:
 		return false
 	}
+}
+
+func isComponentFrontDistDir(relativePath string) bool {
+	parts := strings.Split(filepath.ToSlash(relativePath), "/")
+	if len(parts) < 4 {
+		return false
+	}
+	if parts[0] != "module" && parts[0] != "package" {
+		return false
+	}
+	return parts[2] == "front" && parts[3] == "dist"
 }
 
 func shouldWatchFile(relativePath string) bool {
@@ -824,6 +849,8 @@ func shouldWatchFile(relativePath string) bool {
 	case relativePath == "data/load/model.go":
 		return false
 	case relativePath == "data/load/service.go":
+		return false
+	case relativePath == "data/load/component.go":
 		return false
 	case strings.HasPrefix(relativePath, "data/table/"):
 		return false
@@ -845,6 +872,12 @@ func requiresProjectInit(paths []string) bool {
 		if !isGeneratedSourcePath(path) {
 			continue
 		}
+		if strings.HasSuffix(path, "/main.go") {
+			return true
+		}
+		if strings.HasSuffix(path, "/dever.json") || isComponentPageConfigPath(path) {
+			return true
+		}
 		if strings.HasSuffix(path, ".go") &&
 			(strings.Contains(path, "/api/") || strings.Contains(path, "/service/") || strings.Contains(path, "/model/")) {
 			return true
@@ -853,9 +886,31 @@ func requiresProjectInit(paths []string) bool {
 	return false
 }
 
+func isComponentPageConfigPath(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != ".json" && ext != ".jsonc" {
+		return false
+	}
+
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	if len(parts) < 4 {
+		return false
+	}
+	if parts[0] != "module" && parts[0] != "package" {
+		return false
+	}
+	if parts[2] == "page" {
+		return true
+	}
+	return len(parts) >= 5 && parts[2] == "front" && parts[3] == "page"
+}
+
 func requiresBinaryRebuild(paths []string) bool {
 	for _, path := range paths {
 		if strings.HasPrefix(path, "package/") {
+			return true
+		}
+		if isGeneratedSourcePath(path) && (strings.HasSuffix(path, "/dever.json") || isComponentPageConfigPath(path)) {
 			return true
 		}
 		switch strings.ToLower(filepath.Ext(path)) {

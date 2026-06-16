@@ -26,6 +26,8 @@ type httpJSONProvider struct {
 	queue    chan Snapshot
 	dropped  atomic.Uint64
 	closed   atomic.Bool
+	runCtx   context.Context
+	cancel   context.CancelFunc
 	stop     chan struct{}
 	done     chan struct{}
 }
@@ -66,6 +68,7 @@ func newHTTPJSONProvider(cfg Config) (Provider, error) {
 		timeout = defaultHTTPJSONTimeout
 	}
 
+	runCtx, cancel := context.WithCancel(context.Background())
 	provider := &httpJSONProvider{
 		client: &http.Client{
 			Timeout: timeout,
@@ -73,6 +76,8 @@ func newHTTPJSONProvider(cfg Config) (Provider, error) {
 		endpoint: endpoint,
 		headers:  observeOptionHeaders(cfg.Options),
 		queue:    make(chan Snapshot, bufferSize),
+		runCtx:   runCtx,
+		cancel:   cancel,
 		stop:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}
@@ -118,10 +123,15 @@ func (p *httpJSONProvider) loop() {
 	defer close(p.done)
 	for {
 		select {
-		case snapshot := <-p.queue:
-			p.postAndLog(snapshot)
 		case <-p.stop:
-			p.drain()
+			return
+		default:
+		}
+
+		select {
+		case snapshot := <-p.queue:
+			p.postAndLog(p.runCtx, snapshot)
+		case <-p.stop:
 			return
 		}
 	}
@@ -132,31 +142,42 @@ func (p *httpJSONProvider) Shutdown(ctx context.Context) error {
 
 	if p.closed.CompareAndSwap(false, true) {
 		close(p.stop)
+		if p.cancel != nil {
+			p.cancel()
+		}
 	}
-	done := p.done
 
 	select {
-	case <-done:
-		p.client.CloseIdleConnections()
-		return nil
+	case <-p.done:
 	case <-ctx.Done():
+		p.client.CloseIdleConnections()
 		return ctx.Err()
 	}
+
+	p.drain(ctx)
+	p.client.CloseIdleConnections()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (p *httpJSONProvider) drain() {
+func (p *httpJSONProvider) drain(ctx context.Context) {
+	ctx = normalizeContext(ctx)
 	for {
 		select {
 		case snapshot := <-p.queue:
-			p.postAndLog(snapshot)
+			p.postAndLog(ctx, snapshot)
+		case <-ctx.Done():
+			return
 		default:
 			return
 		}
 	}
 }
 
-func (p *httpJSONProvider) postAndLog(snapshot Snapshot) {
-	if err := p.post(snapshot); err != nil {
+func (p *httpJSONProvider) postAndLog(ctx context.Context, snapshot Snapshot) {
+	if err := p.post(ctx, snapshot); err != nil {
 		dlog.ErrorFields("observe_http_provider", "observe push failed", dlog.Fields{
 			"provider": "http",
 			"endpoint": p.endpoint,
@@ -165,13 +186,13 @@ func (p *httpJSONProvider) postAndLog(snapshot Snapshot) {
 	}
 }
 
-func (p *httpJSONProvider) post(snapshot Snapshot) error {
+func (p *httpJSONProvider) post(ctx context.Context, snapshot Snapshot) error {
 	body, err := json.Marshal(buildHTTPJSONPayload(snapshot))
 	if err != nil {
 		return fmt.Errorf("编码观测数据失败: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, p.endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(normalizeContext(ctx), http.MethodPost, p.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("创建观测请求失败: %w", err)
 	}

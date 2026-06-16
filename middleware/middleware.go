@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Next 表示继续执行下一个中间件或最终处理函数。
@@ -20,6 +21,7 @@ var (
 	global     []Middleware
 	routes     = map[string][]Middleware{}
 	chainCache = map[string][]Middleware{}
+	version    atomic.Uint64
 )
 
 // UseGlobal 注册全局中间件，按注册顺序执行。
@@ -31,6 +33,7 @@ func UseGlobal(middlewares ...Middleware) {
 	defer mu.Unlock()
 	global = append(global, middlewares...)
 	clear(chainCache)
+	version.Add(1)
 }
 
 // UseGlobalFunc 使用仅依赖上下文的中间件。
@@ -58,6 +61,7 @@ func UseRoute(method, path string, middlewares ...Middleware) {
 	defer mu.Unlock()
 	routes[key] = append(routes[key], middlewares...)
 	clear(chainCache)
+	version.Add(1)
 }
 
 // UseRouteFunc 使用仅依赖上下文的中间件。
@@ -83,7 +87,29 @@ func Execute(ctx any, method, path string, final ContextFunc) error {
 
 // Compile 在注册阶段构建固定执行链，避免请求期重复拼接 next 闭包。
 func Compile(method, path string, final ContextFunc) ContextFunc {
-	return compileChain(collect(method, path), final)
+	var (
+		compiledMu      sync.RWMutex
+		compiledVersion uint64
+		compiled        ContextFunc
+	)
+	return func(ctx any) error {
+		currentVersion := version.Load()
+		compiledMu.RLock()
+		fn := compiled
+		ready := fn != nil && compiledVersion == currentVersion
+		compiledMu.RUnlock()
+		if !ready {
+			next := compileChain(collect(method, path), final)
+			compiledMu.Lock()
+			if compiled == nil || compiledVersion != currentVersion {
+				compiled = next
+				compiledVersion = currentVersion
+			}
+			fn = compiled
+			compiledMu.Unlock()
+		}
+		return fn(ctx)
+	}
 }
 
 func compileChain(handlers []Middleware, final ContextFunc) ContextFunc {

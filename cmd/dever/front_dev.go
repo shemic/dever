@@ -200,24 +200,14 @@ func (s *frontPluginDevServer) stop(timeout time.Duration) error {
 
 func discoverRunFrontPluginSources(projectRoot string) ([]string, error) {
 	names := map[string]struct{}{}
-	for _, root := range frontPluginSourceRoots(projectRoot) {
-		entries, err := os.ReadDir(root)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, err
-		}
-
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			pluginName := entry.Name()
-			pluginEntry := filepath.Join(root, pluginName, "front", "src", "plugin.ts")
-			if info, err := os.Stat(pluginEntry); err == nil && !info.IsDir() {
-				names[pluginName] = struct{}{}
-			}
+	components, err := listActiveComponentSources(projectRoot)
+	if err != nil {
+		return nil, err
+	}
+	for _, current := range components {
+		pluginEntry := filepath.Join(current.root, "front", "src", "plugin.ts")
+		if info, err := os.Stat(pluginEntry); err == nil && !info.IsDir() {
+			names[current.name] = struct{}{}
 		}
 	}
 
@@ -227,32 +217,6 @@ func discoverRunFrontPluginSources(projectRoot string) ([]string, error) {
 	}
 	sort.Strings(result)
 	return result, nil
-}
-
-func frontPluginSourceRoots(projectRoot string) []string {
-	return uniqueExistingParentDirs([]string{
-		filepath.Join(projectRoot, "package"),
-		filepath.Join(projectRoot, "module"),
-		filepath.Join(projectRoot, "backend", "package"),
-		filepath.Join(projectRoot, "backend", "module"),
-	})
-}
-
-func uniqueExistingParentDirs(items []string) []string {
-	seen := map[string]struct{}{}
-	result := make([]string, 0, len(items))
-	for _, item := range items {
-		abs, err := filepath.Abs(item)
-		if err != nil {
-			continue
-		}
-		if _, ok := seen[abs]; ok {
-			continue
-		}
-		seen[abs] = struct{}{}
-		result = append(result, abs)
-	}
-	return result
 }
 
 func frontPluginDevPortConfigForProject(projectRoot string) frontPluginDevPortConfig {

@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/shemic/dever/util"
 )
 
 type modelEntry struct {
@@ -25,47 +23,21 @@ type modelEntry struct {
 
 // GenerateModels 扫描项目 model 目录，生成统一的模型注册文件。
 func GenerateModels(projectRoot string) error {
-	if projectRoot == "" {
-		projectRoot = "."
-	}
-	rootPath, err := filepath.Abs(projectRoot)
+	sources, err := LoadProjectSources(projectRoot)
 	if err != nil {
-		return fmt.Errorf("解析项目根目录失败: %w", err)
+		return err
 	}
+	return GenerateModelsForSources(sources)
+}
 
-	output := filepath.Join(rootPath, "data", "load", "model.go")
-
+func GenerateModelsForSources(sources ProjectSources) error {
 	var entries []modelEntry
 	importAliases := make(map[string]string)
 	aliasUsage := make(map[string]int)
 
-	moduleSources, err := util.ListModuleSources(rootPath)
-	if err != nil {
-		return fmt.Errorf("读取模块目录失败: %w", err)
-	}
-
-	for _, source := range moduleSources {
-		if walkErr := filepath.Walk(source.Root, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info == nil || info.IsDir() {
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			if !strings.Contains(path, string(os.PathSeparator)+"model"+string(os.PathSeparator)) &&
-				!strings.HasSuffix(filepath.Dir(path), string(os.PathSeparator)+"model") {
-				return nil
-			}
-
-			relPath, err := filepath.Rel(source.Root, path)
-			if err != nil {
-				return nil
-			}
-
-			entryList, err := analyzeModelFile(source.Name, source.Import, relPath, path, importAliases, aliasUsage)
+	for _, source := range sources.ModuleSources {
+		if walkErr := walkGoFilesUnder(source, "model", func(file goSourceFile) error {
+			entryList, err := analyzeModelFile(source.Name, source.Import, file.RelPath, file.FullPath, importAliases, aliasUsage)
 			if err != nil {
 				return err
 			}
@@ -94,6 +66,7 @@ func GenerateModels(projectRoot string) error {
 		return err
 	}
 
+	output := filepath.Join(sources.Root, "data", "load", "model.go")
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
 		return fmt.Errorf("创建 data/load 目录失败: %w", err)
 	}

@@ -232,15 +232,7 @@ func buildJoinClause(raw any) string {
 }
 
 func normalizeJoinType(raw string) string {
-	joinType := strings.TrimSpace(raw)
-	if joinType == "" {
-		return "LEFT JOIN"
-	}
-	joinType = strings.ToUpper(joinType)
-	if !strings.Contains(joinType, "JOIN") {
-		joinType += " JOIN"
-	}
-	return joinType
+	return safeJoinType(raw)
 }
 
 func appendJoinClause(builder *strings.Builder, written, idx int, m map[string]any) int {
@@ -248,11 +240,14 @@ func appendJoinClause(builder *strings.Builder, written, idx int, m map[string]a
 	if table == "" || ensureIdentifier(table) != nil {
 		return written
 	}
-	onClause := strings.TrimSpace(firstNonEmptyString(m, "on"))
+	onClause := safeJoinOnClause(m["on"])
 	if onClause == "" {
 		return written
 	}
 	joinType := normalizeJoinType(firstNonEmptyString(m, "type"))
+	if joinType == "" {
+		return written
+	}
 	if written > 0 {
 		builder.WriteByte(' ')
 	}

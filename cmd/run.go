@@ -77,12 +77,12 @@ func Run(register func(server.Server)) error {
 		if err := app.Shutdown(shutdownCtx); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				fmt.Println("HTTP 服务优雅停机超时，尝试强制退出...")
-				observeCtx, observeCancel := context.WithTimeout(context.Background(), 2*time.Second)
-				if observeErr := observe.Shutdown(observeCtx); observeErr != nil && !errors.Is(observeErr, context.Canceled) && !errors.Is(observeErr, context.DeadlineExceeded) {
-					observeCancel()
-					return fmt.Errorf("observe 停机失败: %w", observeErr)
+				cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				if cleanupErr := runShutdownCleanup(cleanupCtx); cleanupErr != nil && !errors.Is(cleanupErr, context.Canceled) && !errors.Is(cleanupErr, context.DeadlineExceeded) {
+					cleanupCancel()
+					return fmt.Errorf("停机清理失败: %w", cleanupErr)
 				}
-				observeCancel()
+				cleanupCancel()
 				go func() {
 					select {
 					case <-serverErrCh:
@@ -95,8 +95,8 @@ func Run(register func(server.Server)) error {
 				return fmt.Errorf("HTTP 服务优雅停机失败: %w", err)
 			}
 		}
-		if err := observe.Shutdown(shutdownCtx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("observe 停机失败: %w", err)
+		if err := runShutdownCleanup(shutdownCtx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("停机清理失败: %w", err)
 		}
 
 		if err := <-serverErrCh; err != nil {
@@ -110,16 +110,7 @@ func makeFiberConfig(httpCfg config.HTTP) fiber.Config {
 	conf := fiber.Config{
 		DisableStartupMessage: true, // 统一关闭 Fiber 自带的启动输出
 	}
-	if !httpCfg.EnableTuning {
-		return conf
-	}
-
 	conf.AppName = httpCfg.AppName
-	conf.Prefork = httpCfg.Prefork
-	conf.StrictRouting = httpCfg.StrictRouting
-	conf.CaseSensitive = httpCfg.CaseSensitive
-	conf.ReduceMemoryUsage = httpCfg.ReduceMemoryUsage
-	conf.ServerHeader = httpCfg.ServerHeader
 	conf.ReadTimeout = httpCfg.ReadTimeout.Duration()
 	conf.WriteTimeout = httpCfg.WriteTimeout.Duration()
 	conf.IdleTimeout = httpCfg.IdleTimeout.Duration()
@@ -129,7 +120,23 @@ func makeFiberConfig(httpCfg config.HTTP) fiber.Config {
 	if httpCfg.Concurrency > 0 {
 		conf.Concurrency = httpCfg.Concurrency
 	}
+	if !httpCfg.EnableTuning {
+		return conf
+	}
+
+	conf.Prefork = httpCfg.Prefork
+	conf.StrictRouting = httpCfg.StrictRouting
+	conf.CaseSensitive = httpCfg.CaseSensitive
+	conf.ReduceMemoryUsage = httpCfg.ReduceMemoryUsage
+	conf.ServerHeader = httpCfg.ServerHeader
 	return conf
+}
+
+func runShutdownCleanup(ctx context.Context) error {
+	return errors.Join(
+		server.RunShutdownHooks(ctx),
+		observe.Shutdown(ctx),
+	)
 }
 
 func printStartupBanner(appName, addr string) {

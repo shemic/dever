@@ -154,13 +154,17 @@ type AuthJWT struct {
 
 // JWTScheme 表示单个 JWT 方案。
 type JWTScheme struct {
-	Enabled   *bool    `json:"enabled,omitempty"`
-	Alg       string   `json:"alg"`
-	Secret    string   `json:"secret"`
-	SecretEnv string   `json:"secretEnv"`
-	Header    string   `json:"header"`
-	Prefix    string   `json:"prefix"`
-	ClaimKeys []string `json:"claimKeys"`
+	Enabled    *bool    `json:"enabled,omitempty"`
+	Alg        string   `json:"alg"`
+	Secret     string   `json:"secret"`
+	SecretEnv  string   `json:"secretEnv"`
+	Header     string   `json:"header"`
+	Prefix     string   `json:"prefix"`
+	ClaimKeys  []string `json:"claimKeys"`
+	Issuer     string   `json:"issuer"`
+	Audience   string   `json:"audience"`
+	Leeway     Duration `json:"leeway"`
+	RequireExp *bool    `json:"requireExp,omitempty"`
 }
 
 // JWTGuard 表示 JWT 方案对应的路由保护规则。
@@ -407,6 +411,9 @@ func (c *App) applyDefaults() {
 		}
 		if len(scheme.ClaimKeys) == 0 {
 			scheme.ClaimKeys = []string{"uid", "sub"}
+		}
+		if scheme.Leeway < 0 {
+			scheme.Leeway = 0
 		}
 		c.Auth.JWT.Schemes[name] = scheme
 	}

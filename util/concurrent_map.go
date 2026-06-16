@@ -38,6 +38,12 @@ func (m *ConcurrentMap[K, V]) Delete(key K) {
 	delete(m.data, key)
 }
 
+func (m *ConcurrentMap[K, V]) Clear() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.data = nil
+}
+
 func (m *ConcurrentMap[K, V]) LoadOrStore(key K, value V) (V, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

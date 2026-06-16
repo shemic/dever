@@ -80,6 +80,12 @@ func syncTableSchema(ctx context.Context, db *sqlx.DB, driver, table string, sch
 		}
 		statements = append(statements, addStmt...)
 
+		typeStmt, err := syncColumnTypes(ctx, db, driver, table, schema.Columns)
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, typeStmt...)
+
 		dropStmt, err := dropObsoleteColumns(ctx, db, driver, table, schema.Columns)
 		if err != nil {
 			return nil, err
@@ -227,6 +233,66 @@ func addMissingColumns(ctx context.Context, db *sqlx.DB, driver, table string, c
 		statements = append(statements, definition)
 	}
 	return statements, nil
+}
+
+func syncColumnTypes(ctx context.Context, db *sqlx.DB, driver, table string, columns []columnDef) ([]string, error) {
+	existing, err := loadExistingColumnStates(ctx, db, driver, table)
+	if err != nil {
+		return nil, err
+	}
+	var statements []string
+	for _, column := range columns {
+		if column.Primary || column.AutoIncrement {
+			continue
+		}
+		actual, ok := findExistingColumnState(existing, column.Name)
+		if !ok {
+			continue
+		}
+		desiredType := sqlTypeForDriver(column.Type, driver, column.AutoIncrement)
+		if columnTypesMatch(actual.Type, desiredType) {
+			continue
+		}
+		ops := buildAlterColumnTypeStatements(driver, table, actual.Name, column, desiredType)
+		for _, stmt := range ops {
+			if _, err := db.ExecContext(ctx, stmt); err != nil {
+				return nil, err
+			}
+			statements = append(statements, stmt)
+		}
+	}
+	return statements, nil
+}
+
+func buildAlterColumnTypeStatements(driver, table, actualName string, column columnDef, desiredType string) []string {
+	if desiredType == "" {
+		return nil
+	}
+	switch driver {
+	case "postgres":
+		tableName := quoteIdentifier(driver, table)
+		columnName := quoteIdentifier(driver, actualName)
+		castExpr := fmt.Sprintf("%s::%s", columnName, desiredType)
+		statements := []string{
+			fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT", tableName, columnName),
+			fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE %s USING %s", tableName, columnName, desiredType, castExpr),
+		}
+		if column.DefaultValue != nil {
+			statements = append(statements, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s", tableName, columnName, formatDefaultValue(*column.DefaultValue, column.DefaultIsRaw)))
+		}
+		return statements
+	case "mysql":
+		definition := fmt.Sprintf("%s %s", quoteIdentifier(driver, actualName), desiredType)
+		if column.NotNull {
+			definition += " NOT NULL"
+		}
+		if column.DefaultValue != nil {
+			definition += " DEFAULT " + formatDefaultValue(*column.DefaultValue, column.DefaultIsRaw)
+		}
+		return []string{fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s", quoteIdentifier(driver, table), definition)}
+	default:
+		return nil
+	}
 }
 
 func dropObsoleteColumns(ctx context.Context, db *sqlx.DB, driver, table string, columns []columnDef) ([]string, error) {
@@ -588,6 +654,137 @@ func loadExistingColumns(ctx context.Context, db *sqlx.DB, driver, table string)
 		return nil, fmt.Errorf("orm: unsupported driver %s", driver)
 	}
 	return result, nil
+}
+
+type existingColumnState struct {
+	Name string
+	Type string
+}
+
+func loadExistingColumnStates(ctx context.Context, db *sqlx.DB, driver, table string) (map[string]existingColumnState, error) {
+	if err := ensureIdentifier(table); err != nil {
+		return nil, err
+	}
+	result := map[string]existingColumnState{}
+	switch driver {
+	case "postgres":
+		query := `
+SELECT column_name,
+       CASE
+         WHEN data_type = 'character varying' AND character_maximum_length IS NOT NULL THEN 'VARCHAR(' || character_maximum_length || ')'
+         WHEN data_type = 'character varying' THEN 'VARCHAR'
+         WHEN data_type = 'timestamp with time zone' THEN 'TIMESTAMPTZ'
+         WHEN data_type = 'timestamp without time zone' THEN 'TIMESTAMP'
+         WHEN data_type = 'double precision' THEN 'DOUBLE'
+         ELSE UPPER(data_type)
+       END AS column_type
+FROM information_schema.columns
+WHERE table_schema = current_schema() AND table_name = $1`
+		rows, err := db.QueryxContext(ctx, query, table)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var name, columnType string
+			if err := rows.Scan(&name, &columnType); err != nil {
+				return nil, err
+			}
+			result[strings.ToLower(name)] = existingColumnState{Name: name, Type: columnType}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	case "mysql":
+		query := "SELECT column_name, column_type FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?"
+		rows, err := db.QueryxContext(ctx, query, table)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var name, columnType string
+			if err := rows.Scan(&name, &columnType); err != nil {
+				return nil, err
+			}
+			result[strings.ToLower(name)] = existingColumnState{Name: name, Type: columnType}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	case "sqlite":
+		query := fmt.Sprintf("PRAGMA table_info(%s)", quoteIdentifier(driver, table))
+		rows, err := db.QueryxContext(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var cid int
+			var name, columnType string
+			var notnull, pk int
+			var dflt sql.NullString
+			if err := rows.Scan(&cid, &name, &columnType, &notnull, &dflt, &pk); err != nil {
+				return nil, err
+			}
+			result[strings.ToLower(name)] = existingColumnState{Name: name, Type: columnType}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("orm: unsupported driver %s", driver)
+	}
+	return result, nil
+}
+
+func findExistingColumnState(existing map[string]existingColumnState, name string) (existingColumnState, bool) {
+	if existing == nil {
+		return existingColumnState{}, false
+	}
+	targetLower := strings.ToLower(name)
+	if actual, ok := existing[targetLower]; ok {
+		return actual, true
+	}
+	targetCanonical := canonicalColumnKey(targetLower)
+	for key, actual := range existing {
+		if canonicalColumnKey(key) == targetCanonical {
+			return actual, true
+		}
+	}
+	return existingColumnState{}, false
+}
+
+func columnTypesMatch(actual, desired string) bool {
+	return normalizeColumnType(actual) == normalizeColumnType(desired)
+}
+
+func normalizeColumnType(columnType string) string {
+	normalized := strings.ToUpper(strings.TrimSpace(columnType))
+	normalized = strings.Join(strings.Fields(normalized), " ")
+	switch normalized {
+	case "CHARACTER VARYING":
+		return "VARCHAR"
+	case "TIMESTAMP WITH TIME ZONE":
+		return "TIMESTAMPTZ"
+	case "TIMESTAMP WITHOUT TIME ZONE":
+		return "TIMESTAMP"
+	case "DOUBLE PRECISION":
+		return "DOUBLE"
+	case "INT":
+		return "INTEGER"
+	case "INT8":
+		return "BIGINT"
+	case "INT4":
+		return "INTEGER"
+	case "INT2":
+		return "SMALLINT"
+	case "BOOL":
+		return "BOOLEAN"
+	}
+	normalized = strings.ReplaceAll(normalized, "CHARACTER VARYING(", "VARCHAR(")
+	normalized = strings.ReplaceAll(normalized, " ", "")
+	return normalized
 }
 
 func columnExists(existing map[string]string, name string) bool {

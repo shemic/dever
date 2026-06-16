@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	jwtlib "github.com/golang-jwt/jwt/v5"
 
@@ -13,12 +14,16 @@ import (
 )
 
 type Scheme struct {
-	name      string
-	alg       string
-	secret    string
-	header    string
-	prefix    string
-	claimKeys []string
+	name       string
+	alg        string
+	secret     string
+	header     string
+	prefix     string
+	claimKeys  []string
+	issuer     string
+	audience   string
+	leeway     time.Duration
+	requireExp bool
 }
 
 type Guard struct {
@@ -122,12 +127,13 @@ func buildRuntimeState(authCfg config.Auth) (runtimeState, error) {
 
 	if secret := strings.TrimSpace(authCfg.JWTSecret); secret != "" {
 		next.schemes["default"] = Scheme{
-			name:      "default",
-			alg:       jwtlib.SigningMethodHS256.Alg(),
-			secret:    secret,
-			header:    "Authorization",
-			prefix:    "Bearer",
-			claimKeys: []string{"uid", "sub"},
+			name:       "default",
+			alg:        jwtlib.SigningMethodHS256.Alg(),
+			secret:     secret,
+			header:     "Authorization",
+			prefix:     "Bearer",
+			claimKeys:  []string{"uid", "sub"},
+			requireExp: true,
 		}
 	}
 
@@ -207,14 +213,22 @@ func resolveScheme(name string, raw config.JWTScheme) (Scheme, error) {
 	if len(claimKeys) == 0 {
 		claimKeys = []string{"uid", "sub"}
 	}
+	requireExp := true
+	if raw.RequireExp != nil {
+		requireExp = *raw.RequireExp
+	}
 
 	return Scheme{
-		name:      name,
-		alg:       alg,
-		secret:    secret,
-		header:    header,
-		prefix:    prefix,
-		claimKeys: claimKeys,
+		name:       name,
+		alg:        alg,
+		secret:     secret,
+		header:     header,
+		prefix:     prefix,
+		claimKeys:  claimKeys,
+		issuer:     strings.TrimSpace(raw.Issuer),
+		audience:   strings.TrimSpace(raw.Audience),
+		leeway:     raw.Leeway.Duration(),
+		requireExp: requireExp,
 	}, nil
 }
 

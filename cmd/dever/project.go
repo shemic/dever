@@ -21,14 +21,22 @@ func runProjectInit(projectRoot string, skipTidy bool) error {
 		}
 	}
 
-	if err := devercmd.GenerateRoutes(projectRoot); err != nil {
+	sources, err := devercmd.LoadProjectSources(projectRoot)
+	if err != nil {
+		return err
+	}
+
+	if err := devercmd.GenerateRoutesForSources(sources); err != nil {
 		return fmt.Errorf("路由生成失败: %w", err)
 	}
-	if err := devercmd.GenerateServices(projectRoot); err != nil {
+	if err := devercmd.GenerateServicesForSources(sources); err != nil {
 		return fmt.Errorf("service 生成失败: %w", err)
 	}
-	if err := devercmd.GenerateModels(projectRoot); err != nil {
+	if err := devercmd.GenerateModelsForSources(sources); err != nil {
 		return fmt.Errorf("model 生成失败: %w", err)
+	}
+	if err := devercmd.GenerateComponentsForSources(sources); err != nil {
+		return fmt.Errorf("component 生成失败: %w", err)
 	}
 	return nil
 }

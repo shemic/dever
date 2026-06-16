@@ -35,6 +35,8 @@ func main() {
 		runService(os.Args[2:])
 	case "model":
 		runModel(os.Args[2:])
+	case "component":
+		runComponent(os.Args[2:])
 	case "migrate":
 		runMigrate(os.Args[2:])
 	case "install":
@@ -55,10 +57,11 @@ Usage:
     dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [--skip-front] [target]
     dever front build [--project-root=.] [name]       # 构建 module/package 下的前端插件
     dever package add [--project-root=.] [name]       # 拉取并引入 github.com/dever-package/<name>
-    dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成 routes/service/model 注册
+    dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成 routes/service/model/component 注册
     dever routes [--project-root=.]               # 仅生成路由
     dever service [--project-root=.]              # 仅生成 service 注册
     dever model [--project-root=.]                # 仅生成 model 注册
+    dever component [--project-root=.]            # 仅生成 component 注册
     dever migrate [--project-root=.] <database>   # 应用 data/table 中记录的表结构到目标数据库
     dever install [--project-root=.] [--bin-dir=] # 直接写入一个启动脚本到用户 bin 目录
     dever push [--project-root=.] [--message=edit|-m edit] # git status/add/commit/push
@@ -112,6 +115,18 @@ func runModel(args []string) {
 	root := resolveProjectRoot(*projectRoot)
 	if err := devercmd.GenerateModels(root); err != nil {
 		log.Fatalf("model 生成失败: %v", err)
+	}
+}
+
+func runComponent(args []string) {
+	fs := flag.NewFlagSet("component", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("component 参数解析失败: %v", err)
+	}
+	root := resolveProjectRoot(*projectRoot)
+	if err := devercmd.GenerateComponents(root); err != nil {
+		log.Fatalf("component 生成失败: %v", err)
 	}
 }
 

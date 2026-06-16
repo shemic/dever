@@ -27,22 +27,18 @@ type middlewareEntry struct {
 
 // GenerateRoutes 扫描项目 API 目录，生成统一的路由注册文件。
 func GenerateRoutes(projectRoot string) error {
-	if projectRoot == "" {
-		projectRoot = "."
-	}
-	rootPath, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return fmt.Errorf("解析项目根目录失败: %w", err)
-	}
-
-	output := filepath.Join(rootPath, "data", "router.go")
-	moduleName, err := readProjectModuleName(filepath.Join(rootPath, "go.mod"))
+	sources, err := LoadProjectSources(projectRoot)
 	if err != nil {
 		return err
 	}
+	return GenerateRoutesForSources(sources)
+}
+
+func GenerateRoutesForSources(sources ProjectSources) error {
+	output := filepath.Join(sources.Root, "data", "router.go")
 
 	// ✅ 检测 server.Server 方法风格（Get 还是 GET）
-	methodStyle := detectServerMethodStyle(filepath.Join(rootPath, "dever", "server"))
+	methodStyle := detectServerMethodStyle(filepath.Join(sources.Root, "dever", "server"))
 	//fmt.Println("✅ 检测到 Server 方法风格:", methodStyle)
 
 	var routes []routeEntry
@@ -50,45 +46,22 @@ func GenerateRoutes(projectRoot string) error {
 	aliasUsage := make(map[string]int)
 	apiMethodRegexp := regexp.MustCompile(`func\s*\(\s*(?:\w+\s+)?\*?([A-Z]\w*)\s*\)\s*(Get|Post|Put|Delete)([A-Z]\w*)\s*\(`)
 
-	moduleSources, err := util.ListModuleSources(rootPath)
-	if err != nil {
-		return fmt.Errorf("读取模块目录失败: %w", err)
-	}
+	middlewares := discoverMiddlewareEntries(sources.Root, sources.Module, sources.ModuleSources, importAliases, aliasUsage)
 
-	middlewares := discoverMiddlewareEntries(rootPath, moduleName, moduleSources, importAliases, aliasUsage)
-
-	for _, source := range moduleSources {
-		walkErr := filepath.Walk(source.Root, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info == nil || info.IsDir() {
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			if !strings.Contains(path, string(os.PathSeparator)+"api"+string(os.PathSeparator)) {
-				return nil
-			}
-
-			relPath, err := filepath.Rel(source.Root, path)
-			if err != nil {
-				return nil
-			}
-
-			parts := strings.Split(relPath, string(os.PathSeparator))
+	for _, source := range sources.ModuleSources {
+		walkErr := walkGoFilesUnder(source, "api", func(file goSourceFile) error {
+			parts := strings.Split(file.RelPath, string(os.PathSeparator))
 			apiIndex := indexOf(parts, "api")
 			if apiIndex < 0 || len(parts) < 2 {
 				return nil
 			}
 			module := sanitizePathSegment(source.Name)
 			importPath := joinImportPath(source.Import, parts[:len(parts)-1]...)
-			alias := ensureAlias(importAliases, aliasUsage, importPath, filepath.Join(source.Name, filepath.Dir(relPath)))
+			alias := ensureAlias(importAliases, aliasUsage, importPath, filepath.Join(source.Name, filepath.Dir(file.RelPath)))
 
-			content, err := os.ReadFile(path)
+			content, err := os.ReadFile(file.FullPath)
 			if err != nil {
-				return fmt.Errorf("读取 API 文件失败 %s: %w", path, err)
+				return fmt.Errorf("读取 API 文件失败 %s: %w", file.FullPath, err)
 			}
 			methodMatches := apiMethodRegexp.FindAllStringSubmatch(string(content), -1)
 			for _, m := range methodMatches {
@@ -413,21 +386,6 @@ func detectServerMethodStyle(serverDir string) string {
 		return nil
 	})
 	return methodStyle
-}
-
-func readProjectModuleName(path string) (string, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(trimmed, "module ")), nil
-		}
-	}
-	return "", fmt.Errorf("无法从 go.mod 读取 module 名，请检查文件")
 }
 
 func joinImportPath(root string, parts ...string) string {
