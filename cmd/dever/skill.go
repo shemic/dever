@@ -1,13 +1,12 @@
 package main
 
 import (
-	"embed"
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -16,13 +15,11 @@ import (
 const (
 	deverSkillName       = "shemic-dever"
 	deverSkillSourcePath = "skills/skills-dever"
-	deverSkillEmbedPath  = "skill_assets/shemic-dever"
+	deverSkillRepo       = "https://github.com/shemic/skills-dever.git"
+	deverSkillRepoRef    = "v0.1.2"
 	deverSkillStart      = "<!-- dever-skill:start -->"
 	deverSkillEnd        = "<!-- dever-skill:end -->"
 )
-
-//go:embed skill_assets/shemic-dever
-var embeddedDeverSkill embed.FS
 
 type skillInstallOptions struct {
 	projectRoot string
@@ -30,6 +27,8 @@ type skillInstallOptions struct {
 	project     bool
 	agents      bool
 	force       bool
+	repo        string
+	ref         string
 }
 
 func runSkill(args []string) {
@@ -53,7 +52,7 @@ func printSkillUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `dever skill - AI skill 安装和检查命令
 
 Usage:
-    dever skill install [--project-root=.] [--global=true] [--project=true] [--agents=true] [--force]
+    dever skill install [--project-root=.] [--global=true] [--project=false] [--agents=true] [--force] [--repo=https://github.com/shemic/skills-dever.git] [--ref=v0.1.2]
     dever skill doctor [--project-root=.]
 `)
 }
@@ -62,9 +61,11 @@ func runSkillInstallCommand(args []string) {
 	fs := flag.NewFlagSet("skill install", flag.ExitOnError)
 	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
 	global := fs.Bool("global", true, "同步到常见全局 skill 目录")
-	project := fs.Bool("project", true, "同步到项目 skills/skills-dever")
+	project := fs.Bool("project", false, "同步一份项目本地 skills/skills-dever 镜像")
 	agents := fs.Bool("agents", true, "写入项目 AGENTS/CLAUDE/OpenCode/Codex managed block")
-	force := fs.Bool("force", false, "覆盖已有 skill 文件")
+	force := fs.Bool("force", false, "忽略已安装全局 skill 作为来源，按项目/Git ref 重新同步")
+	repo := fs.String("repo", deverSkillRepo, "skills-dever Git 仓库地址")
+	ref := fs.String("ref", deverSkillRepoRef, "skills-dever Git ref/tag/branch")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("skill install 参数解析失败: %v", err)
 	}
@@ -76,6 +77,8 @@ func runSkillInstallCommand(args []string) {
 		project:     *project,
 		agents:      *agents,
 		force:       *force,
+		repo:        strings.TrimSpace(*repo),
+		ref:         strings.TrimSpace(*ref),
 	}); err != nil {
 		log.Fatalf("skill install 执行失败: %v", err)
 	}
@@ -95,7 +98,7 @@ func runSkillDoctorCommand(args []string) {
 }
 
 func runSkillInstall(options skillInstallOptions) error {
-	source, err := resolveDeverSkillSource(options.projectRoot)
+	source, err := resolveDeverSkillSource(options)
 	if err != nil {
 		return err
 	}
@@ -142,10 +145,10 @@ func runSkillInstall(options skillInstallOptions) error {
 func runSkillDoctor(projectRoot string) error {
 	skillRoot := resolveSkillProjectRoot(projectRoot)
 	projectSkill := filepath.Join(skillRoot, deverSkillSourcePath, "SKILL.md")
-	if !fileExists(projectSkill) {
-		return fmt.Errorf("项目缺少 %s，请执行 dever skill install", projectSkill)
+	hasProjectSkill := fileExists(projectSkill)
+	if hasProjectSkill {
+		fmt.Printf("dever skill doctor: 项目 skill 镜像正常: %s\n", projectSkill)
 	}
-	fmt.Printf("dever skill doctor: 项目 skill 正常: %s\n", projectSkill)
 
 	block := false
 	for _, target := range agentInstructionTargets(skillRoot) {
@@ -169,8 +172,11 @@ func runSkillDoctor(projectRoot string) error {
 			global = true
 		}
 	}
-	if !global {
-		fmt.Println("dever skill doctor: 未发现全局 skill；项目本地 skill 可用")
+	if !global && !hasProjectSkill {
+		return fmt.Errorf("未发现全局 skill 或项目 skill 镜像，请先安装 github.com/shemic/skills-dever")
+	}
+	if !global && hasProjectSkill {
+		fmt.Println("dever skill doctor: 未发现全局 skill；项目本地 skill 镜像可用")
 	}
 	return nil
 }
@@ -234,10 +240,28 @@ func componentSkillPath(componentRoot string, skill string) (string, error) {
 
 type deverSkillSource struct {
 	root string
-	fsys fs.FS
 }
 
-func resolveDeverSkillSource(projectRoot string) (deverSkillSource, error) {
+func resolveDeverSkillSource(options skillInstallOptions) (deverSkillSource, error) {
+	if local, ok := findProjectDeverSkillSource(options.projectRoot); ok {
+		return deverSkillSource{root: local}, nil
+	}
+
+	fetched, err := fetchDeverSkill(options)
+	if err == nil {
+		return deverSkillSource{root: fetched}, nil
+	}
+
+	if !options.force {
+		if global, ok := firstInstalledGlobalSkill(); ok {
+			fmt.Fprintf(os.Stderr, "dever skill install: 拉取 skills-dever 失败，使用已安装全局 skill 兜底: %s\n", global)
+			return deverSkillSource{root: global}, nil
+		}
+	}
+	return deverSkillSource{}, err
+}
+
+func findProjectDeverSkillSource(projectRoot string) (string, bool) {
 	candidates := []string{
 		filepath.Join(projectRoot, deverSkillSourcePath),
 		filepath.Join(projectRoot, "..", deverSkillSourcePath),
@@ -246,17 +270,100 @@ func resolveDeverSkillSource(projectRoot string) (deverSkillSource, error) {
 	for _, candidate := range candidates {
 		candidate = filepath.Clean(candidate)
 		if fileExists(filepath.Join(candidate, "SKILL.md")) {
-			return deverSkillSource{root: candidate}, nil
+			return candidate, true
 		}
 	}
-	if _, err := fs.Stat(embeddedDeverSkill, filepath.Join(deverSkillEmbedPath, "SKILL.md")); err == nil {
-		sub, err := fs.Sub(embeddedDeverSkill, deverSkillEmbedPath)
-		if err != nil {
-			return deverSkillSource{}, err
+	return "", false
+}
+
+func firstInstalledGlobalSkill() (string, bool) {
+	for _, target := range mustGlobalSkillTargets() {
+		if fileExists(filepath.Join(target, "SKILL.md")) {
+			return target, true
 		}
-		return deverSkillSource{fsys: sub}, nil
 	}
-	return deverSkillSource{}, fmt.Errorf("未找到 %s skill 源", deverSkillName)
+	return "", false
+}
+
+func fetchDeverSkill(options skillInstallOptions) (string, error) {
+	repo := strings.TrimSpace(options.repo)
+	if repo == "" {
+		repo = deverSkillRepo
+	}
+	ref := strings.TrimSpace(options.ref)
+	if ref == "" {
+		ref = deverSkillRepoRef
+	}
+
+	cacheRoot, err := os.UserCacheDir()
+	if err != nil || strings.TrimSpace(cacheRoot) == "" {
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return "", fmt.Errorf("无法解析 skill 缓存目录: %w", homeErr)
+		}
+		cacheRoot = filepath.Join(home, ".cache")
+	}
+
+	target := filepath.Join(cacheRoot, "dever", "skills", "skills-dever")
+	if _, ok := skillRootInRepo(target); ok {
+		if err := gitUpdateDeverSkills(target, ref); err == nil {
+			if skillRoot, ok := skillRootInRepo(target); ok {
+				return skillRoot, nil
+			}
+		}
+	}
+
+	if err := os.RemoveAll(target); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return "", err
+	}
+	if err := gitCloneDeverSkills(repo, ref, target); err != nil {
+		return "", fmt.Errorf("拉取 skills-dever 失败，请先手动安装 %s: %w", repo, err)
+	}
+	skillRoot, ok := skillRootInRepo(target)
+	if !ok {
+		return "", fmt.Errorf("skills-dever 仓库缺少 SKILL.md 或 %s/SKILL.md", deverSkillSourcePath)
+	}
+	return skillRoot, nil
+}
+
+func skillRootInRepo(root string) (string, bool) {
+	if fileExists(filepath.Join(root, deverSkillSourcePath, "SKILL.md")) {
+		return filepath.Join(root, deverSkillSourcePath), true
+	}
+	if fileExists(filepath.Join(root, "SKILL.md")) {
+		return root, true
+	}
+	return "", false
+}
+
+func gitCloneDeverSkills(repo, ref, target string) error {
+	args := []string{"clone", "--depth", "1"}
+	if ref != "" {
+		args = append(args, "--branch", ref)
+	}
+	args = append(args, repo, target)
+	cmd := exec.Command("git", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func gitUpdateDeverSkills(root, ref string) error {
+	cmd := exec.Command("git", "fetch", "--depth", "1", "origin", ref)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Dir = root
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	cmd = exec.Command("git", "checkout", "FETCH_HEAD")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Dir = root
+	return cmd.Run()
 }
 
 func resolveSkillProjectRoot(projectRoot string) string {
@@ -274,13 +381,15 @@ func resolveSkillProjectRoot(projectRoot string) string {
 }
 
 func copyDeverSkill(source deverSkillSource, target string, overwrite bool) error {
-	if source.root != "" {
-		if samePath(source.root, target) {
-			return nil
-		}
-		return copyDirectoryFromDisk(source.root, target, overwrite)
+	if samePath(source.root, target) {
+		return nil
 	}
-	return copyDirectoryFromFS(source.fsys, ".", target, overwrite)
+	if overwrite {
+		if err := os.RemoveAll(target); err != nil {
+			return err
+		}
+	}
+	return copyDirectoryFromDisk(source.root, target, overwrite)
 }
 
 func copyDirectoryFromDisk(sourceRoot, targetRoot string, overwrite bool) error {
@@ -314,45 +423,6 @@ func copyDirectoryFromDisk(sourceRoot, targetRoot string, overwrite bool) error 
 			return err
 		}
 		return copyFile(path, target, info.Mode())
-	})
-}
-
-func copyDirectoryFromFS(source fs.FS, root, targetRoot string, overwrite bool) error {
-	return fs.WalkDir(source, root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		name := entry.Name()
-		if entry.IsDir() && (name == ".git" || name == "node_modules") {
-			return fs.SkipDir
-		}
-		if name == ".DS_Store" {
-			return nil
-		}
-		if path == "." {
-			return nil
-		}
-		target := filepath.Join(targetRoot, filepath.FromSlash(path))
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		if !overwrite && fileExists(target) {
-			return nil
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		input, err := source.Open(path)
-		if err != nil {
-			return err
-		}
-		err = writeReaderToFile(input, target, info.Mode())
-		closeErr := input.Close()
-		if err != nil {
-			return err
-		}
-		return closeErr
 	})
 }
 
@@ -448,14 +518,7 @@ func uniquePaths(items []string) []string {
 }
 
 func readDeverAgentsBlock(source deverSkillSource) (string, error) {
-	if source.root != "" {
-		content, err := os.ReadFile(filepath.Join(source.root, "files", "AGENTS.dever.md"))
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(string(content)) + "\n", nil
-	}
-	content, err := fs.ReadFile(source.fsys, "files/AGENTS.dever.md")
+	content, err := os.ReadFile(filepath.Join(source.root, "files", "AGENTS.dever.md"))
 	if err != nil {
 		return "", err
 	}
