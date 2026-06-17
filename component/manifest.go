@@ -18,6 +18,7 @@ type Manifest struct {
 	Depends         map[string]string       `json:"depends"`
 	OptionalDepends map[string]string       `json:"optionalDepends"`
 	Public          []string                `json:"public"`
+	Skills          []string                `json:"skills"`
 	Sites           map[string]ManifestSite `json:"sites"`
 }
 
@@ -56,6 +57,7 @@ func normalizeManifest(manifest Manifest) Manifest {
 	manifest.Depends = normalizeStringMap(manifest.Depends)
 	manifest.OptionalDepends = normalizeStringMap(manifest.OptionalDepends)
 	manifest.Public = normalizeStringList(manifest.Public)
+	manifest.Skills = normalizeStringList(manifest.Skills)
 
 	if len(manifest.Sites) > 0 {
 		sites := make(map[string]ManifestSite, len(manifest.Sites))

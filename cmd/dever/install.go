@@ -14,6 +14,7 @@ func runInstall(args []string) {
 	fs := flag.NewFlagSet("install", flag.ExitOnError)
 	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
 	binDir := fs.String("bin-dir", "", "安装目录，默认自动选择用户 bin")
+	skipSkills := fs.Bool("skip-skills", false, "跳过同步 shemic-dever AI skill")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("install 参数解析失败: %v", err)
 	}
@@ -36,6 +37,18 @@ func runInstall(args []string) {
 
 	if !isBinDirInPath(targetDir) {
 		fmt.Printf("请将该目录加入 PATH: %s\n", targetDir)
+	}
+
+	if !*skipSkills {
+		if err := runSkillInstall(skillInstallOptions{
+			projectRoot: root,
+			global:      true,
+			project:     true,
+			agents:      true,
+			force:       false,
+		}); err != nil {
+			log.Fatalf("安装 dever skill 失败: %v", err)
+		}
 	}
 }
 

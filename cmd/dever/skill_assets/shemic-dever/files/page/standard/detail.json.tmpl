@@ -1,0 +1,24 @@
+{
+  "page": {
+    "name": "{{RESOURCE_TITLE}}详情",
+    "type": 2
+  },
+  "layout": {
+    "type": "container",
+    "children": {
+      "detail-shell": {"type": "container"}
+    }
+  },
+  "nodes": {
+    "detail-shell": [
+      {"type": "show-base", "value": "record.name"},
+      {"type": "show-base", "value": "record.code"},
+      {"type": "show-date", "value": "record.created_at"}
+    ]
+  },
+  "data": {
+    "record": {}
+  },
+  "state": {},
+  "action": {}
+}

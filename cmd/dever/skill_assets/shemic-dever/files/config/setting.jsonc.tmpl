@@ -1,0 +1,48 @@
+{
+  "log": {
+    "level": "info",
+    "development": false,
+    "enabled": true,
+    "output": "file",
+    "successFile": "data/log/access.log",
+    "errorFile": "data/log/error.log"
+  },
+  "observe": {
+    "enabled": false,
+    "provider": "builtin",
+    "service": "",
+    "slowRequest": "500ms",
+    "slowSQL": "200ms",
+    "options": {
+      "endpoint": "",
+      "timeout": "3s",
+      "buffer": 512,
+      "headers": {
+        "Authorization": ""
+      }
+    }
+  },
+  "http": {
+    "host": "0.0.0.0",
+    "port": {{PORT}},
+    "shutdownTimeout": "10s",
+    "appName": "{{APP_NAME}}",
+    "cors": {
+      "enabled": true,
+      "allowOrigins": ["*"],
+      "allowMethods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      "allowHeaders": ["*"],
+      "allowCredentials": false,
+      "exposeHeaders": [],
+      "maxAge": 0
+    },
+    "enableTuning": true,
+    "prefork": false
+  },
+  "auth": {
+    "jwtSecret": "replace_me"
+  },
+  "frontSite": {
+    "enabled": true
+  }
+}

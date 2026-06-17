@@ -27,6 +27,8 @@ func main() {
 		runFront(os.Args[2:])
 	case "package":
 		runPackage(os.Args[2:])
+	case "skill":
+		runSkill(os.Args[2:])
 	case "init":
 		runInit(os.Args[2:])
 	case "routes":
@@ -57,13 +59,15 @@ Usage:
     dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [--skip-front] [target]
     dever front build [--project-root=.] [name]       # 构建 module/package 下的前端插件
     dever package add [--project-root=.] [name]       # 拉取并引入 github.com/dever-package/<name>
+    dever skill install [--project-root=.]            # 安装/同步 shemic-dever AI skill 和 agent 提示
+    dever skill doctor [--project-root=.]             # 检查 shemic-dever skill 安装状态
     dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成 routes/service/model/component 注册
     dever routes [--project-root=.]               # 仅生成路由
     dever service [--project-root=.]              # 仅生成 service 注册
     dever model [--project-root=.]                # 仅生成 model 注册
     dever component [--project-root=.]            # 仅生成 component 注册
     dever migrate [--project-root=.] <database>   # 应用 data/table 中记录的表结构到目标数据库
-    dever install [--project-root=.] [--bin-dir=] # 直接写入一个启动脚本到用户 bin 目录
+    dever install [--project-root=.] [--bin-dir=] [--skip-skills] # 安装启动脚本，并默认同步 AI skill
     dever push [--project-root=.] [--message=edit|-m edit] # git status/add/commit/push
 `)
 }

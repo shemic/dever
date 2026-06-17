@@ -1,0 +1,30 @@
+---
+name: dever-{{COMPONENT_NAME}}
+description: This skill should be used when editing the {{COMPONENT_NAME}} Dever component, including its model, service, provider, api, front/page JSON, front plugins, config, component metadata, permissions, and migration behavior.
+version: 0.1.0
+---
+
+# {{COMPONENT_TITLE}}
+
+Use this component skill together with `shemic-dever`. Read `shemic-dever` first for framework rules, then apply the component-specific rules here.
+
+## Source Of Truth
+
+- Component source: `package/{{COMPONENT_NAME}}`
+- Component pages: `package/{{COMPONENT_NAME}}/front/page`
+- Component front plugin: `package/{{COMPONENT_NAME}}/front/src/plugin.ts`
+- Component metadata: `package/{{COMPONENT_NAME}}/dever.json`
+
+## Rules
+
+- Reuse package/front page JSON capabilities before writing Service/API.
+- Do not create CRUD wrapper Service/API.
+- Do not edit generated files or compiled front assets.
+- Keep component-specific behavior inside this component.
+- Document any public API, permission, or migration behavior here.
+
+## Common Checks
+
+- Read existing models before changing page JSON.
+- Read existing services before adding new Provider/API.
+- Check component permissions before changing admin pages.

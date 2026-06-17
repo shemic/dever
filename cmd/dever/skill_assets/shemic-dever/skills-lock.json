@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "shemic-dever": {
+      "source": "shemic/skills-dever",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "51a61ee99807f887938ba091f66b598e3b2b0533e684c42fee2ce3f2f744f7b5"
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "page": {
+    "name": "{{RESOURCE_TITLE}}",
+    "icon": "list",
+    "sort": 100
+  },
+  "layout": {
+    "type": "container",
+    "children": {
+      "page-header": {"type": "header"},
+      "page-main": {
+        "type": "main",
+        "children": {
+          "toolbar-row": {"type": "row"},
+          "table-row": {"type": "container"},
+          "dialog-shell": {"type": "container"}
+        }
+      }
+    }
+  },
+  "nodes": {
+    "page-header": [
+      {"type": "show-title", "value": "page"}
+    ],
+    "toolbar-row": [
+      {"type": "form-input", "value": "search.keyword", "mode": "search"},
+      {"type": "show-button", "name": "搜索", "meta": {"searchSubmit": true}},
+      {"type": "show-button", "name": "新增", "meta": {"openDialog": "{{RESOURCE_NAME}}/update"}}
+    ],
+    "table-row": [
+      {
+        "type": "show-table",
+        "value": "table.list",
+        "meta": {
+          "remote": true,
+          "externalPagination": true,
+          "pagePath": "data.table.page",
+          "pageSizePath": "data.table.pageSize",
+          "totalPath": "data.table.total",
+          "rowKey": "id",
+          "columns": [
+            {"value": "name", "type": "show-base"},
+            {"value": "status", "type": "form-switch", "meta": {"trueValue": 1, "falseValue": 2}},
+            {"value": "sort", "type": "show-base", "editor": "form-number", "trigger": "doubleClick"},
+            {"value": "created_at", "type": "show-date"}
+          ]
+        }
+      }
+    ],
+    "dialog-shell": []
+  },
+  "data": {
+    "search": {"keyword": ""},
+    "table": {
+      "page": 1,
+      "pageSize": 10,
+      "total": 0,
+      "searchFields": ["name"]
+    }
+  },
+  "state": {},
+  "action": {}
+}
