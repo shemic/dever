@@ -23,10 +23,9 @@ type Manifest struct {
 }
 
 type ManifestSite struct {
-	Auth     []AuthSeed `json:"auth"`
-	Entry    string     `json:"entry"`
-	Public   []string   `json:"public"`
-	APIRoots []string   `json:"apiRoots"`
+	Auth   []AuthSeed `json:"auth"`
+	Entry  string     `json:"entry"`
+	Public []string   `json:"public"`
 }
 
 type AuthSeed struct {
@@ -68,7 +67,6 @@ func normalizeManifest(manifest Manifest) Manifest {
 			}
 			site.Entry = strings.Trim(strings.TrimSpace(site.Entry), "/")
 			site.Public = normalizeStringList(site.Public)
-			site.APIRoots = normalizeStringList(site.APIRoots)
 			sites[siteKey] = site
 		}
 		manifest.Sites = sites
