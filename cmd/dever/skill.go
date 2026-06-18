@@ -16,7 +16,7 @@ const (
 	deverSkillName       = "shemic-dever"
 	deverSkillSourcePath = "skills/skills-dever"
 	deverSkillRepo       = "https://github.com/shemic/skills-dever.git"
-	deverSkillRepoRef    = "v0.1.2"
+	deverSkillRepoRef    = "main"
 	deverSkillStart      = "<!-- dever-skill:start -->"
 	deverSkillEnd        = "<!-- dever-skill:end -->"
 )
@@ -52,7 +52,7 @@ func printSkillUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `dever skill - AI skill 安装和检查命令
 
 Usage:
-    dever skill install [--project-root=.] [--global=true] [--project=false] [--agents=true] [--force] [--repo=https://github.com/shemic/skills-dever.git] [--ref=v0.1.2]
+    dever skill install [--project-root=.] [--global=true] [--project=false] [--agents=true] [--force] [--repo=https://github.com/shemic/skills-dever.git] [--ref=main]
     dever skill doctor [--project-root=.]
 `)
 }
@@ -247,6 +247,12 @@ func resolveDeverSkillSource(options skillInstallOptions) (deverSkillSource, err
 		return deverSkillSource{root: local}, nil
 	}
 
+	if !options.force {
+		if global, ok := firstInstalledGlobalSkill(); ok {
+			return deverSkillSource{root: global}, nil
+		}
+	}
+
 	fetched, err := fetchDeverSkill(options)
 	if err == nil {
 		return deverSkillSource{root: fetched}, nil
@@ -269,7 +275,7 @@ func findProjectDeverSkillSource(projectRoot string) (string, bool) {
 	}
 	for _, candidate := range candidates {
 		candidate = filepath.Clean(candidate)
-		if fileExists(filepath.Join(candidate, "SKILL.md")) {
+		if isCompleteDeverSkillRoot(candidate) {
 			return candidate, true
 		}
 	}
@@ -278,7 +284,7 @@ func findProjectDeverSkillSource(projectRoot string) (string, bool) {
 
 func firstInstalledGlobalSkill() (string, bool) {
 	for _, target := range mustGlobalSkillTargets() {
-		if fileExists(filepath.Join(target, "SKILL.md")) {
+		if isCompleteDeverSkillRoot(target) {
 			return target, true
 		}
 	}
@@ -330,13 +336,18 @@ func fetchDeverSkill(options skillInstallOptions) (string, error) {
 }
 
 func skillRootInRepo(root string) (string, bool) {
-	if fileExists(filepath.Join(root, deverSkillSourcePath, "SKILL.md")) {
+	if isCompleteDeverSkillRoot(filepath.Join(root, deverSkillSourcePath)) {
 		return filepath.Join(root, deverSkillSourcePath), true
 	}
-	if fileExists(filepath.Join(root, "SKILL.md")) {
+	if isCompleteDeverSkillRoot(root) {
 		return root, true
 	}
 	return "", false
+}
+
+func isCompleteDeverSkillRoot(root string) bool {
+	return fileExists(filepath.Join(root, "SKILL.md")) &&
+		fileExists(filepath.Join(root, "files", "AGENTS.dever.md"))
 }
 
 func gitCloneDeverSkills(repo, ref, target string) error {
@@ -373,7 +384,7 @@ func resolveSkillProjectRoot(projectRoot string) string {
 		filepath.Join(projectRoot, "..", ".."),
 	} {
 		candidate = filepath.Clean(candidate)
-		if fileExists(filepath.Join(candidate, deverSkillSourcePath, "SKILL.md")) {
+		if isCompleteDeverSkillRoot(filepath.Join(candidate, deverSkillSourcePath)) {
 			return candidate
 		}
 	}
@@ -518,9 +529,10 @@ func uniquePaths(items []string) []string {
 }
 
 func readDeverAgentsBlock(source deverSkillSource) (string, error) {
-	content, err := os.ReadFile(filepath.Join(source.root, "files", "AGENTS.dever.md"))
+	path := filepath.Join(source.root, "files", "AGENTS.dever.md")
+	content, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("读取 Dever agent 提示模板失败: %s: %w", path, err)
 	}
 	return strings.TrimSpace(string(content)) + "\n", nil
 }
