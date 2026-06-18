@@ -45,7 +45,6 @@ func runInstall(args []string) {
 			global:      true,
 			project:     false,
 			agents:      true,
-			force:       false,
 		}); err != nil {
 			log.Fatalf("安装 dever skill 失败: %v", err)
 		}

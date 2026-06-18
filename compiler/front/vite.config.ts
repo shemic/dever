@@ -61,6 +61,49 @@ const pluginOptimizedDeps = [
   "zustand/react",
   "zustand/vanilla",
 ];
+const runtimeOwnedDependencies = new Set([
+  "@dever/front-plugin",
+  "@vitejs/plugin-react-swc",
+  "react",
+  "react-dom",
+  "react-dom/client",
+  "react/jsx-dev-runtime",
+  "react/jsx-runtime",
+  "typescript",
+  "vite",
+  "zustand",
+  "zustand/react",
+  "zustand/vanilla",
+]);
+const frontPluginDependencyNames = readCompilerDependencyNames();
+
+function readCompilerDependencyNames() {
+  const names = new Set<string>();
+  const manifest = readJSONFile(path.join(compilerRoot, "package.json"));
+  const dependencies = plainObject(manifest?.dependencies);
+  for (const name of Object.keys(dependencies)) {
+    const normalized = name.trim();
+    if (normalized && !runtimeOwnedDependencies.has(normalized)) {
+      names.add(normalized);
+    }
+  }
+  return Array.from(names).sort();
+}
+
+function readJSONFile(file: string) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function plainObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return value as Record<string, unknown>;
+}
 
 const compatExports: Record<string, string[]> = {
   "@/components/agent/interaction-panel": ["AgentInteractionPanel"],
@@ -352,6 +395,13 @@ function shimFile(name: string) {
   return path.join(shimRoot, file);
 }
 
+function frontPluginDependencyAliases() {
+  return frontPluginDependencyNames.map((name) => ({
+    find: name,
+    replacement: dependency(name),
+  }));
+}
+
 function runtimeAlias(command: string) {
   const serve = command === "serve";
   return [
@@ -397,6 +447,7 @@ function runtimeAlias(command: string) {
     { find: "@xyflow/react", replacement: dependency("@xyflow/react") },
     { find: "lucide-react", replacement: dependency("lucide-react") },
     { find: "sonner", replacement: dependency("sonner") },
+    ...frontPluginDependencyAliases(),
   ];
 }
 

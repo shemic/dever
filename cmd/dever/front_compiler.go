@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -169,7 +170,10 @@ func hasFrontCompilerConfig(compilerRoot string) bool {
 	return true
 }
 
-func ensureFrontCompilerDependencies(compilerRoot string) error {
+func ensureFrontCompilerDependencies(projectRoot, compilerRoot string) error {
+	if err := syncFrontCompilerPluginDependencies(projectRoot, compilerRoot); err != nil {
+		return err
+	}
 	if frontCompilerDependenciesReady(compilerRoot) {
 		return nil
 	}
@@ -183,16 +187,182 @@ func ensureFrontCompilerDependencies(compilerRoot string) error {
 }
 
 func frontCompilerDependenciesReady(compilerRoot string) bool {
-	for _, file := range []string{
-		filepath.Join("node_modules", ".bin", "vite"),
-		filepath.Join("node_modules", "@vitejs", "plugin-react-swc"),
-	} {
-		info, err := os.Stat(filepath.Join(compilerRoot, file))
-		if err != nil || info.IsDir() && filepath.Base(file) == "vite" {
+	if info, err := os.Stat(filepath.Join(compilerRoot, "node_modules", ".bin", "vite")); err != nil || info.IsDir() {
+		return false
+	}
+
+	packages, err := frontCompilerPackageNames(compilerRoot)
+	if err != nil {
+		return false
+	}
+	for _, name := range packages {
+		if !frontCompilerNodeModuleReady(compilerRoot, name) {
 			return false
 		}
 	}
 	return true
+}
+
+func syncFrontCompilerPluginDependencies(projectRoot, compilerRoot string) error {
+	if !isEmbeddedFrontCompilerRoot(projectRoot, compilerRoot) {
+		return nil
+	}
+
+	pluginDependencies, err := activeFrontPluginDependencies(projectRoot)
+	if err != nil {
+		return err
+	}
+	if len(pluginDependencies) == 0 {
+		return nil
+	}
+
+	packageFile := filepath.Join(compilerRoot, frontCompilerPackageJSON)
+	manifest, err := readJSONMap(packageFile)
+	if err != nil {
+		return fmt.Errorf("读取前端插件编译器 package.json 失败: %w", err)
+	}
+
+	dependencies := jsonStringMapSection(manifest, "dependencies")
+	devDependencies := jsonStringMapSection(manifest, "devDependencies")
+	changed := false
+	for name, version := range pluginDependencies {
+		if name == "" || version == "" || dependencies[name] != "" || devDependencies[name] != "" {
+			continue
+		}
+		dependencies[name] = version
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+
+	manifest["dependencies"] = dependencies
+	content, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("写入前端插件编译器 package.json 失败: %w", err)
+	}
+	content = append(content, '\n')
+	if err := os.WriteFile(packageFile, content, 0o644); err != nil {
+		return fmt.Errorf("写入前端插件编译器 package.json 失败: %w", err)
+	}
+	return nil
+}
+
+func activeFrontPluginDependencies(projectRoot string) (map[string]string, error) {
+	components, err := listActiveComponentSources(projectRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	dependencies := map[string]string{}
+	for _, current := range components {
+		pluginEntry := filepath.Join(current.root, "front", "src", "plugin.ts")
+		info, err := os.Stat(pluginEntry)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("读取前端插件入口失败: %s: %w", pluginEntry, err)
+		}
+		if info.IsDir() {
+			continue
+		}
+
+		packageFile := filepath.Join(current.root, "front", frontCompilerPackageJSON)
+		manifest, err := readJSONMap(packageFile)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("读取前端插件 package.json 失败: %s: %w", packageFile, err)
+		}
+		for name, version := range jsonStringMapSection(manifest, "dependencies") {
+			if name == "" || version == "" {
+				continue
+			}
+			if _, exists := dependencies[name]; !exists {
+				dependencies[name] = version
+			}
+		}
+	}
+	return dependencies, nil
+}
+
+func frontCompilerPackageNames(compilerRoot string) ([]string, error) {
+	manifest, err := readJSONMap(filepath.Join(compilerRoot, frontCompilerPackageJSON))
+	if err != nil {
+		return nil, err
+	}
+
+	seen := map[string]struct{}{}
+	result := []string{}
+	for _, section := range []string{"dependencies", "devDependencies"} {
+		for name := range jsonStringMapSection(manifest, section) {
+			if name == "" {
+				continue
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			result = append(result, name)
+		}
+	}
+	return result, nil
+}
+
+func frontCompilerNodeModuleReady(compilerRoot, name string) bool {
+	parts := append([]string{"node_modules"}, strings.Split(name, "/")...)
+	info, err := os.Stat(filepath.Join(compilerRoot, filepath.Join(parts...)))
+	return err == nil && info.IsDir()
+}
+
+func isEmbeddedFrontCompilerRoot(projectRoot, compilerRoot string) bool {
+	projectRoot, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return false
+	}
+	compilerRoot, err = filepath.Abs(compilerRoot)
+	if err != nil {
+		return false
+	}
+	return compilerRoot == filepath.Join(projectRoot, frontCompilerCacheDir)
+}
+
+func readJSONMap(file string) (map[string]interface{}, error) {
+	content, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(content, &result); err != nil {
+		return nil, err
+	}
+	if result == nil {
+		result = map[string]interface{}{}
+	}
+	return result, nil
+}
+
+func jsonStringMapSection(manifest map[string]interface{}, key string) map[string]string {
+	result := map[string]string{}
+	raw, ok := manifest[key]
+	if !ok {
+		return result
+	}
+	values, ok := raw.(map[string]interface{})
+	if !ok {
+		return result
+	}
+	for name, value := range values {
+		name = strings.TrimSpace(name)
+		version := strings.TrimSpace(fmt.Sprint(value))
+		if name == "" || version == "" {
+			continue
+		}
+		result[name] = version
+	}
+	return result
 }
 
 func frontCompilerEnv(projectRoot string, overrides map[string]string) []string {

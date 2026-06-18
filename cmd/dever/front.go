@@ -125,7 +125,7 @@ func buildFrontPlugin(projectRoot string, target frontPluginTarget) error {
 	if err != nil {
 		return err
 	}
-	if err := ensureFrontCompilerDependencies(compilerRoot); err != nil {
+	if err := ensureFrontCompilerDependencies(projectRoot, compilerRoot); err != nil {
 		return err
 	}
 

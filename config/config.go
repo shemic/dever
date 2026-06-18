@@ -337,6 +337,9 @@ func Load(path string) (*App, error) {
 	}
 
 	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
+		return nil, fmt.Errorf("配置校验失败 (%s): %w", actualPath, err)
+	}
 	return &cfg, nil
 }
 
@@ -468,6 +471,26 @@ func (c *App) applyDefaults() {
 		}
 		c.Database.Connections[name] = conf
 	}
+}
+
+func (c *App) validate() error {
+	return validateCORS(c.HTTP.CORS)
+}
+
+func validateCORS(cors CORS) error {
+	if !cors.Enabled || !cors.AllowCredentials {
+		return nil
+	}
+	if len(cors.AllowOrigins) == 0 {
+		return fmt.Errorf("http.cors.allowCredentials=true 时必须显式配置 http.cors.allowOrigins")
+	}
+	for _, origin := range cors.AllowOrigins {
+		origin = strings.TrimSpace(origin)
+		if origin == "" || origin == "*" || strings.Contains(origin, "*") {
+			return fmt.Errorf("http.cors.allowCredentials=true 时 http.cors.allowOrigins 不能包含空值或通配 origin")
+		}
+	}
+	return nil
 }
 
 func isSQLite(driver string) bool {

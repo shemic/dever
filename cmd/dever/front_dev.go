@@ -83,7 +83,7 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 	if err != nil {
 		return nil, err
 	}
-	if err := ensureFrontCompilerDependencies(compilerRoot); err != nil {
+	if err := ensureFrontCompilerDependencies(projectRoot, compilerRoot); err != nil {
 		return nil, err
 	}
 

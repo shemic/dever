@@ -115,7 +115,7 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 - 配置走 `backend/dever/config`
 - `setting.jsonc` 支持 JSONC
 - 新配置项要补默认值
-- 新配置项要考虑旧配置兼容
+- 新配置项要明确破坏性影响，不保留废弃配置双路径
 
 ### Log
 
@@ -133,7 +133,7 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 ### JWT
 
 - JWT 多 scheme 能力统一在 `backend/dever/auth/jwt`
-- 单 JWT 保持兼容 `config.auth.jwtSecret`
+- 单 JWT 默认读取 `config.auth.jwtSecret`
 - 多 JWT 走 `config.auth.jwt.schemes + guards`
 
 ### ORM
@@ -186,7 +186,7 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 
 1. 有没有把业务规则写死进框架
 2. 有没有新增平行实现
-3. 配置是否有默认值和兼容路径
+3. 配置是否有默认值，并明确破坏性影响
 4. 业务层是否能因此删掉重复代码
 5. 是否影响：
    - `config`
