@@ -1,6 +1,8 @@
 package component
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/shemic/dever/util"
@@ -27,23 +29,23 @@ type ManifestFront struct {
 }
 
 type ManifestSite struct {
-	Name        string              `json:"name"`
-	Subtitle    string              `json:"subtitle"`
-	Description string              `json:"description"`
-	URL         string              `json:"url"`
-	Page        string              `json:"page"`
-	API         string              `json:"api"`
-	Public      []string            `json:"public"`
-	Assets      ManifestSiteAssets  `json:"assets"`
-	Setting     ManifestSiteSetting `json:"setting"`
-	Access      ManifestSiteAccess  `json:"access"`
-	Entry       string              `json:"entry"`
-	Auth        []AuthSeed          `json:"auth"`
+	Page    string              `json:"page"`
+	API     string              `json:"api"`
+	Public  []string            `json:"public"`
+	Config  ManifestSiteConfig  `json:"config"`
+	Setting ManifestSiteSetting `json:"setting"`
+	Access  ManifestSiteAccess  `json:"access"`
+	Entry   string              `json:"entry"`
+	Auth    []AuthSeed          `json:"auth"`
 }
 
-type ManifestSiteAssets struct {
-	Logo    string `json:"logo"`
-	Favicon string `json:"favicon"`
+type ManifestSiteConfig struct {
+	Name        string `json:"name"`
+	Subtitle    string `json:"subtitle"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
+	Logo        string `json:"logo"`
+	Favicon     string `json:"favicon"`
 }
 
 type ManifestSiteSetting struct {
@@ -61,6 +63,7 @@ type ManifestAppearanceSetting struct {
 type ManifestRuntimeSetting struct {
 	Skin       string   `json:"skin"`
 	RouterMode string   `json:"routerMode"`
+	Shell      string   `json:"shell"`
 	Plugins    []string `json:"plugins,omitempty"`
 }
 
@@ -83,11 +86,59 @@ type AuthSeed struct {
 }
 
 func DecodeManifest(content []byte) (Manifest, error) {
+	if err := validateManifestFrontSites(content); err != nil {
+		return Manifest{}, err
+	}
 	var manifest Manifest
 	if err := util.UnmarshalJSONC(content, &manifest); err != nil {
 		return Manifest{}, err
 	}
 	return normalizeManifest(manifest), nil
+}
+
+func validateManifestFrontSites(content []byte) error {
+	normalized, err := util.NormalizeJSONC(content)
+	if err != nil {
+		return err
+	}
+	var raw struct {
+		Front struct {
+			Sites map[string]map[string]json.RawMessage `json:"sites"`
+		} `json:"front"`
+	}
+	if err := json.Unmarshal(normalized, &raw); err != nil {
+		return err
+	}
+	for siteKey, site := range raw.Front.Sites {
+		for key := range site {
+			switch key {
+			case "api", "page", "config", "setting", "access", "entry", "public", "auth":
+				if key == "config" {
+					if err := validateManifestSiteConfig(siteKey, site[key]); err != nil {
+						return err
+					}
+				}
+			default:
+				return fmt.Errorf("front.sites.%s 不允许字段 %q；站点展示配置请写入 config", siteKey, key)
+			}
+		}
+	}
+	return nil
+}
+
+func validateManifestSiteConfig(siteKey string, content json.RawMessage) error {
+	var config map[string]json.RawMessage
+	if err := json.Unmarshal(content, &config); err != nil {
+		return err
+	}
+	for key := range config {
+		switch key {
+		case "name", "subtitle", "description", "url", "logo", "favicon":
+		default:
+			return fmt.Errorf("front.sites.%s.config 不允许字段 %q", siteKey, key)
+		}
+	}
+	return nil
 }
 
 func normalizeManifest(manifest Manifest) Manifest {
@@ -106,22 +157,23 @@ func normalizeManifest(manifest Manifest) Manifest {
 			if siteKey == "" {
 				continue
 			}
-			site.Name = strings.TrimSpace(site.Name)
-			site.Subtitle = strings.TrimSpace(site.Subtitle)
-			site.Description = strings.TrimSpace(site.Description)
-			site.URL = strings.TrimSpace(site.URL)
 			site.Page = strings.Trim(strings.TrimSpace(site.Page), "/")
 			site.API = strings.Trim(strings.TrimSpace(site.API), "/")
 			site.Entry = strings.Trim(strings.TrimSpace(site.Entry), "/")
 			site.Public = normalizeStringList(site.Public)
-			site.Assets.Logo = strings.TrimSpace(site.Assets.Logo)
-			site.Assets.Favicon = strings.TrimSpace(site.Assets.Favicon)
+			site.Config.Name = strings.TrimSpace(site.Config.Name)
+			site.Config.Subtitle = strings.TrimSpace(site.Config.Subtitle)
+			site.Config.Description = strings.TrimSpace(site.Config.Description)
+			site.Config.URL = strings.TrimSpace(site.Config.URL)
+			site.Config.Logo = strings.TrimSpace(site.Config.Logo)
+			site.Config.Favicon = strings.TrimSpace(site.Config.Favicon)
 			site.Setting.Appearance.Theme = strings.TrimSpace(site.Setting.Appearance.Theme)
 			site.Setting.Appearance.Sidebar = strings.TrimSpace(site.Setting.Appearance.Sidebar)
 			site.Setting.Appearance.Layout = strings.TrimSpace(site.Setting.Appearance.Layout)
 			site.Setting.Appearance.Direction = strings.TrimSpace(site.Setting.Appearance.Direction)
 			site.Setting.Runtime.Skin = strings.TrimSpace(site.Setting.Runtime.Skin)
 			site.Setting.Runtime.RouterMode = strings.TrimSpace(site.Setting.Runtime.RouterMode)
+			site.Setting.Runtime.Shell = strings.ToLower(strings.TrimSpace(site.Setting.Runtime.Shell))
 			site.Setting.Runtime.Plugins = normalizeStringList(site.Setting.Runtime.Plugins)
 			site.Access.Mode = strings.ToLower(strings.TrimSpace(site.Access.Mode))
 			site.Access.AuthProvider = strings.Trim(strings.TrimSpace(site.Access.AuthProvider), "/")

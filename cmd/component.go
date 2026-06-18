@@ -90,7 +90,7 @@ func buildComponentEntry(rootPath string, source util.ModuleSource, importAliase
 		ManifestFS:  resourceVars["ManifestFS"],
 		PageFS:      resourceVars["PageFS"],
 		FrontFS:     resourceVars["FrontFS"],
-		PagePrefix:  componentPagePrefix(source.Name),
+		PagePrefix:  "front/page",
 		FrontPrefix: "front/dist",
 	}
 	return entry, entry.ManifestFS
@@ -102,13 +102,6 @@ func componentSource(rootPath string, source util.ModuleSource) string {
 		return "package"
 	}
 	return "module"
-}
-
-func componentPagePrefix(name string) string {
-	if name == "front" {
-		return "page"
-	}
-	return "front/page"
 }
 
 func relativeToRoot(rootPath, target string) string {

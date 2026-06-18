@@ -809,12 +809,12 @@ func shouldSkipWatchDir(relativePath string) bool {
 		return true
 	}
 	switch relativePath {
-	case "data/log", "data/table", "package/front/html":
+	case "data/log", "data/table", "package/front/front/html":
 		return true
 	}
 	return strings.HasPrefix(relativePath, "data/log/") ||
 		strings.HasPrefix(relativePath, "data/table/") ||
-		strings.HasPrefix(relativePath, "package/front/html/") ||
+		strings.HasPrefix(relativePath, "package/front/front/html/") ||
 		isComponentFrontDistDir(relativePath)
 }
 
