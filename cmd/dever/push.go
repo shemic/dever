@@ -63,7 +63,8 @@ func runGitPush(projectRoot, message string) error {
 	if err := commitGitChanges(projectRoot, message); err != nil {
 		return err
 	}
-	if err := ensureReleaseTag(projectRoot, release); err != nil {
+	shouldPushTag, err := ensureReleaseTag(projectRoot, release)
+	if err != nil {
 		return err
 	}
 
@@ -72,6 +73,9 @@ func runGitPush(projectRoot, message string) error {
 		return err
 	}
 
+	if !shouldPushTag {
+		return nil
+	}
 	return pushReleaseTag(projectRoot, release)
 }
 
@@ -217,37 +221,25 @@ func validateFrameworkReleaseVersion(projectRoot string, release pushReleaseMeta
 	return nil
 }
 
-func ensureReleaseTag(projectRoot string, release pushReleaseMetadata) error {
+func ensureReleaseTag(projectRoot string, release pushReleaseMetadata) (bool, error) {
 	if release.Tag == "" {
-		return nil
+		return false, nil
 	}
 
-	head, err := gitOutput(projectRoot, "rev-parse", "HEAD")
+	_, exists, err := gitOptionalOutput(projectRoot, "rev-parse", "-q", "--verify", "refs/tags/"+release.Tag+"^{}")
 	if err != nil {
-		return err
-	}
-	head = strings.TrimSpace(head)
-	if head == "" {
-		return fmt.Errorf("无法获取当前 HEAD")
-	}
-
-	tagCommit, exists, err := gitOptionalOutput(projectRoot, "rev-parse", "-q", "--verify", "refs/tags/"+release.Tag+"^{}")
-	if err != nil {
-		return err
+		return false, err
 	}
 	if exists {
-		tagCommit = strings.TrimSpace(tagCommit)
-		if tagCommit != head {
-			return fmt.Errorf("tag %s 已存在但不在当前 HEAD，请先更新 dever.json.version 或手动处理 tag", release.Tag)
-		}
-		fmt.Printf("dever push: tag %s 已在当前 HEAD，跳过 git tag\n", release.Tag)
-	} else {
-		fmt.Printf("dever push: git tag %s（来自 dever.json.version=%s）\n", release.Tag, release.Version)
-		if err := gitRun(projectRoot, "tag", release.Tag); err != nil {
-			return err
-		}
+		fmt.Printf("dever push: tag %s 已存在，跳过 git tag 和 tag push\n", release.Tag)
+		return false, nil
 	}
-	return nil
+
+	fmt.Printf("dever push: git tag %s（来自 dever.json.version=%s）\n", release.Tag, release.Version)
+	if err := gitRun(projectRoot, "tag", release.Tag); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func pushReleaseTag(projectRoot string, release pushReleaseMetadata) error {
