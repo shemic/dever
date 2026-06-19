@@ -17,6 +17,8 @@ import (
 
 var packageNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+const deverPackageGoEnvPattern = "github.com/dever-package/*"
+
 type packageInstallOptions struct {
 	projectRoot string
 	name        string
@@ -174,7 +176,7 @@ func ensurePackageRequirement(projectRoot, importPath string) error {
 		return nil
 	}
 
-	cmd := exec.Command("go", "get", importPath+"@latest")
+	cmd := goPackageCommand("get", importPath+"@latest")
 	cmd.Dir = projectRoot
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -207,7 +209,7 @@ func runGoModEditDropRequire(projectRoot, importPath string) error {
 }
 
 func resolvePackageSourceDir(projectRoot, importPath string) (string, error) {
-	cmd := exec.Command("go", "list", "-f", "{{.Dir}}", importPath)
+	cmd := goPackageCommand("list", "-f", "{{.Dir}}", importPath)
 	cmd.Dir = projectRoot
 	output, err := cmd.Output()
 	if err != nil {
@@ -218,6 +220,48 @@ func resolvePackageSourceDir(projectRoot, importPath string) (string, error) {
 		return "", fmt.Errorf("go list 未返回源码目录")
 	}
 	return filepath.Abs(root)
+}
+
+func goPackageCommand(args ...string) *exec.Cmd {
+	cmd := exec.Command("go", args...)
+	cmd.Env = withDeverPackageGoEnv(os.Environ())
+	return cmd
+}
+
+func withDeverPackageGoEnv(env []string) []string {
+	env = appendGoEnvPattern(env, "GOPRIVATE", deverPackageGoEnvPattern)
+	env = appendGoEnvPattern(env, "GONOSUMDB", deverPackageGoEnvPattern)
+	env = appendGoEnvPattern(env, "GONOPROXY", deverPackageGoEnvPattern)
+	return env
+}
+
+func appendGoEnvPattern(env []string, key, pattern string) []string {
+	prefix := key + "="
+	for i, entry := range env {
+		if !strings.HasPrefix(entry, prefix) {
+			continue
+		}
+		value := strings.TrimPrefix(entry, prefix)
+		if hasGoEnvPattern(value, pattern) {
+			return env
+		}
+		if strings.TrimSpace(value) == "" {
+			env[i] = prefix + pattern
+			return env
+		}
+		env[i] = prefix + value + "," + pattern
+		return env
+	}
+	return append(env, prefix+pattern)
+}
+
+func hasGoEnvPattern(value, pattern string) bool {
+	for _, item := range strings.Split(value, ",") {
+		if strings.TrimSpace(item) == pattern {
+			return true
+		}
+	}
+	return false
 }
 
 func ensurePackageShim(projectRoot, name, importPath string) (bool, error) {
