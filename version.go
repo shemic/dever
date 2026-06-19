@@ -4,7 +4,7 @@ package dever
 const Name = "Dever"
 
 // Version 表示当前框架版本。
-const Version = "v0.1.2"
+const Version = "v0.1.3"
 
 // FullName 返回包含版本的完整框架签名。
 const FullName = Name + " " + Version
