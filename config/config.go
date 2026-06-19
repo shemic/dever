@@ -15,6 +15,11 @@ import (
 const (
 	// DefaultPath 默认配置文件位置。
 	DefaultPath = "config/setting.json"
+
+	defaultHTTPConcurrency  = 8192
+	defaultHTTPReadTimeout  = 15 * time.Second
+	defaultHTTPWriteTimeout = 60 * time.Second
+	defaultHTTPIdleTimeout  = 120 * time.Second
 )
 
 // Duration 支持从字符串（如 "10s"）或数值（表示纳秒）解析到 time.Duration。
@@ -423,17 +428,17 @@ func (c *App) applyDefaults() {
 	if c.HTTP.BodyLimit < 0 {
 		c.HTTP.BodyLimit = 0
 	}
-	if c.HTTP.Concurrency < 0 {
-		c.HTTP.Concurrency = 0
+	if c.HTTP.Concurrency <= 0 || c.HTTP.Concurrency > defaultHTTPConcurrency {
+		c.HTTP.Concurrency = defaultHTTPConcurrency
 	}
-	if c.HTTP.ReadTimeout < 0 {
-		c.HTTP.ReadTimeout = 0
+	if c.HTTP.ReadTimeout <= 0 {
+		c.HTTP.ReadTimeout = Duration(defaultHTTPReadTimeout)
 	}
-	if c.HTTP.WriteTimeout < 0 {
-		c.HTTP.WriteTimeout = 0
+	if c.HTTP.WriteTimeout <= 0 {
+		c.HTTP.WriteTimeout = Duration(defaultHTTPWriteTimeout)
 	}
-	if c.HTTP.IdleTimeout < 0 {
-		c.HTTP.IdleTimeout = 0
+	if c.HTTP.IdleTimeout <= 0 {
+		c.HTTP.IdleTimeout = Duration(defaultHTTPIdleTimeout)
 	}
 	if strings.TrimSpace(c.Database.Default) == "" {
 		c.Database.Default = "default"

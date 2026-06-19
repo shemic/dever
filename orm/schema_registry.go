@@ -226,18 +226,6 @@ type schemaOptions struct {
 	seeds   []map[string]any
 }
 
-// RegisterModel 兼容旧接口，仅注册基础结构体信息。
-func RegisterModel(table string, model any) error {
-	return RegisterSchema(table, model)
-}
-
-// MustRegisterModel is RegisterModel but panics on error.
-func MustRegisterModel(table string, model any) {
-	if err := RegisterModel(table, model); err != nil {
-		panic(err)
-	}
-}
-
 func getRegisteredSchema(table string) (*tableSchema, bool) {
 	lower := strings.ToLower(strings.TrimSpace(table))
 	if lower == "" {
