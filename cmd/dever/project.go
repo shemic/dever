@@ -10,6 +10,7 @@ import (
 	"time"
 
 	devercmd "github.com/shemic/dever/cmd"
+	"github.com/shemic/dever/util"
 )
 
 const callerDirEnv = "DEVER_CALLER_DIR"
@@ -46,6 +47,7 @@ func runGoModTidy(projectRoot string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Dir = projectRoot
+	cmd.Env = util.WithCanonicalPackageGoEnv(os.Environ())
 	return cmd.Run()
 }
 
@@ -107,7 +109,7 @@ func runGoBuild(spec goBuildSpec) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Dir = spec.dir
-	cmd.Env = mergeCommandEnv(os.Environ(), spec.env)
+	cmd.Env = mergeCommandEnv(util.WithCanonicalPackageGoEnv(os.Environ()), spec.env)
 
 	stopProgress := startBuildProgressReporter(strings.TrimSpace(spec.progress))
 	defer stopProgress()

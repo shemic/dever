@@ -190,9 +190,10 @@ func resolveModuleImportPath(projectRoot, importPath string) (string, error) {
 	// 通过 go list 解析真实源码目录，这里会自动遵循 go.mod 的 replace。
 	cmd := exec.Command("go", "list", "-f", "{{.Dir}}", cleanImport)
 	cmd.Dir = projectRoot
-	output, err := cmd.Output()
+	cmd.Env = WithCanonicalPackageGoEnv(os.Environ())
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
 
 	resolvedRoot := strings.TrimSpace(string(output))
