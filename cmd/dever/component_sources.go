@@ -4,15 +4,17 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/shemic/dever/util"
 )
 
 type activeComponentSource struct {
-	name   string
-	source string
-	root   string
+	name       string
+	source     string
+	root       string
+	importPath string
+	editable   bool
+	external   bool
 }
 
 func listActiveComponentSources(projectRoot string) ([]activeComponentSource, error) {
@@ -27,9 +29,12 @@ func listActiveComponentSources(projectRoot string) ([]activeComponentSource, er
 			continue
 		}
 		result = append(result, activeComponentSource{
-			name:   source.Name,
-			source: activeComponentSourceType(projectRoot, source.Root),
-			root:   source.Root,
+			name:       source.Name,
+			source:     activeComponentSourceType(source),
+			root:       source.Root,
+			importPath: source.Import,
+			editable:   source.Editable,
+			external:   source.External,
 		})
 	}
 	sort.SliceStable(result, func(i, j int) bool {
@@ -38,10 +43,13 @@ func listActiveComponentSources(projectRoot string) ([]activeComponentSource, er
 	return result, nil
 }
 
-func activeComponentSourceType(projectRoot, sourceRoot string) string {
-	packageRoot := filepath.Join(projectRoot, "package") + string(os.PathSeparator)
-	if strings.HasPrefix(sourceRoot+string(os.PathSeparator), packageRoot) {
-		return "package"
+func activeComponentSourceType(source util.ModuleSource) string {
+	switch source.Kind {
+	case util.ModuleSourceKindPackage:
+		return util.ModuleSourceKindPackage
+	case util.ModuleSourceKindModule:
+		return util.ModuleSourceKindModule
+	default:
+		return util.ModuleSourceKindModule
 	}
-	return "module"
 }

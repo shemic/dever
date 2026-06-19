@@ -86,7 +86,7 @@ func buildComponentEntry(rootPath string, source util.ModuleSource, importAliase
 		Source:      componentSource(rootPath, source),
 		ImportPath:  source.Import,
 		ImportAlias: alias,
-		DiskDir:     relativeToRoot(rootPath, source.Root),
+		DiskDir:     componentDiskDir(rootPath, source.Root),
 		ManifestFS:  resourceVars["ManifestFS"],
 		PageFS:      resourceVars["PageFS"],
 		FrontFS:     resourceVars["FrontFS"],
@@ -97,19 +97,50 @@ func buildComponentEntry(rootPath string, source util.ModuleSource, importAliase
 }
 
 func componentSource(rootPath string, source util.ModuleSource) string {
+	switch source.Kind {
+	case util.ModuleSourceKindPackage:
+		return util.ModuleSourceKindPackage
+	case util.ModuleSourceKindModule:
+		return util.ModuleSourceKindModule
+	}
+
 	packageRoot := filepath.Join(rootPath, "package") + string(os.PathSeparator)
 	if strings.HasPrefix(source.Root+string(os.PathSeparator), packageRoot) {
-		return "package"
+		return util.ModuleSourceKindPackage
 	}
-	return "module"
+	return util.ModuleSourceKindModule
 }
 
-func relativeToRoot(rootPath, target string) string {
+func componentDiskDir(rootPath, target string) string {
+	if !isInsideRoot(rootPath, target) {
+		abs, err := filepath.Abs(target)
+		if err != nil {
+			return filepath.ToSlash(target)
+		}
+		return filepath.ToSlash(abs)
+	}
+
 	rel, err := filepath.Rel(rootPath, target)
 	if err != nil {
 		return filepath.ToSlash(target)
 	}
 	return filepath.ToSlash(rel)
+}
+
+func isInsideRoot(rootPath, target string) bool {
+	root, err := filepath.Abs(rootPath)
+	if err != nil {
+		return false
+	}
+	targetPath, err := filepath.Abs(target)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(root, targetPath)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (!strings.HasPrefix(rel, ".."+string(os.PathSeparator)) && rel != "..")
 }
 
 func componentResourceVars(rootPath string) map[string]bool {

@@ -16,10 +16,31 @@ var (
 	moduleImportValuePattern   = regexp.MustCompile(`(?m)^\s*(?:const|var)\s+\w+\s*=\s*"([^"]+)"\s*$`)
 )
 
+const (
+	ModuleSourceKindModule  = "module"
+	ModuleSourceKindPackage = "package"
+	CanonicalPackagePrefix  = "github.com/dever-package/"
+)
+
 type ModuleSource struct {
-	Name   string
-	Root   string
-	Import string
+	Name     string
+	Root     string
+	Import   string
+	Kind     string
+	Editable bool
+	External bool
+}
+
+func CanonicalPackageImport(name string) string {
+	name = strings.Trim(strings.TrimSpace(name), "/")
+	if name == "" {
+		return ""
+	}
+	return CanonicalPackagePrefix + name
+}
+
+func IsCanonicalPackageImport(importPath string) bool {
+	return strings.HasPrefix(strings.TrimSpace(importPath), CanonicalPackagePrefix)
 }
 
 func ListModuleSources(projectRoot string) ([]ModuleSource, error) {
@@ -86,9 +107,11 @@ func ResolveModuleSource(projectRoot, projectModule, moduleName string) (ModuleS
 	}
 
 	source := ModuleSource{
-		Name:   moduleName,
-		Root:   filepath.Join(rootPath, "module", moduleName),
-		Import: strings.TrimSpace(projectModule) + "/module/" + moduleName,
+		Name:     moduleName,
+		Root:     filepath.Join(rootPath, "module", moduleName),
+		Import:   strings.TrimSpace(projectModule) + "/module/" + moduleName,
+		Kind:     ModuleSourceKindModule,
+		Editable: true,
 	}
 
 	redirectImport, ok, err := readModuleImportDirective(filepath.Join(source.Root, "main.go"))
@@ -106,7 +129,38 @@ func ResolveModuleSource(projectRoot, projectModule, moduleName string) (ModuleS
 
 	source.Root = resolvedRoot
 	source.Import = redirectImport
+	source.Kind = classifyModuleSourceKind(rootPath, redirectImport, resolvedRoot)
+	source.Editable = isPathInside(rootPath, resolvedRoot)
+	source.External = !source.Editable
 	return source, nil
+}
+
+func classifyModuleSourceKind(projectRoot, importPath, sourceRoot string) string {
+	if IsCanonicalPackageImport(importPath) {
+		return ModuleSourceKindPackage
+	}
+
+	packageRoot := filepath.Join(projectRoot, "package") + string(os.PathSeparator)
+	if strings.HasPrefix(sourceRoot+string(os.PathSeparator), packageRoot) {
+		return ModuleSourceKindPackage
+	}
+	return ModuleSourceKindModule
+}
+
+func isPathInside(root, target string) bool {
+	rootPath, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	targetPath, err := filepath.Abs(target)
+	if err != nil {
+		return false
+	}
+	relative, err := filepath.Rel(rootPath, targetPath)
+	if err != nil {
+		return false
+	}
+	return relative == "." || (!strings.HasPrefix(relative, ".."+string(os.PathSeparator)) && relative != "..")
 }
 
 func readModuleImportDirective(path string) (string, bool, error) {

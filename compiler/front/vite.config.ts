@@ -17,6 +17,13 @@ const shimRoot = path.resolve(compilerRoot, "src", "shims");
 const runtimeEntryID = "virtual:dever-front-plugin-runtime";
 const resolvedRuntimeEntryID = "\0" + runtimeEntryID;
 const pluginEntry = pluginRoot ? path.join(pluginRoot, "src", "plugin.ts") : "";
+const devServerAllowedRoots = Array.from(
+  new Set(
+    [projectRoot, frontPackageRoot, compilerRoot, pluginRoot]
+      .filter(Boolean)
+      .map((root) => path.resolve(root)),
+  ),
+);
 
 const compatModulePrefix = "virtual:dever-front-compat:";
 const resolvedCompatModulePrefix = "\0" + compatModulePrefix;
@@ -64,6 +71,7 @@ const pluginOptimizedDeps = [
 const runtimeOwnedDependencies = new Set([
   "@dever/front-plugin",
   "@vitejs/plugin-react-swc",
+  ...pluginOptimizedDeps,
   "react",
   "react-dom",
   "react-dom/client",
@@ -71,11 +79,18 @@ const runtimeOwnedDependencies = new Set([
   "react/jsx-runtime",
   "typescript",
   "vite",
-  "zustand",
-  "zustand/react",
-  "zustand/vanilla",
 ]);
 const frontPluginDependencyNames = readCompilerDependencyNames();
+const optimizedPluginDependencyNames = uniqueDependencyNames([
+  ...pluginOptimizedDeps,
+  ...frontPluginDependencyNames,
+]);
+
+function uniqueDependencyNames(names: string[]) {
+  return Array.from(
+    new Set(names.map((name) => name.trim()).filter(Boolean)),
+  ).sort();
+}
 
 function readCompilerDependencyNames() {
   const names = new Set<string>();
@@ -103,6 +118,179 @@ function plainObject(value: unknown): Record<string, unknown> {
     return {};
   }
   return value as Record<string, unknown>;
+}
+
+function splitImportSpecifier(source: string) {
+  const suffixIndex = source.search(/[?#]/);
+  if (suffixIndex === -1) {
+    return { id: source, suffix: "" };
+  }
+  return {
+    id: source.slice(0, suffixIndex),
+    suffix: source.slice(suffixIndex),
+  };
+}
+
+function resolveFrontPluginDependencySubpath(source: string) {
+  const { id, suffix } = splitImportSpecifier(source);
+  for (const name of frontPluginDependencyNames) {
+    if (!id.startsWith(`${name}/`)) {
+      continue;
+    }
+    const subpath = id.slice(name.length + 1);
+    return normalizePath(path.join(dependency(name), subpath)) + suffix;
+  }
+  return "";
+}
+
+function rewriteDependencySubpathImports(code: string) {
+  let changed = false;
+  const rewrite = (
+    match: string,
+    prefix: string,
+    quote: string,
+    source: string,
+  ) => {
+    const resolved = resolveFrontPluginDependencySubpath(source);
+    if (!resolved) {
+      return match;
+    }
+    changed = true;
+    return `${prefix}${quote}${resolved}${quote}`;
+  };
+  const rewritten = code
+    .replace(
+      /(\b(?:import|export)\s+[^'"]*\bfrom\s*)(["'])([^"']+)\2/g,
+      rewrite,
+    )
+    .replace(/(\bimport\s*)(["'])([^"']+)\2/g, rewrite)
+    .replace(/(\bimport\s*\(\s*)(["'])([^"']+)\2/g, rewrite);
+  return changed ? rewritten : null;
+}
+
+type PluginMetadata = {
+  name: string;
+  nodes?: string[];
+  depends?: string[];
+};
+
+function readPluginMetadata(): PluginMetadata {
+  const fallback: PluginMetadata = { name: pluginName };
+  if (!pluginEntry || !fs.existsSync(pluginEntry)) {
+    return fallback;
+  }
+
+  const content = fs.readFileSync(pluginEntry, "utf8");
+  const metadata: PluginMetadata = {
+    name: extractStringProperty(content, "name") || pluginName,
+  };
+  const nodesBlock = extractPropertyBlock(content, "nodes", "{", "}");
+  if (nodesBlock) {
+    metadata.nodes = extractObjectStringKeys(nodesBlock);
+  }
+  const dependsBlock = extractPropertyBlock(content, "depends", "[", "]");
+  if (dependsBlock) {
+    metadata.depends = extractStringLiterals(dependsBlock);
+  }
+  return metadata;
+}
+
+function extractStringProperty(content: string, key: string) {
+  const match = new RegExp(`\\b${escapeRegExp(key)}\\s*:\\s*${stringLiteralPattern()}`, "m").exec(
+    content,
+  );
+  return match?.[1]?.trim() || "";
+}
+
+function extractPropertyBlock(
+  content: string,
+  key: string,
+  open: "{" | "[",
+  close: "}" | "]",
+) {
+  const pattern = new RegExp(`\\b${escapeRegExp(key)}\\s*:`, "gm");
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(content))) {
+    let index = match.index + match[0].length;
+    while (index < content.length && /\s/.test(content[index])) {
+      index++;
+    }
+    if (content[index] !== open) {
+      continue;
+    }
+    return matchDelimitedBlock(content, index, open, close);
+  }
+  return "";
+}
+
+function matchDelimitedBlock(
+  content: string,
+  start: number,
+  open: string,
+  close: string,
+) {
+  let depth = 0;
+  let quote = "";
+  let escaped = false;
+  for (let index = start; index < content.length; index++) {
+    const current = content[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (current === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (current === quote) {
+        quote = "";
+      }
+      continue;
+    }
+    if (current === "\"" || current === "'" || current === "`") {
+      quote = current;
+      continue;
+    }
+    if (current === open) {
+      depth++;
+    }
+    if (current === close) {
+      depth--;
+      if (depth === 0) {
+        return content.slice(start, index + 1);
+      }
+    }
+  }
+  return "";
+}
+
+function extractObjectStringKeys(block: string) {
+  const result: string[] = [];
+  const pattern = new RegExp(`${stringLiteralPattern()}\\s*:`, "g");
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(block))) {
+    result.push(match[1]);
+  }
+  return uniqueDependencyNames(result);
+}
+
+function extractStringLiterals(block: string) {
+  const result: string[] = [];
+  const pattern = new RegExp(stringLiteralPattern(), "g");
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(block))) {
+    result.push(match[1]);
+  }
+  return uniqueDependencyNames(result);
+}
+
+function stringLiteralPattern() {
+  return "[\"'`]([^\"'`]+)[\"'`]";
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 const compatExports: Record<string, string[]> = {
@@ -379,6 +567,45 @@ function compatModulePlugin(): PluginOption {
   };
 }
 
+function frontPluginDependencySubpathPlugin(): PluginOption {
+  return {
+    name: "dever-front-plugin-dependency-subpaths",
+    enforce: "pre",
+    resolveId(source) {
+      return resolveFrontPluginDependencySubpath(source) || null;
+    },
+    transform(code, id) {
+      if (id.includes("/node_modules/")) {
+        return null;
+      }
+      const rewritten = rewriteDependencySubpathImports(code);
+      if (!rewritten) {
+        return null;
+      }
+      return {
+        code: rewritten,
+        map: null,
+      };
+    },
+  };
+}
+
+function pluginManifestMetadataPlugin(): PluginOption {
+  return {
+    name: "dever-front-plugin-manifest-metadata",
+    apply: "build",
+    closeBundle() {
+      if (!pluginRoot) {
+        return;
+      }
+      const manifestFile = path.join(pluginRoot, "dist", "manifest.json");
+      const manifest = plainObject(readJSONFile(manifestFile));
+      manifest.__plugin = readPluginMetadata();
+      fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    },
+  };
+}
+
 function dependency(name: string) {
   return path.resolve(compilerRoot, "node_modules", name);
 }
@@ -454,7 +681,13 @@ function runtimeAlias(command: string) {
 export default defineConfig(({ command }) => {
   return {
     root: projectRoot,
-    plugins: [runtimeEntryPlugin(), compatModulePlugin(), react()],
+    plugins: [
+      frontPluginDependencySubpathPlugin(),
+      runtimeEntryPlugin(),
+      compatModulePlugin(),
+      pluginManifestMetadataPlugin(),
+      react(),
+    ],
     resolve: {
       dedupe: ["react", "react-dom"],
       alias: runtimeAlias(command),
@@ -463,11 +696,11 @@ export default defineConfig(({ command }) => {
       host: "127.0.0.1",
       hmr: false,
       fs: {
-        allow: [projectRoot, frontPackageRoot, compilerRoot],
+        allow: devServerAllowedRoots,
       },
     },
     optimizeDeps: {
-      include: pluginOptimizedDeps,
+      include: optimizedPluginDependencyNames,
     },
     build: {
       outDir: pluginRoot ? path.join(pluginRoot, "dist") : "dist",

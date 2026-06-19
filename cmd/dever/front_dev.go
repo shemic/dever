@@ -205,8 +205,7 @@ func discoverRunFrontPluginSources(projectRoot string) ([]string, error) {
 		return nil, err
 	}
 	for _, current := range components {
-		pluginEntry := filepath.Join(current.root, "front", "src", "plugin.ts")
-		if info, err := os.Stat(pluginEntry); err == nil && !info.IsDir() {
+		if hasFrontPluginSource(current.root) && !hasFrontPluginDist(current.root) {
 			names[current.name] = struct{}{}
 		}
 	}

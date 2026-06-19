@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	frontcompiler "github.com/shemic/dever/compiler/front"
+	"github.com/shemic/dever/util"
 )
 
 const (
@@ -388,6 +389,10 @@ func resolveFrontPackageRoot(projectRoot string) string {
 		}
 	}
 
+	if root := resolveFrontPackageRootFromModule(projectRoot); root != "" {
+		return root
+	}
+
 	for _, candidate := range []string{
 		filepath.Join(projectRoot, "package", "front"),
 		filepath.Join(projectRoot, "backend", "package", "front"),
@@ -397,6 +402,18 @@ func resolveFrontPackageRoot(projectRoot string) string {
 		}
 	}
 	return ""
+}
+
+func resolveFrontPackageRootFromModule(projectRoot string) string {
+	projectModule, err := util.ReadProjectModuleName(filepath.Join(projectRoot, "go.mod"))
+	if err != nil {
+		return ""
+	}
+	source, err := util.ResolveModuleSource(projectRoot, projectModule, "front")
+	if err != nil {
+		return ""
+	}
+	return usableFrontPackageRoot(source.Root)
 }
 
 func usableFrontPackageRoot(rawRoot string) string {

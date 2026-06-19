@@ -76,10 +76,11 @@ func runFrontBuild(options frontBuildOptions) error {
 	}
 	if len(targets) == 0 {
 		if strings.TrimSpace(options.target) == "" {
-			fmt.Println("dever front build: 未发现前端插件，跳过")
+			fmt.Println("dever front build: 未发现需要构建的本地前端插件，跳过")
 			return nil
 		}
-		return fmt.Errorf("未发现前端插件: %s", options.target)
+		fmt.Printf("dever front build: %s 无需本地构建\n", options.target)
+		return nil
 	}
 
 	for _, target := range targets {
@@ -98,26 +99,53 @@ func discoverFrontPluginTargets(projectRoot, rawTarget string) ([]frontPluginTar
 	if err != nil {
 		return nil, err
 	}
+	matchedTarget := false
 	for _, current := range components {
 		if target != "" && target != current.name {
 			continue
 		}
-		frontRoot := filepath.Join(current.root, "front")
-		pluginEntry := filepath.Join(frontRoot, "src", "plugin.ts")
-		if _, err := os.Stat(pluginEntry); err != nil {
-			if os.IsNotExist(err) {
+		matchedTarget = true
+		hasSource := hasFrontPluginSource(current.root)
+		hasDist := hasFrontPluginDist(current.root)
+		if !hasSource {
+			continue
+		}
+		if !current.editable {
+			if hasDist {
+				fmt.Printf("dever front build: %s/%s 已有 dist，跳过外部 package 源码构建\n", current.source, current.name)
 				continue
 			}
-			return nil, err
+			return nil, fmt.Errorf("%s/%s 是外部 Go module package，存在 front/src/plugin.ts 但缺少 front/dist/manifest.json；请在 package 发布前构建 dist", current.source, current.name)
 		}
 		targets = append(targets, frontPluginTarget{
 			name: current.name,
 			kind: current.source,
-			root: frontRoot,
+			root: filepath.Join(current.root, "front"),
 		})
 	}
 
+	if target != "" && !matchedTarget {
+		return nil, fmt.Errorf("未发现组件: %s", target)
+	}
 	return targets, nil
+}
+
+func hasFrontPluginDist(componentRoot string) bool {
+	info, err := os.Stat(frontPluginDistManifestPath(componentRoot))
+	return err == nil && !info.IsDir()
+}
+
+func hasFrontPluginSource(componentRoot string) bool {
+	info, err := os.Stat(frontPluginSourceEntryPath(componentRoot))
+	return err == nil && !info.IsDir()
+}
+
+func frontPluginDistManifestPath(componentRoot string) string {
+	return filepath.Join(componentRoot, "front", "dist", "manifest.json")
+}
+
+func frontPluginSourceEntryPath(componentRoot string) string {
+	return filepath.Join(componentRoot, "front", "src", "plugin.ts")
 }
 
 func buildFrontPlugin(projectRoot string, target frontPluginTarget) error {
