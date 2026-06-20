@@ -58,7 +58,7 @@ Usage:
     dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init] # 热重载运行当前项目
     dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [--skip-front] [target]
     dever front build [--project-root=.] [name]       # 构建 module/package 下的前端插件
-    dever package [--project-root=.] <name>           # 安装或更新 github.com/dever-package/<name>
+    dever package [--project-root=.] [name]           # 更新全部已启用 package，或安装/更新单个 package
     dever skill install [--project-root=.]            # 安装/同步 shemic-dever AI skill 和 agent 提示
     dever skill doctor [--project-root=.]             # 检查 shemic-dever skill 安装状态
     dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成 routes/service/model/component 注册

@@ -23,26 +23,24 @@ type packageInstallOptions struct {
 }
 
 func runPackage(args []string) {
-	if len(args) == 0 {
-		printPackageUsage()
-		os.Exit(1)
+	if len(args) > 0 {
+		switch args[0] {
+		case "remove":
+			runPackageRemoveCommand(args[1:])
+			return
+		case "add", "update", "sync", "doctor", "list":
+			log.Fatalf("dever package %s 已废弃，请使用：dever package <name>", args[0])
+		}
 	}
-
-	switch args[0] {
-	case "remove":
-		runPackageRemoveCommand(args[1:])
-	case "add", "update", "sync", "doctor", "list":
-		log.Fatalf("dever package %s 已废弃，请使用：dever package <name>", args[0])
-	default:
-		runPackageInstallCommand(args)
-	}
+	runPackageInstallCommand(args)
 }
 
 func printPackageUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `dever package - package 组件命令
 
 Usage:
-    dever package [--project-root=.] <name>
+    dever package [--project-root=.]          # 更新当前项目已启用的所有 package
+    dever package [--project-root=.] <name>   # 安装或更新 github.com/dever-package/<name>
     dever package remove [--project-root=.] <name>
 `)
 }
@@ -53,12 +51,20 @@ func runPackageInstallCommand(args []string) {
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("package 参数解析失败: %v", err)
 	}
-	if fs.NArg() != 1 {
-		log.Fatal("package 需要一个组件名称，例如：dever package bot")
+	if fs.NArg() > 1 {
+		log.Fatal("package 最多只能指定一个组件名称，例如：dever package bot")
+	}
+
+	root := resolvePackageProjectRoot(*projectRoot)
+	if fs.NArg() == 0 {
+		if err := runPackageInstallAll(root); err != nil {
+			log.Fatalf("package 执行失败: %v", err)
+		}
+		return
 	}
 
 	options := packageInstallOptions{
-		projectRoot: resolvePackageProjectRoot(*projectRoot),
+		projectRoot: root,
 		name:        strings.TrimSpace(fs.Arg(0)),
 	}
 	if err := runPackageInstall(options); err != nil {
@@ -95,11 +101,100 @@ func runPackageInstall(options packageInstallOptions) error {
 		return err
 	}
 
-	if err := runProjectInit(options.projectRoot, true); err != nil {
+	return refreshPackageRegistrations(options.projectRoot, "dever package")
+}
+
+func runPackageInstallAll(projectRoot string) error {
+	if err := ensurePackageProjectRoot(projectRoot); err != nil {
+		return err
+	}
+
+	names, err := activePackageInstallNames(projectRoot)
+	if err != nil {
+		return err
+	}
+	if len(names) == 0 {
+		return fmt.Errorf("当前项目没有已启用的 package 组件，请先使用：dever package <name>")
+	}
+
+	synced := map[string]struct{}{}
+	for _, name := range names {
+		if err := syncPackageWithDependencies(projectRoot, name, synced, map[string]struct{}{}); err != nil {
+			return fmt.Errorf("同步 %s 失败: %w", name, err)
+		}
+	}
+	fmt.Printf("dever package: 已更新 %d 个 package: %s\n", len(names), strings.Join(names, ", "))
+	return refreshPackageRegistrations(projectRoot, "dever package")
+}
+
+func refreshPackageRegistrations(projectRoot, label string) error {
+	if err := runProjectInit(projectRoot, true); err != nil {
 		return fmt.Errorf("刷新生成文件失败: %w", err)
 	}
-	fmt.Println("dever package: 已刷新 routes/model/service/component 注册")
+	fmt.Printf("%s: 已刷新 routes/model/service/component 注册\n", label)
 	return nil
+}
+
+func activePackageInstallNames(projectRoot string) ([]string, error) {
+	moduleDir := filepath.Join(projectRoot, "module")
+	entries, err := os.ReadDir(moduleDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("读取 module 目录失败: %w", err)
+	}
+
+	seen := map[string]struct{}{}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry == nil || !entry.IsDir() {
+			continue
+		}
+
+		moduleName := strings.TrimSpace(entry.Name())
+		if moduleName == "" {
+			continue
+		}
+		importPath, ok, err := util.ReadModuleImportDirective(filepath.Join(moduleDir, moduleName, "main.go"))
+		if err != nil {
+			return nil, fmt.Errorf("解析 module/%s/main.go 失败: %w", moduleName, err)
+		}
+		if !ok || !util.IsCanonicalPackageImport(importPath) {
+			continue
+		}
+
+		packageName, err := packageNameFromCanonicalImport(importPath)
+		if err != nil {
+			return nil, fmt.Errorf("解析 module/%s/main.go 失败: %w", moduleName, err)
+		}
+		if moduleName != packageName {
+			return nil, fmt.Errorf("module/%s/main.go 引用 %s，但 package shim 目录应为 module/%s", moduleName, importPath, packageName)
+		}
+		if _, exists := seen[packageName]; exists {
+			continue
+		}
+		seen[packageName] = struct{}{}
+		names = append(names, packageName)
+	}
+
+	sort.Strings(names)
+	return names, nil
+}
+
+func packageNameFromCanonicalImport(importPath string) (string, error) {
+	if !util.IsCanonicalPackageImport(importPath) {
+		return "", fmt.Errorf("不是标准 package 导入路径: %s", importPath)
+	}
+	name := strings.TrimPrefix(strings.TrimSpace(importPath), util.CanonicalPackagePrefix)
+	name = strings.Trim(name, "/")
+	if strings.Contains(name, "/") {
+		return "", fmt.Errorf("package 导入路径不能包含多级名称: %s", importPath)
+	}
+	if err := validatePackageName(name); err != nil {
+		return "", err
+	}
+	return name, nil
 }
 
 func syncPackageWithDependencies(projectRoot, name string, synced map[string]struct{}, visiting map[string]struct{}) error {
@@ -289,11 +384,7 @@ func runPackageRemove(projectRoot string, name string) error {
 	}
 	fmt.Printf("dever package remove: 已移除 module/%s\n", name)
 
-	if err := runProjectInit(projectRoot, true); err != nil {
-		return fmt.Errorf("刷新生成文件失败: %w", err)
-	}
-	fmt.Println("dever package remove: 已刷新 routes/model/service/component 注册")
-	return nil
+	return refreshPackageRegistrations(projectRoot, "dever package remove")
 }
 
 func packageDependents(projectRoot string, target string) ([]string, error) {

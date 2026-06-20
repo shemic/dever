@@ -181,6 +181,11 @@ func readModuleImportDirective(path string) (string, bool, error) {
 	return "", false, nil
 }
 
+// ReadModuleImportDirective reads the optional dever import directive from a module shim.
+func ReadModuleImportDirective(path string) (string, bool, error) {
+	return readModuleImportDirective(path)
+}
+
 func resolveModuleImportPath(projectRoot, importPath string) (string, error) {
 	cleanImport := strings.TrimSpace(importPath)
 	if cleanImport == "" {
