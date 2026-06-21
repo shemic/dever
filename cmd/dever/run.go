@@ -243,6 +243,7 @@ func (l *runLock) release() {
 
 func (p *watchedProcess) restart(reason string, rebuild bool) error {
 	if rebuild {
+		log.Printf("%s：正在构建运行二进制，首次启动或清理 Go cache 后可能较慢", reason)
 		if err := p.buildBinary(); err != nil {
 			return err
 		}
@@ -293,9 +294,10 @@ func (p *watchedProcess) binaryExists() bool {
 
 func (p *watchedProcess) buildBinary() error {
 	if err := runGoBuild(goBuildSpec{
-		dir:    p.root,
-		target: p.entry,
-		output: p.binaryPath,
+		dir:      p.root,
+		target:   p.entry,
+		output:   p.binaryPath,
+		progress: "dever run",
 	}); err != nil {
 		return fmt.Errorf("构建运行二进制失败: %w", err)
 	}
