@@ -15,11 +15,14 @@ import (
 	"github.com/shemic/dever/util"
 )
 
+const defaultPackageRef = "latest"
+
 var packageNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 type packageInstallOptions struct {
 	projectRoot string
 	name        string
+	ref         string
 }
 
 func runPackage(args []string) {
@@ -39,8 +42,8 @@ func printPackageUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `dever package - package 组件命令
 
 Usage:
-    dever package [--project-root=.]          # 更新当前项目已启用的所有 package
-    dever package [--project-root=.] <name>   # 安装或更新 github.com/dever-package/<name>
+    dever package [--project-root=.] [--ref=latest]          # 更新当前项目已启用的所有 package
+    dever package [--project-root=.] [--ref=latest] <name>   # 安装或更新 github.com/dever-package/<name>
     dever package remove [--project-root=.] <name>
 `)
 }
@@ -48,6 +51,7 @@ Usage:
 func runPackageInstallCommand(args []string) {
 	fs := flag.NewFlagSet("package", flag.ExitOnError)
 	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	ref := fs.String("ref", defaultPackageRef, "Go module ref（默认 latest，可用 main、v0.1.1 或 commit）")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("package 参数解析失败: %v", err)
 	}
@@ -55,9 +59,13 @@ func runPackageInstallCommand(args []string) {
 		log.Fatal("package 最多只能指定一个组件名称，例如：dever package bot")
 	}
 
+	packageRef, err := normalizePackageRef(*ref)
+	if err != nil {
+		log.Fatalf("package 参数解析失败: %v", err)
+	}
 	root := resolvePackageProjectRoot(*projectRoot)
 	if fs.NArg() == 0 {
-		if err := runPackageInstallAll(root); err != nil {
+		if err := runPackageInstallAll(root, packageRef); err != nil {
 			log.Fatalf("package 执行失败: %v", err)
 		}
 		return
@@ -66,6 +74,7 @@ func runPackageInstallCommand(args []string) {
 	options := packageInstallOptions{
 		projectRoot: root,
 		name:        strings.TrimSpace(fs.Arg(0)),
+		ref:         packageRef,
 	}
 	if err := runPackageInstall(options); err != nil {
 		log.Fatalf("package 执行失败: %v", err)
@@ -92,19 +101,27 @@ func runPackageInstall(options packageInstallOptions) error {
 	if err := validatePackageName(options.name); err != nil {
 		return err
 	}
+	ref, err := normalizePackageRef(options.ref)
+	if err != nil {
+		return err
+	}
 	if err := ensurePackageProjectRoot(options.projectRoot); err != nil {
 		return err
 	}
 
 	synced := map[string]struct{}{}
-	if err := syncPackageWithDependencies(options.projectRoot, options.name, synced, map[string]struct{}{}); err != nil {
+	if err := syncPackageWithDependencies(options.projectRoot, options.name, ref, synced, map[string]struct{}{}); err != nil {
 		return err
 	}
 
 	return refreshPackageRegistrations(options.projectRoot, "dever package")
 }
 
-func runPackageInstallAll(projectRoot string) error {
+func runPackageInstallAll(projectRoot string, ref string) error {
+	packageRef, err := normalizePackageRef(ref)
+	if err != nil {
+		return err
+	}
 	if err := ensurePackageProjectRoot(projectRoot); err != nil {
 		return err
 	}
@@ -119,7 +136,7 @@ func runPackageInstallAll(projectRoot string) error {
 
 	synced := map[string]struct{}{}
 	for _, name := range names {
-		if err := syncPackageWithDependencies(projectRoot, name, synced, map[string]struct{}{}); err != nil {
+		if err := syncPackageWithDependencies(projectRoot, name, packageRef, synced, map[string]struct{}{}); err != nil {
 			return fmt.Errorf("同步 %s 失败: %w", name, err)
 		}
 	}
@@ -197,7 +214,7 @@ func packageNameFromCanonicalImport(importPath string) (string, error) {
 	return name, nil
 }
 
-func syncPackageWithDependencies(projectRoot, name string, synced map[string]struct{}, visiting map[string]struct{}) error {
+func syncPackageWithDependencies(projectRoot, name string, ref string, synced map[string]struct{}, visiting map[string]struct{}) error {
 	if err := validatePackageName(name); err != nil {
 		return err
 	}
@@ -211,13 +228,13 @@ func syncPackageWithDependencies(projectRoot, name string, synced map[string]str
 	defer delete(visiting, name)
 
 	importPath := util.CanonicalPackageImport(name)
-	root, manifest, err := ensurePackageModule(projectRoot, name, importPath)
+	root, manifest, err := ensurePackageModule(projectRoot, name, importPath, ref)
 	if err != nil {
 		return err
 	}
 
 	for _, dep := range sortedDependencyNames(manifest.Depends) {
-		if err := syncPackageWithDependencies(projectRoot, dep, synced, visiting); err != nil {
+		if err := syncPackageWithDependencies(projectRoot, dep, ref, synced, visiting); err != nil {
 			return fmt.Errorf("同步依赖 %s 失败: %w", dep, err)
 		}
 	}
@@ -234,8 +251,8 @@ func syncPackageWithDependencies(projectRoot, name string, synced map[string]str
 	return nil
 }
 
-func ensurePackageModule(projectRoot, name, importPath string) (string, component.Manifest, error) {
-	if err := ensurePackageRequirement(projectRoot, importPath); err != nil {
+func ensurePackageModule(projectRoot, name, importPath string, ref string) (string, component.Manifest, error) {
+	if err := ensurePackageRequirement(projectRoot, importPath, ref); err != nil {
 		return "", component.Manifest{}, err
 	}
 
@@ -254,7 +271,7 @@ func ensurePackageModule(projectRoot, name, importPath string) (string, componen
 	return root, manifest, nil
 }
 
-func ensurePackageRequirement(projectRoot, importPath string) error {
+func ensurePackageRequirement(projectRoot, importPath string, ref string) error {
 	if target, ok, err := localReplaceTarget(projectRoot, importPath); err != nil {
 		return err
 	} else if ok {
@@ -269,12 +286,12 @@ func ensurePackageRequirement(projectRoot, importPath string) error {
 		return nil
 	}
 
-	cmd := goPackageCommand("get", importPath+"@latest")
+	cmd := goPackageCommand("get", packageModuleQuery(importPath, ref))
 	cmd.Dir = projectRoot
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("安装或更新 %s 失败: %w", importPath, err)
+		return fmt.Errorf("安装或更新 %s 失败: %w", packageModuleQuery(importPath, ref), err)
 	}
 	return nil
 }
@@ -434,6 +451,24 @@ func validatePackageName(name string) error {
 		return fmt.Errorf("组件名称必须是合法 Go 包名: %s", name)
 	}
 	return nil
+}
+
+func normalizePackageRef(ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return defaultPackageRef, nil
+	}
+	if strings.ContainsAny(ref, " \t\r\n") {
+		return "", fmt.Errorf("package ref 不能包含空白字符: %s", ref)
+	}
+	if strings.Contains(ref, "@") {
+		return "", fmt.Errorf("package ref 不要包含 @，例如使用 --ref=main")
+	}
+	return ref, nil
+}
+
+func packageModuleQuery(importPath, ref string) string {
+	return importPath + "@" + ref
 }
 
 func ensurePackageProjectRoot(projectRoot string) error {
