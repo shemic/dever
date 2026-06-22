@@ -889,7 +889,7 @@ func walkWatchedPath(projectRoot, rootPath string, result map[string]watchedFile
 
 func shouldScanRootDir(relativePath string) bool {
 	switch relativePath {
-	case "config", "data", "dever", "middleware", "module", "package":
+	case "config", "dever", "middleware", "module", "package":
 		return true
 	default:
 		return false

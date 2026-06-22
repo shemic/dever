@@ -601,10 +601,42 @@ function pluginManifestMetadataPlugin(): PluginOption {
       }
       const manifestFile = path.join(pluginRoot, "dist", "manifest.json");
       const manifest = plainObject(readJSONFile(manifestFile));
+      attachManifestCSSAssets(manifest);
       manifest.__plugin = readPluginMetadata();
       fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };
+}
+
+function attachManifestCSSAssets(manifest: Record<string, unknown>) {
+  const entries = Object.values(manifest)
+    .map(plainObject)
+    .filter((item) => Object.keys(item).length > 0);
+  const entry = entries.find((item) => item.isEntry) || entries.find((item) =>
+    String(item.file || "").endsWith(".js"),
+  );
+  if (!entry) {
+    return;
+  }
+
+  const cssFiles = uniqueDependencyNames([
+    ...normalizeStringList(entry.css),
+    ...entries
+      .map((item) => String(item.file || "").trim())
+      .filter((file) => file.endsWith(".css")),
+  ]);
+  if (cssFiles.length > 0) {
+    entry.css = cssFiles;
+  }
+}
+
+function normalizeStringList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
 }
 
 function dependency(name: string) {

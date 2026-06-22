@@ -119,7 +119,7 @@ dever push
 
 | 命令 | 说明 |
 | --- | --- |
-| `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`data`、`dever`、`middleware`、`module`、`package` 等目录。 |
+| `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`dever`、`middleware`、`module`、`package` 等源码/配置目录；不监听 `data` 运行数据。 |
 | `dever daemon start\|stop\|restart\|status\|logs [--project-root=.] [--name=default] [-- <command...>]` | 后台运行和管理命令。`start` 需要命令，`restart` 不带命令时复用上次命令；pid、元数据和日志写入 `tmp/dever/daemon/<name>.*`。 |
 | `dever build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
 | `dever publish [--project-root=.] [--skip-build] [--service=name] [--install-service] [--restart] user@host:/opt/app` | 发布到远端服务器。发布包只包含 `server + config/`，远端创建 `shared/data` 并在当前 release 内软链为 `data`。 |
