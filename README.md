@@ -34,10 +34,10 @@ dever run
 
 ```sh
 dever update
-dever update --ref=main
+dever update --ref=latest
 ```
 
-`update` 默认安装到当前 `PATH` 命中的 `dever` 所在目录；它不会绑定当前项目源码，也不会同步 AI skill。AI skill 需要单独执行 `dever skill install`。
+`update` 默认追 GitHub `main`，并安装到当前 `PATH` 命中的 `dever` 所在目录；它不会绑定当前项目源码，也不会同步 AI skill。AI skill 需要单独执行 `dever skill install`。
 
 常用发布和提交命令：
 
@@ -138,7 +138,7 @@ dever push
 | `dever model [--project-root=.]` | 只扫描 Model 构造函数并生成 `data/load/model.go`。 |
 | `dever migrate [--project-root=.] <database>` | 将 `data/table` 中记录的 schema 应用到指定数据库。 |
 | `dever install [--project-root=.] [--bin-dir=]` | 安装本项目绑定的 `dever` 启动脚本；默认覆盖当前 `PATH` 命中的 `dever` 目录，`--bin-dir` 可强制指定目录。 |
-| `dever update [--bin-dir=] [--ref=latest]` | 从 GitHub 更新 `dever` 命令；默认安装到当前 `PATH` 命中的 `dever` 目录，不同步 AI skill。 |
+| `dever update [--bin-dir=] [--ref=main]` | 从 GitHub 更新 `dever` 命令；默认追 `main`，安装到当前 `PATH` 命中的 `dever` 目录，不同步 AI skill。 |
 | `dever push [--project-root=.] [--message=edit] [-m edit]` | 默认对调用 `dever` 时所在目录执行 git 操作；输出 `git status --short`，`git add` 变更文件，`git commit -m <message>`，最后 `git push`。 |
 
 日常开发只需要 `dever run`。显式执行 `routes/service/model/init` 主要用于排查生成问题，生成文件不要手改：

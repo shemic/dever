@@ -17,7 +17,7 @@ const defaultUpdateModule = "github.com/shemic/dever/cmd/dever"
 func runUpdate(args []string) {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	binDir := fs.String("bin-dir", "", "安装目录，默认覆盖当前 PATH 命中的 dever 所在目录")
-	ref := fs.String("ref", "latest", "Git ref/tag/branch，例如 latest、main、v0.1.3")
+	ref := fs.String("ref", "main", "Git ref/tag/branch，例如 main、latest、v0.1.3")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("update 参数解析失败: %v", err)
 	}
@@ -33,7 +33,7 @@ func runUpdate(args []string) {
 
 func runUpdateCommand(targetDir, ref string) error {
 	if strings.TrimSpace(ref) == "" {
-		ref = "latest"
+		ref = "main"
 	}
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return fmt.Errorf("创建安装目录失败: %w", err)
