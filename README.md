@@ -119,6 +119,7 @@ dever push
 | 命令 | 说明 |
 | --- | --- |
 | `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`data`、`dever`、`middleware`、`module`、`package` 等目录。 |
+| `dever daemon start\|stop\|restart\|status\|logs [--project-root=.] [--name=default] [-- <command...>]` | 后台运行和管理命令。`start` 需要命令，`restart` 不带命令时复用上次命令；pid、元数据和日志写入 `tmp/dever/daemon/<name>.*`。 |
 | `dever build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
 | `dever init [--project-root=.] [--skip-tidy]` | 执行 `go mod tidy`，然后生成 routes、service、model 注册文件。 |
 | `dever routes [--project-root=.]` | 只扫描 API 并生成 `data/router.go`。 |
@@ -401,6 +402,7 @@ _, _ = remaining, err
 
 ```sh
 dever run
+dever daemon start --name run -- dever run
 dever build
 dever push
 ```

@@ -21,6 +21,8 @@ func main() {
 	switch os.Args[1] {
 	case "run":
 		runWatchMode(os.Args[2:])
+	case "daemon":
+		runDaemon(os.Args[2:])
 	case "build":
 		runBuild(os.Args[2:])
 	case "front":
@@ -56,6 +58,7 @@ func printUsage() {
 
 Usage:
     dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init] # 热重载运行当前项目
+    dever daemon start|stop|restart|status|logs [--project-root=.] [--name=default] -- <command...>
     dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [--skip-front] [target]
     dever front build [--project-root=.] [name]       # 构建 module/package 下的前端插件
     dever package [--project-root=.] [name]           # 更新全部已启用 package，或安装/更新单个 package

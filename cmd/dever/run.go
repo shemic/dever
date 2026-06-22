@@ -333,6 +333,10 @@ func acquireRunLock(projectRoot string, timeout time.Duration) (*runLock, error)
 }
 
 func readRunLockPID(path string) int {
+	return readPIDFile(path)
+}
+
+func readPIDFile(path string) int {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return 0
