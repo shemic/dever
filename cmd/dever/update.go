@@ -12,7 +12,10 @@ import (
 	"github.com/shemic/dever/util"
 )
 
-const defaultUpdateModule = "github.com/shemic/dever/cmd/dever"
+const (
+	defaultUpdateModule = "github.com/shemic/dever/cmd/dever"
+	defaultUpdateRoot   = "github.com/shemic/dever"
+)
 
 func runUpdate(args []string) {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
@@ -59,7 +62,9 @@ func runUpdateCommand(targetDir, ref string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = mergeCommandEnv(util.WithCanonicalPackageGoEnv(os.Environ()), map[string]string{
-		"GOBIN": tempDir,
+		"GOBIN":     tempDir,
+		"GONOSUMDB": defaultUpdateRoot,
+		"GOPROXY":   "direct",
 	})
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("go install %s 失败: %w", query, err)
