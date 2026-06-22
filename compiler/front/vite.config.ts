@@ -712,6 +712,7 @@ export default defineConfig(({ command }) => {
         formats: ["iife"],
         name: `${pluginName.replace(/[^a-zA-Z0-9_$]/g, "_")}FrontPlugin`,
         fileName: () => `${pluginName}.js`,
+        cssFileName: () => `${pluginName}.css`,
       },
       rollupOptions: {
         external: ["react"],

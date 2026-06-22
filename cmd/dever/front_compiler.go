@@ -27,6 +27,7 @@ const (
 	frontPluginRootEnv          = "DEVER_FRONT_PLUGIN_ROOT"
 	frontCompilerPackageJSON    = "package.json"
 	frontCompilerViteConfig     = "vite.config.ts"
+	frontCompilerRuntimeEntry   = "src/runtime-entry.ts"
 	frontPackageSDKRelativePath = "sdk/src/index.ts"
 )
 
@@ -162,7 +163,7 @@ func copyEmbeddedFrontCompilerFile(name, target string, entry fs.DirEntry) error
 }
 
 func hasFrontCompilerConfig(compilerRoot string) bool {
-	for _, file := range []string{frontCompilerPackageJSON, frontCompilerViteConfig} {
+	for _, file := range []string{frontCompilerPackageJSON, frontCompilerViteConfig, frontCompilerRuntimeEntry} {
 		info, err := os.Stat(filepath.Join(compilerRoot, file))
 		if err != nil || info.IsDir() {
 			return false
