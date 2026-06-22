@@ -7,7 +7,7 @@
 | 目录 | 作用 |
 | --- | --- |
 | `cmd/` | 框架运行入口与生成器：启动 HTTP 服务，生成 `data/router.go`、`data/load/service.go`、`data/load/model.go`，执行迁移。 |
-| `cmd/dever/` | 开发命令行：`run`、`build`、`init`、`routes`、`service`、`model`、`migrate`、`install`、`push`。 |
+| `cmd/dever/` | 开发命令行：`run`、`build`、`publish`、`init`、`routes`、`service`、`model`、`migrate`、`install`、`push`。 |
 | `config/` | 读取 `config/setting.jsonc` 或 `config/setting.json`，提供日志、HTTP、数据库、Redis、observe、auth 等配置结构。 |
 | `server/` | 统一 HTTP 抽象，封装 `server.Context`、请求参数、JSON 响应和 Fiber 适配。 |
 | `middleware/` | 全局与路由级中间件注册，默认提供 Recover + Log。 |
@@ -34,10 +34,11 @@ dever run
 
 ```sh
 dever build
+dever publish root@1.2.3.4:/opt/myapp
 dever push
 ```
 
-`dever build` 默认打包当前项目根入口 `main.go`，目标为 `linux/amd64`、关闭 CGO，并使用 release 参数 `-trimpath -buildvcs=false -ldflags="-s -w -buildid="`。`dever push` 会读取 `git status`，把有变更的文件加入暂存区，执行 `git commit -m "edit"`，最后 `git push`；没有本地变更时直接 `git push`。
+`dever build` 默认打包当前项目根入口 `main.go`，目标为 `linux/amd64`、关闭 CGO，并使用 release 参数 `-trimpath -buildvcs=false -ldflags="-s -w -buildid="`。`dever publish` 只打包 `server + config/`，远端 `data` 使用 `shared/data` 持久化目录。`dever push` 会读取 `git status`，把有变更的文件加入暂存区，执行 `git commit -m "edit"`，最后 `git push`；没有本地变更时直接 `git push`。
 
 ## 3. 配置
 
@@ -121,6 +122,7 @@ dever push
 | `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`data`、`dever`、`middleware`、`module`、`package` 等目录。 |
 | `dever daemon start\|stop\|restart\|status\|logs [--project-root=.] [--name=default] [-- <command...>]` | 后台运行和管理命令。`start` 需要命令，`restart` 不带命令时复用上次命令；pid、元数据和日志写入 `tmp/dever/daemon/<name>.*`。 |
 | `dever build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
+| `dever publish [--project-root=.] [--skip-build] [--service=name] [--install-service] [--restart] user@host:/opt/app` | 发布到远端服务器。发布包只包含 `server + config/`，远端创建 `shared/data` 并在当前 release 内软链为 `data`。 |
 | `dever init [--project-root=.] [--skip-tidy]` | 执行 `go mod tidy`，然后生成 routes、service、model 注册文件。 |
 | `dever routes [--project-root=.]` | 只扫描 API 并生成 `data/router.go`。 |
 | `dever service [--project-root=.]` | 只扫描 Provider 并生成 `data/load/service.go`。 |
@@ -404,6 +406,8 @@ _, _ = remaining, err
 dever run
 dever daemon start --name run -- dever run
 dever build
+dever publish root@1.2.3.4:/opt/myapp
+dever publish root@1.2.3.4:/opt/myapp --service=myapp --install-service --restart
 dever push
 ```
 
@@ -413,6 +417,36 @@ dever push
 dever build
 dever build cmd/worker
 dever build cmd/worker/main.go -o data/bin/worker --os=linux --arch=amd64
+```
+
+`dever publish` 本地构建后生成发布包并上传远端：
+
+```sh
+dever publish root@1.2.3.4:/opt/myapp
+```
+
+远端目录结构为：
+
+```txt
+/opt/myapp/
+  current -> releases/<version>
+  releases/<version>/
+    server
+    config/
+    data -> /opt/myapp/shared/data
+  shared/data/
+```
+
+复用已经构建好的本地二进制：
+
+```sh
+dever publish root@1.2.3.4:/opt/myapp --skip-build --binary=server
+```
+
+需要写入 systemd 并重启时必须显式指定服务名：
+
+```sh
+dever publish root@1.2.3.4:/opt/myapp --service=myapp --install-service --restart
 ```
 
 `dever push` 默认操作当前 shell 所在目录，即使 `dever` 启动脚本内部会切到框架源码目录运行，也不会改变 git 目标目录。可指定提交信息：

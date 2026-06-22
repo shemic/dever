@@ -31,6 +31,12 @@ const (
 	frontPackageSDKRelativePath = "sdk/src/index.ts"
 )
 
+var frontCompilerRequiredFiles = []string{
+	frontCompilerPackageJSON,
+	frontCompilerViteConfig,
+	frontCompilerRuntimeEntry,
+}
+
 func resolveFrontCompilerRoot(projectRoot string) (string, error) {
 	if value := strings.TrimSpace(os.Getenv(frontCompilerRootEnv)); value != "" {
 		return validateFrontCompilerRoot(value)
@@ -163,7 +169,7 @@ func copyEmbeddedFrontCompilerFile(name, target string, entry fs.DirEntry) error
 }
 
 func hasFrontCompilerConfig(compilerRoot string) bool {
-	for _, file := range []string{frontCompilerPackageJSON, frontCompilerViteConfig, frontCompilerRuntimeEntry} {
+	for _, file := range frontCompilerRequiredFiles {
 		info, err := os.Stat(filepath.Join(compilerRoot, file))
 		if err != nil || info.IsDir() {
 			return false
