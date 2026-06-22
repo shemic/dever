@@ -48,6 +48,19 @@ type watchedProcess struct {
 	done       chan error
 }
 
+type runRuntimeDependencyCheck struct {
+	name        string
+	reason      string
+	command     string
+	args        []string
+	installHint string
+}
+
+type missingRunRuntimeDependency struct {
+	check  runRuntimeDependencyCheck
+	detail string
+}
+
 func runWatchMode(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
@@ -89,6 +102,8 @@ func runHotReload(options watchRunOptions) error {
 			return err
 		}
 	}
+
+	runRuntimeDependencyPreflight(options.projectRoot)
 
 	frontDev, err := startFrontPluginDevServer(options.projectRoot)
 	if err != nil {
@@ -189,6 +204,103 @@ func runHotReload(options watchRunOptions) error {
 			snapshot = current
 		}
 	}
+}
+
+func runRuntimeDependencyPreflight(projectRoot string) {
+	usesBotPackage, err := projectUsesRunRuntimePackage(projectRoot, "bot")
+	if err != nil {
+		log.Printf("dever run: 运行依赖检查跳过，读取已启用 package 失败: %v", err)
+		return
+	}
+	if !usesBotPackage {
+		return
+	}
+
+	log.Printf("dever run: 正在检查 bot 技能运行依赖")
+	missingDependencies := missingRunRuntimeDependencies(botRunRuntimeDependencyChecks())
+	if len(missingDependencies) == 0 {
+		log.Printf("dever run: bot 技能运行依赖检查通过")
+		return
+	}
+
+	log.Printf("dever run: 检测到 bot 技能运行依赖缺失，服务会继续启动，但技能测试/发布可能失败")
+	for _, missingDependency := range missingDependencies {
+		check := missingDependency.check
+		log.Printf("dever run: 缺少 %s（%s）；检测命令：%s；检测结果：%s", check.name, check.reason, formatRunRuntimeDependencyCommand(check), missingDependency.detail)
+		log.Printf("dever run: 安装提示：%s", check.installHint)
+	}
+}
+
+func projectUsesRunRuntimePackage(projectRoot string, packageName string) (bool, error) {
+	names, err := activePackageInstallNames(projectRoot)
+	if err != nil {
+		return false, err
+	}
+	for _, name := range names {
+		if name == packageName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func botRunRuntimeDependencyChecks() []runRuntimeDependencyCheck {
+	return []runRuntimeDependencyCheck{
+		{
+			name:        "Python pip",
+			reason:      "安装技能 requirements.txt 依赖需要",
+			command:     "python3",
+			args:        []string{"-m", "pip", "--version"},
+			installHint: "Debian/Ubuntu: apt-get update && apt-get install -y python3-pip python3-venv；Alpine: apk add --no-cache python3 py3-pip py3-virtualenv；RHEL/CentOS/Fedora: dnf install -y python3-pip python3-virtualenv 或 yum install -y python3-pip python3-virtualenv",
+		},
+		{
+			name:        "npm",
+			reason:      "安装技能 package.json 依赖需要",
+			command:     "npm",
+			args:        []string{"--version"},
+			installHint: "Debian/Ubuntu: apt-get update && apt-get install -y nodejs npm；Alpine: apk add --no-cache nodejs npm；RHEL/CentOS/Fedora: dnf install -y nodejs npm 或 yum install -y nodejs npm",
+		},
+		{
+			name:        "bubblewrap",
+			reason:      "默认 bwrap 沙箱运行技能脚本需要",
+			command:     "bwrap",
+			args:        []string{"--version"},
+			installHint: "Debian/Ubuntu: apt-get update && apt-get install -y bubblewrap；Alpine: apk add --no-cache bubblewrap；RHEL/CentOS/Fedora: dnf install -y bubblewrap 或 yum install -y bubblewrap",
+		},
+	}
+}
+
+func missingRunRuntimeDependencies(checks []runRuntimeDependencyCheck) []missingRunRuntimeDependency {
+	missingDependencies := make([]missingRunRuntimeDependency, 0)
+	for _, check := range checks {
+		detail, ok := runRuntimeDependencyMissing(check)
+		if !ok {
+			continue
+		}
+		missingDependencies = append(missingDependencies, missingRunRuntimeDependency{
+			check:  check,
+			detail: detail,
+		})
+	}
+	return missingDependencies
+}
+
+func runRuntimeDependencyMissing(check runRuntimeDependencyCheck) (string, bool) {
+	command := exec.Command(check.command, check.args...)
+	output, err := command.CombinedOutput()
+	if err == nil {
+		return "", false
+	}
+	detail := strings.TrimSpace(string(output))
+	if detail == "" {
+		detail = err.Error()
+	}
+	return detail, true
+}
+
+func formatRunRuntimeDependencyCommand(check runRuntimeDependencyCheck) string {
+	parts := append([]string{check.command}, check.args...)
+	return strings.Join(parts, " ")
 }
 
 type runLock struct {
