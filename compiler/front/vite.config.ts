@@ -13,6 +13,7 @@ const projectRoot =
 const frontPackageRoot = resolveFrontPackageRoot();
 const sdkEntry = path.resolve(frontPackageRoot, "sdk", "src", "index.ts");
 const shimRoot = path.resolve(compilerRoot, "src", "shims");
+const runtimeEntryFile = path.resolve(compilerRoot, "src", "runtime-entry.ts");
 
 const runtimeEntryID = "virtual:dever-front-plugin-runtime";
 const resolvedRuntimeEntryID = "\0" + runtimeEntryID;
@@ -707,7 +708,7 @@ export default defineConfig(({ command }) => {
       emptyOutDir: true,
       manifest: "manifest.json",
       lib: {
-        entry: runtimeEntryID,
+        entry: runtimeEntryFile,
         formats: ["iife"],
         name: `${pluginName.replace(/[^a-zA-Z0-9_$]/g, "_")}FrontPlugin`,
         fileName: () => `${pluginName}.js`,

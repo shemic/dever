@@ -143,7 +143,7 @@ needs_cli_build() {
     return 0
   fi
   local newer_file
-  newer_file="$(find "$source_root" \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) -newer "$cli_bin" -print -quit)"
+  newer_file="$(find "$source_root" \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' -o -path '*/compiler/front/package.json' -o -path '*/compiler/front/vite.config.ts' -o -path '*/compiler/front/src/*' \) -newer "$cli_bin" -print -quit)"
   [ -n "$newer_file" ]
 }
 
