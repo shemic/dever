@@ -49,14 +49,33 @@ func runUpdateCommand(targetDir, ref string) error {
 	fmt.Printf("dever update: 正在从 GitHub 更新 %s\n", query)
 	fmt.Printf("dever update: 安装目录 %s\n", targetDir)
 
+	tempDir, err := os.MkdirTemp(targetDir, ".dever-update-*")
+	if err != nil {
+		return fmt.Errorf("创建临时安装目录失败: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
 	cmd := exec.Command("go", "install", query)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = mergeCommandEnv(util.WithCanonicalPackageGoEnv(os.Environ()), map[string]string{
-		"GOBIN": targetDir,
+		"GOBIN": tempDir,
 	})
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("go install %s 失败: %w", query, err)
+	}
+
+	tempBinary := filepath.Join(tempDir, "dever")
+	if info, err := os.Stat(tempBinary); err != nil {
+		return fmt.Errorf("更新产物缺失: %w", err)
+	} else if info.IsDir() {
+		return fmt.Errorf("更新产物是目录: %s", tempBinary)
+	}
+	if err := os.Chmod(tempBinary, 0o755); err != nil {
+		return fmt.Errorf("设置更新产物权限失败: %w", err)
+	}
+	if err := os.Rename(tempBinary, targetPath); err != nil {
+		return fmt.Errorf("替换 %s 失败: %w", targetPath, err)
 	}
 
 	fmt.Printf("dever update: 已更新到 %s\n", targetPath)
