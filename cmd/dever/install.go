@@ -56,6 +56,10 @@ func resolveInstallBinDir(configured string) (string, error) {
 		return filepath.Abs(strings.TrimSpace(configured))
 	}
 
+	if currentDir := currentDeverBinDir(); currentDir != "" && installDirWritable(currentDir) {
+		return currentDir, nil
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -73,6 +77,37 @@ func resolveInstallBinDir(configured string) (string, error) {
 	}
 
 	return candidates[0], nil
+}
+
+func currentDeverBinDir() string {
+	currentPath, err := exec.LookPath("dever")
+	if err != nil {
+		return ""
+	}
+	currentPath, err = filepath.Abs(currentPath)
+	if err != nil {
+		return ""
+	}
+	info, err := os.Stat(currentPath)
+	if err != nil || info.IsDir() {
+		return ""
+	}
+	return filepath.Dir(currentPath)
+}
+
+func installDirWritable(dir string) bool {
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	file, err := os.CreateTemp(dir, ".dever-install-check-*")
+	if err != nil {
+		return false
+	}
+	name := file.Name()
+	_ = file.Close()
+	_ = os.Remove(name)
+	return true
 }
 
 func isBinDirInPath(target string) bool {
