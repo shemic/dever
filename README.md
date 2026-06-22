@@ -7,7 +7,7 @@
 | 目录 | 作用 |
 | --- | --- |
 | `cmd/` | 框架运行入口与生成器：启动 HTTP 服务，生成 `data/router.go`、`data/load/service.go`、`data/load/model.go`，执行迁移。 |
-| `cmd/dever/` | 开发命令行：`run`、`build`、`publish`、`init`、`routes`、`service`、`model`、`migrate`、`install`、`push`。 |
+| `cmd/dever/` | 开发命令行：`run`、`build`、`publish`、`init`、`routes`、`service`、`model`、`migrate`、`install`、`update`、`push`。 |
 | `config/` | 读取 `config/setting.jsonc` 或 `config/setting.json`，提供日志、HTTP、数据库、Redis、observe、auth 等配置结构。 |
 | `server/` | 统一 HTTP 抽象，封装 `server.Context`、请求参数、JSON 响应和 Fiber 适配。 |
 | `middleware/` | 全局与路由级中间件注册，默认提供 Recover + Log。 |
@@ -29,6 +29,15 @@ dever run
 ```
 
 `install` 会把一个 `dever` 启动脚本写入当前 `PATH` 命中的 `dever` 所在目录；如果该目录不可写，则回退到用户 bin 目录。脚本始终执行当前项目内的 `dever/cmd/dever` 源码。后续日常开发优先使用 `dever run`，它会先执行 `init --skip-tidy`，并在 `module/*/{api,service,model}` 等敏感文件变化后重新生成注册文件再重启服务。
+
+如果只想从 GitHub 更新最新版 `dever` 命令，使用：
+
+```sh
+dever update
+dever update --ref=main
+```
+
+`update` 默认安装到当前 `PATH` 命中的 `dever` 所在目录；它不会绑定当前项目源码，也不会同步 AI skill。AI skill 需要单独执行 `dever skill install`。
 
 常用发布和提交命令：
 
@@ -129,6 +138,7 @@ dever push
 | `dever model [--project-root=.]` | 只扫描 Model 构造函数并生成 `data/load/model.go`。 |
 | `dever migrate [--project-root=.] <database>` | 将 `data/table` 中记录的 schema 应用到指定数据库。 |
 | `dever install [--project-root=.] [--bin-dir=]` | 安装本项目绑定的 `dever` 启动脚本；默认覆盖当前 `PATH` 命中的 `dever` 目录，`--bin-dir` 可强制指定目录。 |
+| `dever update [--bin-dir=] [--ref=latest]` | 从 GitHub 更新 `dever` 命令；默认安装到当前 `PATH` 命中的 `dever` 目录，不同步 AI skill。 |
 | `dever push [--project-root=.] [--message=edit] [-m edit]` | 默认对调用 `dever` 时所在目录执行 git 操作；输出 `git status --short`，`git add` 变更文件，`git commit -m <message>`，最后 `git push`。 |
 
 日常开发只需要 `dever run`。显式执行 `routes/service/model/init` 主要用于排查生成问题，生成文件不要手改：
