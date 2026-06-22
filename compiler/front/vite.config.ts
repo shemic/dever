@@ -630,8 +630,7 @@ function frontPluginDependencyAliases() {
   }));
 }
 
-function runtimeAlias(command: string) {
-  const serve = command === "serve";
+function runtimeAlias() {
   return [
     { find: "@dever/front-plugin", replacement: sdkEntry },
     {
@@ -648,29 +647,23 @@ function runtimeAlias(command: string) {
     },
     {
       find: "react/jsx-dev-runtime",
-      replacement: serve
-        ? shimFile("react-jsx-runtime")
-        : dependency("react/jsx-dev-runtime.js"),
+      replacement: shimFile("react-jsx-runtime"),
     },
     {
       find: "react/jsx-runtime",
-      replacement: serve
-        ? shimFile("react-jsx-runtime")
-        : dependency("react/jsx-runtime.js"),
+      replacement: shimFile("react-jsx-runtime"),
     },
     {
       find: "react-dom/client",
-      replacement: serve
-        ? shimFile("react-dom-client")
-        : dependency("react-dom/client"),
+      replacement: shimFile("react-dom-client"),
     },
     {
       find: "react-dom",
-      replacement: serve ? shimFile("react-dom") : dependency("react-dom"),
+      replacement: shimFile("react-dom"),
     },
     {
       find: "react",
-      replacement: serve ? shimFile("react") : dependency("react"),
+      replacement: shimFile("react"),
     },
     { find: "@xyflow/react", replacement: dependency("@xyflow/react") },
     { find: "lucide-react", replacement: dependency("lucide-react") },
@@ -680,8 +673,12 @@ function runtimeAlias(command: string) {
 }
 
 export default defineConfig(({ command }) => {
+  const nodeEnv = command === "serve" ? "development" : "production";
   return {
     root: projectRoot,
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(nodeEnv),
+    },
     plugins: [
       frontPluginDependencySubpathPlugin(),
       runtimeEntryPlugin(),
@@ -691,7 +688,7 @@ export default defineConfig(({ command }) => {
     ],
     resolve: {
       dedupe: ["react", "react-dom"],
-      alias: runtimeAlias(command),
+      alias: runtimeAlias(),
     },
     server: {
       host: "127.0.0.1",
