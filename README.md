@@ -447,7 +447,10 @@ dever publish root@1.2.3.4:/opt/myapp --skip-build --binary=server
 
 ```sh
 dever publish root@1.2.3.4:/opt/myapp --service=myapp --install-service --restart
+dever publish --service=myapp --install-service --restart root@1.2.3.4:/opt/myapp
 ```
+
+`publish` 支持把参数写在远端目标前或后；远端目标仍然只能有一个。
 
 `dever push` 默认操作当前 shell 所在目录，即使 `dever` 启动脚本内部会切到框架源码目录运行，也不会改变 git 目标目录。可指定提交信息：
 
