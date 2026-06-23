@@ -642,13 +642,92 @@ func uploadPublishArchive(session publishSSHSession, localPath, remotePath strin
 	if err != nil {
 		return fmt.Errorf("读取发布包失败: %s: %w", localPath, err)
 	}
+	if shouldUsePublishRsync(session) {
+		if err := uploadPublishArchiveWithRsync(session, localPath, remotePath, info.Size()); err == nil {
+			return nil
+		} else {
+			fmt.Printf("dever publish: rsync 上传失败，回退 SSH 流式上传: %v\n", err)
+		}
+	} else {
+		fmt.Println("dever publish: 未检测到本地或远端 rsync，使用 SSH 流式上传")
+	}
+	return uploadPublishArchiveWithSSH(session, localPath, remotePath, info.Size())
+}
+
+func shouldUsePublishRsync(session publishSSHSession) bool {
+	if !localPublishCommandExists("rsync") {
+		return false
+	}
+	return remotePublishCommandExists(session, "rsync")
+}
+
+func localPublishCommandExists(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
+func remotePublishCommandExists(session publishSSHSession, name string) bool {
+	script := fmt.Sprintf("command -v %s >/dev/null 2>&1", shellQuote(name))
+	args := append(session.sshOptions(), session.host, "sh -c "+shellQuote(script))
+	cmd := exec.Command("ssh", args...)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
+}
+
+func uploadPublishArchiveWithRsync(session publishSSHSession, localPath, remotePath string, size int64) error {
+	remoteUploadPath := publishRsyncUploadPath(remotePath)
+	fmt.Printf("dever publish: 使用 rsync 上传 %s -> %s:%s (%s)\n", localPath, session.host, remoteUploadPath, formatPublishSize(size))
+	args := []string{
+		"-a",
+		"--partial",
+		"--append-verify",
+		"--progress",
+		"-e", session.rsyncSSHCommand(),
+		localPath,
+		session.host + ":" + remoteUploadPath,
+	}
+	cmd := exec.Command("rsync", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("rsync 执行失败: %w", err)
+	}
+
+	script := fmt.Sprintf(`set -e
+source=%s
+target=%s
+tmp="${target}.ready.$$"
+cleanup() { rm -f "$tmp"; }
+trap cleanup INT TERM HUP EXIT
+cp -f "$source" "$tmp"
+mv -f "$tmp" "$target"
+trap - INT TERM HUP EXIT
+`, shellQuote(remoteUploadPath), shellQuote(remotePath))
+	return runRemotePublishCommand(session, script)
+}
+
+func publishRsyncUploadPath(remotePath string) string {
+	return pathpkg.Join(pathpkg.Dir(remotePath), ".dever-upload.tar.gz")
+}
+
+func (session publishSSHSession) rsyncSSHCommand() string {
+	args := append([]string{"ssh"}, session.sshOptions()...)
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, shellQuote(arg))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func uploadPublishArchiveWithSSH(session publishSSHSession, localPath, remotePath string, size int64) error {
 	input, err := os.Open(localPath)
 	if err != nil {
 		return fmt.Errorf("打开发布包失败: %s: %w", localPath, err)
 	}
 	defer input.Close()
 
-	fmt.Printf("dever publish: 上传 %s -> %s:%s (%s)\n", localPath, session.host, remotePath, formatPublishSize(info.Size()))
+	fmt.Printf("dever publish: 上传 %s -> %s:%s (%s)\n", localPath, session.host, remotePath, formatPublishSize(size))
 	script := fmt.Sprintf(`set -e
 target=%s
 tmp="${target}.uploading.$$"
@@ -660,7 +739,7 @@ trap - INT TERM HUP EXIT
 `, shellQuote(remotePath))
 	args := append(session.sshOptions(), session.host, "sh -c "+shellQuote(script))
 	cmd := exec.Command("ssh", args...)
-	cmd.Stdin = newPublishProgressReader(input, info.Size())
+	cmd.Stdin = newPublishProgressReader(input, size)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
