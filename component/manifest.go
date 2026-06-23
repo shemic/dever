@@ -40,12 +40,12 @@ type ManifestSite struct {
 }
 
 type ManifestSiteConfig struct {
-	Name        string `json:"name"`
-	Subtitle    string `json:"subtitle"`
-	Description string `json:"description"`
-	URL         string `json:"url"`
-	Logo        string `json:"logo"`
-	Favicon     string `json:"favicon"`
+	Name        string   `json:"name"`
+	Subtitle    string   `json:"subtitle"`
+	Description string   `json:"description"`
+	URLs        []string `json:"url"`
+	Logo        string   `json:"logo"`
+	Favicon     string   `json:"favicon"`
 }
 
 type ManifestSiteSetting struct {
@@ -131,9 +131,15 @@ func validateManifestSiteConfig(siteKey string, content json.RawMessage) error {
 	if err := json.Unmarshal(content, &config); err != nil {
 		return err
 	}
-	for key := range config {
+	for key, value := range config {
 		switch key {
 		case "name", "subtitle", "description", "url", "logo", "favicon":
+			if key == "url" {
+				var urls []string
+				if err := json.Unmarshal(value, &urls); err != nil {
+					return fmt.Errorf("front.sites.%s.config.url 必须是字符串数组", siteKey)
+				}
+			}
 		default:
 			return fmt.Errorf("front.sites.%s.config 不允许字段 %q", siteKey, key)
 		}
@@ -164,7 +170,7 @@ func normalizeManifest(manifest Manifest) Manifest {
 			site.Config.Name = strings.TrimSpace(site.Config.Name)
 			site.Config.Subtitle = strings.TrimSpace(site.Config.Subtitle)
 			site.Config.Description = strings.TrimSpace(site.Config.Description)
-			site.Config.URL = strings.TrimSpace(site.Config.URL)
+			site.Config.URLs = normalizeStringList(site.Config.URLs)
 			site.Config.Logo = strings.TrimSpace(site.Config.Logo)
 			site.Config.Favicon = strings.TrimSpace(site.Config.Favicon)
 			site.Setting.Appearance.Theme = strings.TrimSpace(site.Setting.Appearance.Theme)
