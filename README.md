@@ -37,7 +37,8 @@ dever update
 dever update --ref=latest
 ```
 
-`update` 默认追 GitHub `main`，并安装到当前 `PATH` 命中的 `dever` 所在目录；它不会绑定当前项目源码，也不会同步 AI skill。AI skill 需要单独执行 `dever skill install`。
+`update` 默认追 GitHub `main`，并安装到当前 `PATH` 命中的 `dever` 所在目录；命令更新不会绑定当前项目本地源码，也不会同步 AI skill。AI skill 需要单独执行 `dever skill install`。
+同时，`update` 会先在当前 Dever 后端项目里执行 `go get github.com/shemic/dever@<ref>`，更新项目依赖的 Dever 框架，再安装同一 ref 的 `dever` 命令；如当前目录是 `dever` 框架源码目录，会自动尝试更新父级业务项目。只想更新命令时使用 `--skip-framework`。
 
 常用发布和提交命令：
 
@@ -138,7 +139,7 @@ dever push
 | `dever model [--project-root=.]` | 只扫描 Model 构造函数并生成 `data/load/model.go`。 |
 | `dever migrate [--project-root=.] <database>` | 将 `data/table` 中记录的 schema 应用到指定数据库。 |
 | `dever install [--project-root=.] [--bin-dir=]` | 安装本项目绑定的 `dever` 启动脚本；默认覆盖当前 `PATH` 命中的 `dever` 目录，`--bin-dir` 可强制指定目录。 |
-| `dever update [--bin-dir=] [--ref=main]` | 从 GitHub 更新 `dever` 命令；默认追 `main`，安装到当前 `PATH` 命中的 `dever` 目录，不同步 AI skill。 |
+| `dever update [--project-root=.] [--bin-dir=] [--ref=main] [--skip-framework]` | 从 GitHub 更新 `dever` 命令和当前项目的 `github.com/shemic/dever` 框架依赖；默认追 `main`，不同步 AI skill。 |
 | `dever push [--project-root=.] [--message=edit] [-m edit]` | 默认对调用 `dever` 时所在目录执行 git 操作；输出 `git status --short`，`git add` 变更文件，`git commit -m <message>`，最后 `git push`。 |
 
 日常开发只需要 `dever run`。显式执行 `routes/service/model/init` 主要用于排查生成问题，生成文件不要手改：
@@ -429,7 +430,7 @@ dever build cmd/worker
 dever build cmd/worker/main.go -o data/bin/worker --os=linux --arch=amd64
 ```
 
-`dever publish` 本地构建后生成发布包并上传远端：
+`dever publish` 本地构建后生成发布包并上传远端。同一次发布会复用一个临时 SSH ControlMaster 连接，避免 `ssh` 准备目录、`scp` 上传、`ssh` 激活发布时反复输入密码；如果远端或本机 SSH 不支持连接复用，会回退为普通 SSH 行为并按 SSH 提示处理。
 
 ```sh
 dever publish root@1.2.3.4:/opt/myapp

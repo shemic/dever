@@ -76,7 +76,7 @@ Usage:
     dever component [--project-root=.]            # 仅生成 component 注册
     dever migrate [--project-root=.] <database>   # 应用 data/table 中记录的表结构到目标数据库
     dever install [--project-root=.] [--bin-dir=] [--skip-skills] # 安装启动脚本，并默认同步 AI skill
-    dever update [--bin-dir=] [--ref=main] # 从 GitHub 更新 dever 命令，默认追 main
+    dever update [--project-root=.] [--bin-dir=] [--ref=main] [--skip-framework] # 从 GitHub 更新 dever 命令和当前项目框架依赖，默认追 main
     dever push [--project-root=.] [--message=edit|-m edit] # git status/add/commit/push，并按 dever.json.version 推 tag
 `)
 }

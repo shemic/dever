@@ -50,6 +50,12 @@ type publishArchive struct {
 	binaryPath string
 }
 
+type publishSSHSession struct {
+	host        string
+	controlDir  string
+	controlPath string
+}
+
 func runPublish(args []string) {
 	fs := flag.NewFlagSet("publish", flag.ExitOnError)
 	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
@@ -401,19 +407,51 @@ func addArchiveEntry(writer *tar.Writer, sourcePath, archiveName string, info os
 }
 
 func deployPublishArchive(options publishOptions, archive publishArchive) error {
+	session, err := newPublishSSHSession(options.remote.host)
+	if err != nil {
+		return err
+	}
+	defer session.cleanup()
+
 	remoteArchive := pathpkg.Join(options.remote.root, "releases", archive.fileName)
-	if err := runRemotePublishCommand(options.remote.host, buildRemotePrepareScript(options, remoteArchive)); err != nil {
+	if err := runRemotePublishCommand(session, buildRemotePrepareScript(options, remoteArchive)); err != nil {
 		return err
 	}
-	if err := uploadPublishArchive(options.remote.host, archive.path, remoteArchive); err != nil {
+	if err := uploadPublishArchive(session, archive.path, remoteArchive); err != nil {
 		return err
 	}
-	return runRemotePublishCommand(options.remote.host, buildRemoteActivateScript(options, archive, remoteArchive))
+	return runRemotePublishCommand(session, buildRemoteActivateScript(options, archive, remoteArchive))
 }
 
-func uploadPublishArchive(host, localPath, remotePath string) error {
-	fmt.Printf("dever publish: 上传 %s -> %s:%s\n", localPath, host, remotePath)
-	cmd := exec.Command("scp", localPath, host+":"+remotePath)
+func newPublishSSHSession(host string) (publishSSHSession, error) {
+	controlDir, err := os.MkdirTemp("", "dever-publish-ssh-*")
+	if err != nil {
+		return publishSSHSession{}, fmt.Errorf("创建 SSH 复用目录失败: %w", err)
+	}
+	return publishSSHSession{
+		host:        host,
+		controlDir:  controlDir,
+		controlPath: filepath.Join(controlDir, "control-%C"),
+	}, nil
+}
+
+func (session publishSSHSession) sshOptions() []string {
+	return []string{
+		"-o", "ControlMaster=auto",
+		"-o", "ControlPersist=60s",
+		"-o", "ControlPath=" + session.controlPath,
+	}
+}
+
+func (session publishSSHSession) cleanup() {
+	_ = exec.Command("ssh", append(session.sshOptions(), "-O", "exit", session.host)...).Run()
+	_ = os.RemoveAll(session.controlDir)
+}
+
+func uploadPublishArchive(session publishSSHSession, localPath, remotePath string) error {
+	fmt.Printf("dever publish: 上传 %s -> %s:%s\n", localPath, session.host, remotePath)
+	args := append(session.sshOptions(), localPath, session.host+":"+remotePath)
+	cmd := exec.Command("scp", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -422,8 +460,9 @@ func uploadPublishArchive(host, localPath, remotePath string) error {
 	return nil
 }
 
-func runRemotePublishCommand(host, script string) error {
-	cmd := exec.Command("ssh", host, "sh", "-s")
+func runRemotePublishCommand(session publishSSHSession, script string) error {
+	args := append(session.sshOptions(), session.host, "sh", "-s")
+	cmd := exec.Command("ssh", args...)
 	cmd.Stdin = strings.NewReader(script)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
