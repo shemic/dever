@@ -19,7 +19,11 @@ const (
 	defaultPublishDataMode    = "0755"
 	defaultPublishBinaryName  = "server"
 	defaultPublishReleaseRoot = "tmp/dever/release"
+	defaultPublishConfigPath  = "config"
+	defaultPublishDataPath    = "data"
 )
+
+var defaultPublishIncludePaths = []string{defaultPublishBinaryName, defaultPublishConfigPath}
 
 type publishOptions struct {
 	projectRoot   string
@@ -27,6 +31,8 @@ type publishOptions struct {
 	version       string
 	skipBuild     bool
 	skipFront     bool
+	includePaths  []string
+	excludePaths  []string
 	binaryPath    string
 	goos          string
 	goarch        string
@@ -44,10 +50,12 @@ type publishRemote struct {
 }
 
 type publishArchive struct {
-	path       string
-	fileName   string
-	version    string
-	binaryPath string
+	path           string
+	fileName       string
+	version        string
+	binaryPath     string
+	preserveConfig bool
+	hasData        bool
 }
 
 type publishSSHSession struct {
@@ -61,6 +69,8 @@ func runPublish(args []string) {
 	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
 	skipBuild := fs.Bool("skip-build", false, "跳过本地构建，直接打包 --binary 指定的二进制")
 	skipFront := fs.Bool("skip-front", false, "构建时跳过 module/package 前端插件")
+	includeRaw := fs.String("include", "", "发布包白名单，逗号分隔；默认 server,config")
+	excludeRaw := fs.String("exclude", "", "从 include 选中的目录中排除路径，逗号分隔")
 	binaryPath := fs.String("binary", defaultPublishBinaryName, "跳过构建时使用的二进制路径")
 	goos := fs.String("os", defaultBuildOS, "目标操作系统")
 	goarch := fs.String("arch", defaultBuildArch, "目标架构")
@@ -83,12 +93,18 @@ func runPublish(args []string) {
 	exitOnPublishError(err)
 	mode, err := parsePublishDataMode(*dataMode)
 	exitOnPublishError(err)
+	includePaths, err := parsePublishIncludePathList(*includeRaw)
+	exitOnPublishError(err)
+	excludePaths, err := parsePublishPathList(*excludeRaw, "--exclude")
+	exitOnPublishError(err)
 	options := publishOptions{
 		projectRoot:   resolveProjectRoot(*projectRoot),
 		remote:        remote,
 		version:       time.Now().Format("20060102150405"),
 		skipBuild:     *skipBuild,
 		skipFront:     *skipFront,
+		includePaths:  includePaths,
+		excludePaths:  excludePaths,
 		binaryPath:    strings.TrimSpace(*binaryPath),
 		goos:          normalizeBuildValue(*goos, defaultBuildOS),
 		goarch:        normalizeBuildValue(*goarch, defaultBuildArch),
@@ -247,8 +263,64 @@ func parsePublishDataMode(raw string) (os.FileMode, error) {
 	return mode, nil
 }
 
+func parsePublishPathList(raw string, flagName string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	seen := map[string]struct{}{}
+	paths := make([]string, 0)
+	for _, item := range strings.Split(raw, ",") {
+		cleaned, err := cleanPublishPath(item, flagName)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[cleaned]; ok {
+			continue
+		}
+		seen[cleaned] = struct{}{}
+		paths = append(paths, cleaned)
+	}
+	return paths, nil
+}
+
+func parsePublishIncludePathList(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return append([]string(nil), defaultPublishIncludePaths...), nil
+	}
+	return parsePublishPathList(raw, "--include")
+}
+
+func cleanPublishPath(raw string, flagName string) (string, error) {
+	value := filepath.ToSlash(strings.TrimSpace(raw))
+	if value == "" {
+		return "", fmt.Errorf("%s 包含空路径", flagName)
+	}
+	if strings.HasPrefix(value, "/") {
+		return "", fmt.Errorf("%s 不支持绝对路径: %s", flagName, raw)
+	}
+	cleaned := pathpkg.Clean(value)
+	if cleaned == "." || cleaned == "" {
+		return "", fmt.Errorf("%s 包含空路径", flagName)
+	}
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", fmt.Errorf("%s 不支持上级目录: %s", flagName, raw)
+	}
+	if cleaned == ".git" || strings.HasPrefix(cleaned, ".git/") {
+		return "", fmt.Errorf("%s 不支持包含 .git 目录", flagName)
+	}
+	if cleaned == "tmp" || strings.HasPrefix(cleaned, "tmp/") {
+		return "", fmt.Errorf("%s 不支持包含 tmp 目录", flagName)
+	}
+	return cleaned, nil
+}
+
 func preparePublishArchive(options publishOptions) (publishArchive, error) {
 	binaryPath, err := resolvePublishBinary(options)
+	if err != nil {
+		return publishArchive{}, err
+	}
+	selection, err := resolvePublishArchiveSelection(options)
 	if err != nil {
 		return publishArchive{}, err
 	}
@@ -259,17 +331,113 @@ func preparePublishArchive(options publishOptions) (publishArchive, error) {
 	}
 	fileName := fmt.Sprintf("%s-%s.tar.gz", filepath.Base(options.projectRoot), options.version)
 	archivePath := filepath.Join(archiveDir, fileName)
-	if err := createPublishArchive(options.projectRoot, binaryPath, archivePath); err != nil {
+	if err := createPublishArchive(options, selection, binaryPath, archivePath); err != nil {
 		return publishArchive{}, err
 	}
 
 	fmt.Printf("dever publish: 发布包 %s\n", archivePath)
 	return publishArchive{
-		path:       archivePath,
-		fileName:   fileName,
-		version:    options.version,
-		binaryPath: binaryPath,
+		path:           archivePath,
+		fileName:       fileName,
+		version:        options.version,
+		binaryPath:     binaryPath,
+		preserveConfig: selection.preserveConfig,
+		hasData:        selection.hasData,
 	}, nil
+}
+
+type publishArchiveSelection struct {
+	entries        []string
+	preserveConfig bool
+	hasData        bool
+}
+
+func resolvePublishArchiveSelection(options publishOptions) (publishArchiveSelection, error) {
+	entries := []string{}
+	includeServer := false
+	for _, currentPath := range options.includePaths {
+		if publishPathExcluded(currentPath, options.excludePaths) {
+			continue
+		}
+		if currentPath == defaultPublishBinaryName {
+			includeServer = true
+			continue
+		}
+		entries = append(entries, currentPath)
+	}
+	if !includeServer {
+		return publishArchiveSelection{}, fmt.Errorf("publish 发布包必须包含 server；如只更新二进制请使用 --include=server")
+	}
+	entries = compactPublishArchiveEntries(entries)
+
+	return publishArchiveSelection{
+		entries:        entries,
+		preserveConfig: !publishEntriesContainExact(entries, defaultPublishConfigPath),
+		hasData:        publishEntriesContainPath(entries, defaultPublishDataPath),
+	}, nil
+}
+
+func compactPublishArchiveEntries(entries []string) []string {
+	result := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if publishEntryCovered(entry, result) {
+			continue
+		}
+		result = removeCoveredPublishEntries(entry, result)
+		result = append(result, entry)
+	}
+	return result
+}
+
+func publishEntryCovered(entry string, existingEntries []string) bool {
+	for _, existing := range existingEntries {
+		if publishPathMatches(entry, existing) {
+			return true
+		}
+	}
+	return false
+}
+
+func removeCoveredPublishEntries(entry string, existingEntries []string) []string {
+	result := existingEntries[:0]
+	for _, existing := range existingEntries {
+		if publishPathMatches(existing, entry) {
+			continue
+		}
+		result = append(result, existing)
+	}
+	return result
+}
+
+func publishEntriesContainExact(entries []string, target string) bool {
+	for _, entry := range entries {
+		if entry == target {
+			return true
+		}
+	}
+	return false
+}
+
+func publishEntriesContainPath(entries []string, target string) bool {
+	for _, entry := range entries {
+		if publishPathMatches(entry, target) || publishPathMatches(target, entry) {
+			return true
+		}
+	}
+	return false
+}
+
+func publishPathExcluded(currentPath string, excludes []string) bool {
+	for _, excludePath := range excludes {
+		if publishPathMatches(currentPath, excludePath) {
+			return true
+		}
+	}
+	return false
+}
+
+func publishPathMatches(currentPath string, target string) bool {
+	return currentPath == target || strings.HasPrefix(currentPath, target+"/")
 }
 
 func resolvePublishBinary(options publishOptions) (string, error) {
@@ -315,15 +483,7 @@ func ensurePublishBinary(path string) error {
 	return nil
 }
 
-func createPublishArchive(projectRoot, binaryPath, archivePath string) error {
-	configDir := filepath.Join(projectRoot, "config")
-	if info, err := os.Stat(configDir); err != nil || !info.IsDir() {
-		if err == nil {
-			err = fmt.Errorf("不是目录")
-		}
-		return fmt.Errorf("读取 config 目录失败: %w", err)
-	}
-
+func createPublishArchive(options publishOptions, selection publishArchiveSelection, binaryPath, archivePath string) error {
 	if err := os.MkdirAll(filepath.Dir(archivePath), 0o755); err != nil {
 		return fmt.Errorf("创建发布包目录失败: %w", err)
 	}
@@ -341,10 +501,31 @@ func createPublishArchive(projectRoot, binaryPath, archivePath string) error {
 	if err := addFileToArchive(tarWriter, binaryPath, defaultPublishBinaryName, 0o755); err != nil {
 		return err
 	}
-	return addDirectoryToArchive(tarWriter, configDir, "config")
+
+	for _, entry := range selection.entries {
+		if err := addPublishPathToArchive(tarWriter, options.projectRoot, entry, options.excludePaths); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func addDirectoryToArchive(writer *tar.Writer, sourceDir, archiveRoot string) error {
+func addPublishPathToArchive(writer *tar.Writer, projectRoot, relativePath string, excludes []string) error {
+	if publishPathExcluded(relativePath, excludes) {
+		return nil
+	}
+	sourcePath := filepath.Join(projectRoot, filepath.FromSlash(relativePath))
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("读取待打包路径失败: %s: %w", relativePath, err)
+	}
+	if info.IsDir() {
+		return addDirectoryToArchive(writer, sourcePath, relativePath, excludes)
+	}
+	return addFileToArchive(writer, sourcePath, relativePath, 0)
+}
+
+func addDirectoryToArchive(writer *tar.Writer, sourceDir, archiveRoot string, excludes []string) error {
 	return filepath.WalkDir(sourceDir, func(currentPath string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -356,6 +537,12 @@ func addDirectoryToArchive(writer *tar.Writer, sourceDir, archiveRoot string) er
 		archiveName := archiveRoot
 		if relative != "." {
 			archiveName = filepath.ToSlash(filepath.Join(archiveRoot, relative))
+		}
+		if publishPathExcluded(archiveName, excludes) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -495,11 +682,35 @@ archive=%s
 mkdir -p "$release" "$base/shared/data"
 tar -xzf "$archive" -C "$release"
 chmod +x "$release/server"
-ln -sfn "$base/shared/data" "$release/data"
+`, shellQuote(options.remote.root), shellQuote(releaseDir), shellQuote(remoteArchive))
+	if archive.preserveConfig {
+		fmt.Fprintf(&builder, `if [ ! -d "$base/current/config" ]; then
+  echo "本次发布包未包含完整 config，需要远端已有 current/config，请先执行一次完整 publish" >&2
+  exit 1
+fi
+if [ -e "$release/config" ]; then
+  rm -rf "$release/.dever-config-overlay"
+  mv "$release/config" "$release/.dever-config-overlay"
+fi
+cp -a "$base/current/config" "$release/config"
+if [ -d "$release/.dever-config-overlay" ]; then
+  cp -a "$release/.dever-config-overlay/." "$release/config/"
+  rm -rf "$release/.dever-config-overlay"
+fi
+`)
+	}
+	if archive.hasData {
+		fmt.Fprintf(&builder, `if [ -d "$release/data" ]; then
+  cp -a "$release/data/." "$base/shared/data/"
+  rm -rf "$release/data"
+fi
+`)
+	}
+	fmt.Fprintf(&builder, `ln -sfn "$base/shared/data" "$release/data"
 ln -sfn "$release" "$base/current.next"
 mv -Tf "$base/current.next" "$base/current"
 rm -f "$archive"
-`, shellQuote(options.remote.root), shellQuote(releaseDir), shellQuote(remoteArchive))
+`)
 	appendRemoteDataOwner(&builder, options)
 
 	if options.installSystem {

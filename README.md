@@ -48,7 +48,7 @@ dever publish root@1.2.3.4:/opt/myapp
 dever push
 ```
 
-`dever build` 默认打包当前项目根入口 `main.go`，目标为 `linux/amd64`、关闭 CGO，并使用 release 参数 `-trimpath -buildvcs=false -ldflags="-s -w -buildid="`。`dever publish` 只打包 `server + config/`，远端 `data` 使用 `shared/data` 持久化目录。`dever push` 会读取 `git status`，把有变更的文件加入暂存区，执行 `git commit -m "edit"`，最后 `git push`；没有本地变更时直接 `git push`。
+`dever build` 默认打包当前项目根入口 `main.go`，目标为 `linux/amd64`、关闭 CGO，并使用 release 参数 `-trimpath -buildvcs=false -ldflags="-s -w -buildid="`。`dever publish` 的 `--include` 是发布包白名单，默认值为 `server,config`；只想覆盖二进制时使用 `--include=server`，远端会复用当前 release 的 `config`。远端 `data` 使用 `shared/data` 持久化目录。`dever push` 会读取 `git status`，把有变更的文件加入暂存区，执行 `git commit -m "edit"`，最后 `git push`；没有本地变更时直接 `git push`。
 
 ## 3. 配置
 
@@ -132,7 +132,7 @@ dever push
 | `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`dever`、`middleware`、`module`、`package` 等源码/配置目录；不监听 `data` 运行数据。 |
 | `dever daemon start\|stop\|restart\|status\|logs [--project-root=.] [--name=default] [-- <command...>]` | 后台运行和管理命令。`start` 需要命令，`restart` 不带命令时复用上次命令；pid、元数据和日志写入 `tmp/dever/daemon/<name>.*`。 |
 | `dever build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
-| `dever publish [--project-root=.] [--skip-build] [--service=name] [--install-service] [--restart] user@host:/opt/app` | 发布到远端服务器。发布包只包含 `server + config/`，远端创建 `shared/data` 并在当前 release 内软链为 `data`。 |
+| `dever publish [--project-root=.] [--skip-build] [--include=paths] [--exclude=paths] [--service=name] [--install-service] [--restart] user@host:/opt/app` | 发布到远端服务器。`--include` 是发布包白名单，默认 `server,config`；`--exclude` 从 include 选中的目录中排除子路径。远端创建 `shared/data` 并在当前 release 内软链为 `data`。 |
 | `dever init [--project-root=.] [--skip-tidy]` | 执行 `go mod tidy`，然后生成 routes、service、model 注册文件。 |
 | `dever routes [--project-root=.]` | 只扫描 API 并生成 `data/router.go`。 |
 | `dever service [--project-root=.]` | 只扫描 Provider 并生成 `data/load/service.go`。 |
@@ -419,6 +419,7 @@ dever daemon start --name run -- dever run
 dever build
 dever publish root@1.2.3.4:/opt/myapp
 dever publish root@1.2.3.4:/opt/myapp --service=myapp --install-service --restart
+dever publish root@1.2.3.4:/opt/myapp --include=server --service=myapp --restart
 dever push
 ```
 
@@ -452,6 +453,26 @@ dever publish root@1.2.3.4:/opt/myapp
 
 ```sh
 dever publish root@1.2.3.4:/opt/myapp --skip-build --binary=server
+```
+
+只覆盖线上 `server`，不覆盖远端配置：
+
+```sh
+dever publish root@1.2.3.4:/opt/myapp --include=server --service=myapp --restart
+```
+
+`--include=server` 要求远端已经存在 `current/config`；首次上线或需要同步配置变更时使用默认 include，不要只发布 `server`。`--install-service` 只控制是否写 systemd unit，不控制是否发布配置。
+
+需要额外发布运行数据目录时，把它们写进 `--include` 白名单。`data/...` 会先合并到远端 `shared/data`，然后当前 release 里的 `data` 继续软链到 `shared/data`：
+
+```sh
+dever publish root@1.2.3.4:/opt/myapp --include=server,config,data/log,data/table,data/migrations --service=myapp --restart
+```
+
+`--exclude` 只过滤 `--include` 选中的内容，所以可以发布 `data` 但排除日志目录：
+
+```sh
+dever publish root@1.2.3.4:/opt/myapp --include=server,config,data --exclude=data/log --service=myapp --restart
 ```
 
 需要写入 systemd 并重启时必须显式指定服务名：
