@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -497,12 +498,34 @@ func (c *Context) Path() string {
 		return ""
 	}
 	if r, ok := c.Raw.(interface{ Path() string }); ok {
-		return r.Path()
+		return cleanContextPath(r.Path())
+	}
+	if r, ok := c.Raw.(interface{ Path(...string) string }); ok {
+		return cleanContextPath(r.Path())
 	}
 	if a, ok := c.Raw.(interface{ OriginalURL() string }); ok {
-		return a.OriginalURL()
+		return cleanContextPath(a.OriginalURL())
 	}
 	return ""
+}
+
+func cleanContextPath(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(value); err == nil {
+		if parsed.Path != "" {
+			return parsed.Path
+		}
+		if strings.HasPrefix(value, "/") {
+			return "/"
+		}
+	}
+	if index := strings.IndexAny(value, "?#"); index >= 0 {
+		return value[:index]
+	}
+	return value
 }
 
 // Header 返回请求头值，不存在时返回默认值或空字符串。
