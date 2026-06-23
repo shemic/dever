@@ -27,6 +27,8 @@ func main() {
 		runBuild(os.Args[2:])
 	case "publish":
 		runPublish(os.Args[2:])
+	case "cert":
+		runCert(os.Args[2:])
 	case "front":
 		runFront(os.Args[2:])
 	case "package":
@@ -65,6 +67,7 @@ Usage:
     dever daemon start|stop|restart|status|logs [--project-root=.] [--name=default] -- <command...>
     dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [--skip-front] [target]
     dever publish [--project-root=.] [--skip-build] [--include=paths] [--exclude=paths] [--service=name] [--install-service] [--restart] user@host:/opt/app
+    dever cert issue|info|renew user@host --domain=example.com [options] # 使用 acme.sh 在远端签发、查看或续签 HTTPS 证书
     dever front build [--project-root=.] [name]       # 构建 module/package 下的前端插件
     dever package [--project-root=.] [name]           # 更新全部已启用 package，或安装/更新单个 package
     dever skill install [--project-root=.]            # 安装/同步 shemic-dever AI skill 和 agent 提示

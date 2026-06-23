@@ -80,7 +80,7 @@ func runPublish(args []string) {
 	installSystem := fs.Bool("install-service", false, "创建或覆盖 systemd unit，需要同时指定 --service")
 	restartSystem := fs.Bool("restart", false, "发布后重启 systemd 服务，需要同时指定 --service")
 	serviceUser := fs.String("user", "", "systemd 服务运行用户；留空则不写 User")
-	if err := fs.Parse(normalizePublishArgs(args, fs)); err != nil {
+	if err := fs.Parse(normalizeInterspersedFlagArgs(args, fs)); err != nil {
 		fmt.Fprintf(os.Stderr, "publish 参数解析失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -118,7 +118,7 @@ func runPublish(args []string) {
 	exitOnPublishError(runPublishRelease(options))
 }
 
-func normalizePublishArgs(args []string, fs *flag.FlagSet) []string {
+func normalizeInterspersedFlagArgs(args []string, fs *flag.FlagSet) []string {
 	if len(args) == 0 {
 		return args
 	}
@@ -136,12 +136,12 @@ func normalizePublishArgs(args []string, fs *flag.FlagSet) []string {
 		}
 
 		flags = append(flags, arg)
-		name, inlineValue := publishFlagName(arg)
+		name, inlineValue := flagName(arg)
 		if inlineValue {
 			continue
 		}
 		currentFlag := fs.Lookup(name)
-		if currentFlag != nil && publishFlagNeedsValue(currentFlag) && index+1 < len(args) {
+		if currentFlag != nil && flagNeedsValue(currentFlag) && index+1 < len(args) {
 			index++
 			flags = append(flags, args[index])
 		}
@@ -153,7 +153,7 @@ func isFlagArg(arg string) bool {
 	return strings.HasPrefix(arg, "-") && arg != "-"
 }
 
-func publishFlagName(arg string) (string, bool) {
+func flagName(arg string) (string, bool) {
 	name := strings.TrimLeft(arg, "-")
 	if equalIndex := strings.Index(name, "="); equalIndex >= 0 {
 		return name[:equalIndex], true
@@ -161,7 +161,7 @@ func publishFlagName(arg string) (string, bool) {
 	return name, false
 }
 
-func publishFlagNeedsValue(flagInfo *flag.Flag) bool {
+func flagNeedsValue(flagInfo *flag.Flag) bool {
 	type boolFlag interface {
 		IsBoolFlag() bool
 	}
