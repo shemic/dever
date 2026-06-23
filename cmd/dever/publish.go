@@ -627,6 +627,8 @@ func (session publishSSHSession) sshOptions() []string {
 		"-o", "ControlMaster=auto",
 		"-o", "ControlPersist=60s",
 		"-o", "ControlPath=" + session.controlPath,
+		"-o", "ServerAliveInterval=15",
+		"-o", "ServerAliveCountMax=4",
 	}
 }
 
@@ -636,15 +638,98 @@ func (session publishSSHSession) cleanup() {
 }
 
 func uploadPublishArchive(session publishSSHSession, localPath, remotePath string) error {
-	fmt.Printf("dever publish: 上传 %s -> %s:%s\n", localPath, session.host, remotePath)
-	args := append(session.sshOptions(), localPath, session.host+":"+remotePath)
-	cmd := exec.Command("scp", args...)
+	info, err := os.Stat(localPath)
+	if err != nil {
+		return fmt.Errorf("读取发布包失败: %s: %w", localPath, err)
+	}
+	input, err := os.Open(localPath)
+	if err != nil {
+		return fmt.Errorf("打开发布包失败: %s: %w", localPath, err)
+	}
+	defer input.Close()
+
+	fmt.Printf("dever publish: 上传 %s -> %s:%s (%s)\n", localPath, session.host, remotePath, formatPublishSize(info.Size()))
+	script := fmt.Sprintf(`set -e
+target=%s
+tmp="${target}.uploading.$$"
+cleanup() { rm -f "$tmp"; }
+trap cleanup INT TERM HUP EXIT
+cat > "$tmp"
+mv -f "$tmp" "$target"
+trap - INT TERM HUP EXIT
+`, shellQuote(remotePath))
+	args := append(session.sshOptions(), session.host, "sh -c "+shellQuote(script))
+	cmd := exec.Command("ssh", args...)
+	cmd.Stdin = newPublishProgressReader(input, info.Size())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		fmt.Println()
 		return fmt.Errorf("上传发布包失败: %w", err)
 	}
+	fmt.Println()
 	return nil
+}
+
+type publishProgressReader struct {
+	reader    io.Reader
+	total     int64
+	read      int64
+	startedAt time.Time
+	lastPrint time.Time
+}
+
+func newPublishProgressReader(reader io.Reader, total int64) *publishProgressReader {
+	now := time.Now()
+	return &publishProgressReader{
+		reader:    reader,
+		total:     total,
+		startedAt: now,
+		lastPrint: now,
+	}
+}
+
+func (reader *publishProgressReader) Read(buffer []byte) (int, error) {
+	n, err := reader.reader.Read(buffer)
+	if n > 0 {
+		reader.read += int64(n)
+		now := time.Now()
+		if now.Sub(reader.lastPrint) >= time.Second || reader.read >= reader.total {
+			reader.print(now)
+		}
+	}
+	return n, err
+}
+
+func (reader *publishProgressReader) print(now time.Time) {
+	elapsed := now.Sub(reader.startedAt).Seconds()
+	if elapsed <= 0 {
+		elapsed = 1
+	}
+	speed := int64(float64(reader.read) / elapsed)
+	if reader.total > 0 {
+		percent := float64(reader.read) * 100 / float64(reader.total)
+		fmt.Printf("\rdever publish: 上传进度 %s/%s %.1f%% %s/s", formatPublishSize(reader.read), formatPublishSize(reader.total), percent, formatPublishSize(speed))
+	} else {
+		fmt.Printf("\rdever publish: 上传进度 %s %s/s", formatPublishSize(reader.read), formatPublishSize(speed))
+	}
+	reader.lastPrint = now
+}
+
+func formatPublishSize(size int64) string {
+	const unit = 1024
+	if size < unit {
+		return fmt.Sprintf("%dB", size)
+	}
+	value := float64(size)
+	units := []string{"KB", "MB", "GB", "TB"}
+	for _, currentUnit := range units {
+		value /= unit
+		if value < unit {
+			return fmt.Sprintf("%.1f%s", value, currentUnit)
+		}
+	}
+	return fmt.Sprintf("%.1fPB", value/unit)
 }
 
 func runRemotePublishCommand(session publishSSHSession, script string) error {
