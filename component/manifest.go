@@ -31,6 +31,7 @@ type ManifestFront struct {
 type ManifestSite struct {
 	Page    string              `json:"page"`
 	API     string              `json:"api"`
+	Route   string              `json:"route"`
 	Public  []string            `json:"public"`
 	Config  ManifestSiteConfig  `json:"config"`
 	Setting ManifestSiteSetting `json:"setting"`
@@ -112,7 +113,7 @@ func validateManifestFrontSites(content []byte) error {
 	for siteKey, site := range raw.Front.Sites {
 		for key := range site {
 			switch key {
-			case "api", "page", "config", "setting", "access", "entry", "public", "auth":
+			case "api", "page", "route", "config", "setting", "access", "entry", "public", "auth":
 				if key == "config" {
 					if err := validateManifestSiteConfig(siteKey, site[key]); err != nil {
 						return err

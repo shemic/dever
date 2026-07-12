@@ -88,14 +88,15 @@ func Configure(cfg config.Log) {
 
 	accessTarget := selectTarget(baseOutput, cfg.FilePath, accessOverride, accessFallback)
 	errorTarget := selectTarget(baseOutput, cfg.FilePath, errorOverride, errorFallback)
+	rotation := rotationConfig(cfg)
 
-	accessWriter, newAccessCloser, accessErr := resolveWriter(enabled, accessTarget)
+	accessWriter, newAccessCloser, accessErr := resolveWriter(enabled, accessTarget, rotation)
 	if accessErr != nil {
 		fmt.Fprintf(os.Stderr, "log: 使用访问日志输出目标 %q 失败，已回退到标准输出: %v\n", accessTarget.output, accessErr)
 		accessWriter = os.Stdout
 		newAccessCloser = nil
 	}
-	errorWriter, newErrorCloser, errorErr := resolveWriter(enabled, errorTarget)
+	errorWriter, newErrorCloser, errorErr := resolveWriter(enabled, errorTarget, rotation)
 	if errorErr != nil {
 		fmt.Fprintf(os.Stderr, "log: 使用错误日志输出目标 %q 失败，已回退到标准错误: %v\n", errorTarget.output, errorErr)
 		errorWriter = os.Stderr
@@ -171,7 +172,7 @@ func selectTarget(defaultOutput, defaultFile string, override *config.LogTarget,
 	}
 }
 
-func resolveWriter(enabled bool, target logTarget) (io.Writer, io.Closer, error) {
+func resolveWriter(enabled bool, target logTarget, rotation fileRotationConfig) (io.Writer, io.Closer, error) {
 	if !enabled {
 		return io.Discard, nil, nil
 	}
@@ -186,17 +187,29 @@ func resolveWriter(enabled bool, target logTarget) (io.Writer, io.Closer, error)
 		if path == "" {
 			path = filepath.Join("log", "access.log")
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return nil, nil, err
-		}
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		writer, err := newRotatingFileWriter(path, rotation)
 		if err != nil {
 			return nil, nil, err
 		}
-		return file, file, nil
+		return writer, writer, nil
 	case "off", "none", "disable", "disabled":
 		return io.Discard, nil, nil
 	default:
 		return nil, nil, fmt.Errorf("未知的日志输出类型: %s", target.output)
+	}
+}
+
+func rotationConfig(cfg config.Log) fileRotationConfig {
+	maxSizeMB := cfg.MaxSizeMB
+	if maxSizeMB <= 0 {
+		maxSizeMB = config.DefaultLogMaxSizeMB
+	}
+	maxBackups := cfg.MaxBackups
+	if maxBackups <= 0 {
+		maxBackups = config.DefaultLogMaxBackups
+	}
+	return fileRotationConfig{
+		maxSizeBytes: int64(maxSizeMB) * bytesPerMegabyte,
+		maxBackups:   maxBackups,
 	}
 }

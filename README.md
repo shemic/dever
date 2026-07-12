@@ -60,7 +60,9 @@ dever push
     "level": "info",
     "output": "stdout",
     "successFile": "data/log/access.log",
-    "errorFile": "data/log/error.log"
+    "errorFile": "data/log/error.log",
+    "maxSizeMB": 10,
+    "maxBackups": 5
   },
   "observe": {
     "enabled": true,
@@ -101,6 +103,8 @@ dever push
   }
 }
 ```
+
+日志输出为 `file` 时，活动文件在下一次写入将超过 `maxSizeMB` 时自动滚动。框架默认单文件上限为 10MB，每个日志最多保留最近 5 份带 UTC 时间戳的备份。
 
 多数据库示例：
 

@@ -16,6 +16,11 @@ const (
 	// DefaultPath 默认配置文件位置。
 	DefaultPath = "config/setting.json"
 
+	// DefaultLogMaxSizeMB 是单个活动日志文件的默认大小上限。
+	DefaultLogMaxSizeMB = 10
+	// DefaultLogMaxBackups 是每个日志文件默认保留的备份数量。
+	DefaultLogMaxBackups = 5
+
 	defaultHTTPConcurrency  = 8192
 	defaultHTTPReadTimeout  = 15 * time.Second
 	defaultHTTPWriteTimeout = 60 * time.Second
@@ -79,6 +84,8 @@ type Log struct {
 	FilePath    string     `json:"filePath"`
 	SuccessFile string     `json:"successFile"`
 	ErrorFile   string     `json:"errorFile"`
+	MaxSizeMB   int        `json:"maxSizeMB"`
+	MaxBackups  int        `json:"maxBackups"`
 	Access      *LogTarget `json:"access,omitempty"`
 	Error       *LogTarget `json:"error,omitempty"`
 }
@@ -375,6 +382,12 @@ func (c *App) applyDefaults() {
 	if strings.TrimSpace(c.Log.FilePath) == "" {
 		c.Log.FilePath = c.Log.SuccessFile
 	}
+	if c.Log.MaxSizeMB == 0 {
+		c.Log.MaxSizeMB = DefaultLogMaxSizeMB
+	}
+	if c.Log.MaxBackups == 0 {
+		c.Log.MaxBackups = DefaultLogMaxBackups
+	}
 	if c.HTTP.Port == 0 {
 		c.HTTP.Port = 8080
 	}
@@ -479,6 +492,12 @@ func (c *App) applyDefaults() {
 }
 
 func (c *App) validate() error {
+	if c.Log.MaxSizeMB < 0 {
+		return fmt.Errorf("log.maxSizeMB 不能小于 0")
+	}
+	if c.Log.MaxBackups < 0 {
+		return fmt.Errorf("log.maxBackups 不能小于 0")
+	}
 	return validateCORS(c.HTTP.CORS)
 }
 
