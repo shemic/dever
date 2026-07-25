@@ -28,7 +28,7 @@ go run ./dever/cmd/dever install
 dever run
 ```
 
-`install` 会把一个 `dever` 启动脚本写入当前 `PATH` 命中的 `dever` 所在目录；如果该目录不可写，则回退到用户 bin 目录。脚本始终执行当前项目内的 `dever/cmd/dever` 源码。后续日常开发优先使用 `dever run`，它会先执行 `init --skip-tidy`，并在 `module/*/{api,service,model}` 等敏感文件变化后重新生成注册文件再重启服务。
+`install` 会把一个 `dever` 启动脚本写入当前 `PATH` 命中的 `dever` 所在目录；如果该目录不可写，则回退到用户 bin 目录。脚本始终执行当前项目内的 `dever/cmd/dever` 源码。后续日常开发优先使用 `dever run`，它会先执行 `init --skip-tidy`，并在 `module/*/{api,service,model}` 等敏感文件变化后重新生成注册文件再重启服务。`dever run` 默认把连续 3 秒内的文件变更合并为一次构建，并让所有项目共享一个高水位为 4 GiB、按最近使用顺序回收的 Go 构建缓存。
 
 如果只想从 GitHub 更新最新版 `dever` 命令，使用：
 
@@ -134,7 +134,7 @@ dever push
 
 | 命令 | 说明 |
 | --- | --- |
-| `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`dever`、`middleware`、`module`、`package` 等源码/配置目录；不监听 `data` 运行数据。 |
+| `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--debounce=3s] [--cache-max=4GiB] [--cache-dir=] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`dever`、`middleware`、`module`、`package` 等源码/配置目录；不监听 `data` 运行数据。连续变更合并后再构建，Go 构建缓存默认共享且有界。 |
 | `dever daemon start\|stop\|restart\|status\|logs [--project-root=.] [--name=default] [-- <command...>]` | 后台运行和管理命令。`start` 需要命令，`restart` 不带命令时复用上次命令；pid、元数据和日志写入 `tmp/dever/daemon/<name>.*`。 |
 | `dever build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
 | `dever publish [--project-root=.] [--skip-build] [--include=paths] [--exclude=paths] [--service=name] [--install-service] [--restart] user@host:/opt/app` | 发布到远端服务器。`--include` 是发布包白名单，默认 `server,config`；`--exclude` 从 include 选中的目录中排除子路径。远端创建 `shared/data` 并在当前 release 内软链为 `data`。 |
@@ -154,6 +154,18 @@ dever push
 - `data/router.go`
 - `data/load/service.go`
 - `data/load/model.go`
+
+### 4.1 `dever run` 构建缓存
+
+`dever run` 默认使用 `~/.cache/dever/go-build`（以操作系统用户缓存目录为准）作为所有项目共用的 Go 构建缓存。缓存达到 4 GiB 高水位后，会按最近使用顺序回收至 3 GiB。缓存文件正在被本次构建使用时不会被删除；本次构建结束后才执行严格回收。
+
+多个项目可以同时保持运行和热更新。为避免并发编译同时写入、淘汰共享缓存，后端重新编译会短暂串行等待；已经启动的项目进程不会因此停止。首次启用新缓存或手动清空缓存后，第一次编译会比缓存命中时慢。
+
+- `--debounce=3s`：连续文件变更的静默合并时间，`0` 表示下一个扫描周期直接处理。
+- `--cache-max=4GiB`：缓存高水位，支持 `GiB`、`GB`、`MiB`、`MB` 等单位；`0` 或 `off` 关闭 Dever 有界缓存。
+- `--cache-dir=<path>`：覆盖共享缓存目录。使用不同目录的项目不会共享缓存，也不会互相等待构建锁。
+
+新缓存不会自动删除历史 `GOCACHE`。确认所有项目已改用新版 `dever run` 后，可由运维单独清理旧缓存；不要把旧缓存清理放进每次热更新流程。
 
 ## 5. 服务入口
 

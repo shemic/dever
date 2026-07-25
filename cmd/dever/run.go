@@ -22,6 +22,7 @@ import (
 
 const (
 	defaultWatchInterval = 800 * time.Millisecond
+	defaultWatchDebounce = 3 * time.Second
 	processStopTimeout   = 5 * time.Second
 	runLockFileName      = "dever-run.pid"
 )
@@ -30,7 +31,9 @@ type watchRunOptions struct {
 	projectRoot string
 	entry       string
 	interval    time.Duration
+	debounce    time.Duration
 	skipInit    bool
+	cache       runCacheOptions
 }
 
 type watchedFileState struct {
@@ -44,6 +47,7 @@ type watchedProcess struct {
 	binaryPath string
 	listenPort int
 	env        map[string]string
+	cache      runCacheOptions
 	cmd        *exec.Cmd
 	done       chan error
 }
@@ -66,22 +70,34 @@ func runWatchMode(args []string) {
 	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
 	entry := fs.String("entry", "main.go", "启动入口，默认 main.go")
 	interval := fs.Duration("interval", defaultWatchInterval, "文件扫描间隔")
+	debounce := fs.Duration("debounce", defaultWatchDebounce, "文件变更静默合并时间，0 表示不额外等待")
+	cacheMax := fs.String("cache-max", "4GiB", "共享 Go 构建缓存上限，0 表示关闭 Dever 有界缓存")
+	cacheDir := fs.String("cache-dir", "", "共享 Go 构建缓存目录")
 	skipInit := fs.Bool("skip-init", false, "跳过启动前与敏感变更后的 init --skip-tidy")
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("run 参数解析失败: %v", err)
 	}
 
+	cache, err := resolveRunCacheOptions(*cacheDir, *cacheMax)
+	if err != nil {
+		log.Fatalf("run 缓存参数无效: %v", err)
+	}
 	options := watchRunOptions{
 		projectRoot: resolveProjectRoot(*projectRoot),
 		entry:       strings.TrimSpace(*entry),
 		interval:    *interval,
+		debounce:    *debounce,
 		skipInit:    *skipInit,
+		cache:       cache,
 	}
 	if options.entry == "" {
 		options.entry = "main.go"
 	}
 	if options.interval <= 0 {
 		options.interval = defaultWatchInterval
+	}
+	if options.debounce < 0 {
+		options.debounce = defaultWatchDebounce
 	}
 
 	if err := runHotReload(options); err != nil {
@@ -120,6 +136,15 @@ func runHotReload(options watchRunOptions) error {
 		root:       options.projectRoot,
 		entry:      options.entry,
 		binaryPath: filepath.Join(options.projectRoot, "tmp", "dever-run", "app"),
+		cache:      options.cache,
+	}
+	if options.cache.enabled() {
+		log.Printf(
+			"dever run: 使用共享有界 Go cache %s（上限 %s，回收至 %s）",
+			options.cache.dir,
+			formatPublishSize(options.cache.maxBytes),
+			formatPublishSize(options.cache.targetBytes),
+		)
 	}
 	if frontDev != nil {
 		process.env = frontDev.backendEnv()
@@ -139,6 +164,8 @@ func runHotReload(options watchRunOptions) error {
 
 	ticker := time.NewTicker(options.interval)
 	defer ticker.Stop()
+	pendingChanges := make(map[string]struct{})
+	var lastChangeAt time.Time
 
 	for {
 		select {
@@ -178,22 +205,34 @@ func runHotReload(options watchRunOptions) error {
 			}
 
 			changes := detectWatchedFileChanges(snapshot, current)
-			if len(changes) == 0 {
+			if len(changes) > 0 {
+				for _, path := range changes {
+					pendingChanges[path] = struct{}{}
+				}
+				lastChangeAt = time.Now()
+				snapshot = current
+				log.Printf("检测到文件变更，等待合并: %s", formatChangedPaths(changes))
+				continue
+			}
+			if len(pendingChanges) == 0 || time.Since(lastChangeAt) < options.debounce {
 				continue
 			}
 
-			log.Printf("检测到文件变更: %s", formatChangedPaths(changes))
+			changes = sortedPendingChanges(pendingChanges)
+			pendingChanges = make(map[string]struct{})
+			log.Printf("文件变更合并完成: %s", formatChangedPaths(changes))
 
 			if !options.skipInit && requiresProjectInit(changes) {
 				log.Printf("检测到 component/model/service/api 变更，执行 init --skip-tidy")
 				if err := runProjectInit(options.projectRoot, true); err != nil {
 					log.Printf("init 执行失败，保留当前进程: %v", err)
-					snapshot = current
 					continue
 				}
 				current, err = scanWatchedFiles(options.projectRoot)
 				if err != nil {
 					log.Printf("init 后重新扫描失败: %v", err)
+				} else {
+					snapshot = current
 				}
 			}
 
@@ -201,7 +240,6 @@ func runHotReload(options watchRunOptions) error {
 			if err := process.restart("检测到文件变更", rebuild); err != nil {
 				log.Printf("重启进程失败: %v", err)
 			}
-			snapshot = current
 		}
 	}
 }
@@ -409,15 +447,37 @@ func (p *watchedProcess) binaryExists() bool {
 }
 
 func (p *watchedProcess) buildBinary() error {
+	buildEnvironment, err := p.cache.buildEnvironment()
+	if err != nil {
+		return err
+	}
+	var buildLock *sharedBuildLock
+	if p.cache.enabled() {
+		buildLock, err = acquireSharedBuildLock(p.cache.dir, sharedBuildLockTimeout)
+		if err != nil {
+			return err
+		}
+		defer buildLock.release()
+	}
 	if err := runGoBuild(goBuildSpec{
 		dir:      p.root,
 		target:   p.entry,
 		output:   p.binaryPath,
+		env:      buildEnvironment,
 		progress: "dever run",
 	}); err != nil {
 		return fmt.Errorf("构建运行二进制失败: %w", err)
 	}
 	return nil
+}
+
+func sortedPendingChanges(pending map[string]struct{}) []string {
+	paths := make([]string, 0, len(pending))
+	for path := range pending {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
 }
 
 func (p *watchedProcess) stop(timeout time.Duration) error {

@@ -21,6 +21,8 @@ func main() {
 	switch os.Args[1] {
 	case "run":
 		runWatchMode(os.Args[2:])
+	case "cache-prog":
+		runCacheProg(os.Args[2:])
 	case "daemon":
 		runDaemon(os.Args[2:])
 	case "build":
@@ -63,7 +65,7 @@ func printUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `dever - 开发辅助命令
 
 Usage:
-    dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--skip-init] # 热重载运行当前项目
+    dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--debounce=3s] [--cache-max=4GiB] [--cache-dir=] [--skip-init] # 热重载运行当前项目
     dever daemon start|stop|restart|status|logs [--project-root=.] [--name=default] -- <command...>
     dever build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [--skip-front] [target]
     dever publish [--project-root=.] [--skip-build] [--include=paths] [--exclude=paths] [--service=name] [--install-service] [--restart] user@host:/opt/app
