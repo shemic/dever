@@ -324,6 +324,7 @@ const compatExports: Record<string, string[]> = {
   "@/components/assistant/task-popover": ["AssistantTaskPopover"],
   "@/components/confirm-dialog": ["ConfirmDialog"],
   "@/components/energon/content-view": [
+    "EnergonAudioPlayer",
     "EnergonContentView",
     "normalizeEnergonOutput",
   ],
@@ -707,7 +708,8 @@ function runtimeAlias() {
 export default defineConfig(({ command }) => {
   const nodeEnv = command === "serve" ? "development" : "production";
   return {
-    root: projectRoot,
+    // Avoid recursively watching the backend; /@fs imports are watched separately.
+    root: compilerRoot,
     define: {
       "process.env.NODE_ENV": JSON.stringify(nodeEnv),
     },

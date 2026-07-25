@@ -93,6 +93,12 @@ func syncTableSchema(ctx context.Context, db *sqlx.DB, driver, table string, sch
 		statements = append(statements, dropStmt...)
 	}
 
+	sequenceStmt, err := syncPostgresSeedSequences(ctx, db, driver, table, schema.Columns, schema.Seeds)
+	if err != nil {
+		return nil, err
+	}
+	statements = append(statements, sequenceStmt...)
+
 	indexStmt, err := ensureIndexes(ctx, db, driver, table, schema.Indexes)
 	if err != nil {
 		return nil, err
@@ -444,6 +450,59 @@ func hasSeedInsertValue(value any) bool {
 	default:
 		return true
 	}
+}
+
+// PostgreSQL 不会因显式插入种子 ID 自动推进 identity 序列。
+func syncPostgresSeedSequences(ctx context.Context, db *sqlx.DB, driver, table string, columns []columnDef, seeds []map[string]any) ([]string, error) {
+	if driver != "postgres" || len(seeds) == 0 {
+		return nil, nil
+	}
+	if err := ensureIdentifier(table); err != nil {
+		return nil, err
+	}
+
+	statements := make([]string, 0, 1)
+	for _, column := range columns {
+		if !column.AutoIncrement || !seedHasColumnValue(seeds, column.Name) {
+			continue
+		}
+		if err := ensureIdentifier(column.Name); err != nil {
+			return nil, err
+		}
+
+		stmt := fmt.Sprintf(`WITH seed_sequence AS (
+	SELECT pg_get_serial_sequence('%s', '%s')::regclass AS sequence_id,
+		COALESCE(MAX(%s), 0)::bigint AS max_id
+	FROM %s
+)
+SELECT setval(sequence_id, max_id, true)
+FROM seed_sequence
+WHERE sequence_id IS NOT NULL
+	AND max_id > 0
+	AND (
+		pg_sequence_last_value(sequence_id) IS NULL
+		OR max_id > pg_sequence_last_value(sequence_id)
+	)`, table, column.Name, quoteIdentifier(driver, column.Name), quoteIdentifier(driver, table))
+
+		var sequenceValue int64
+		if err := db.QueryRowxContext(ctx, stmt).Scan(&sequenceValue); err != nil {
+			if err == sql.ErrNoRows {
+				continue
+			}
+			return nil, err
+		}
+		statements = append(statements, stmt)
+	}
+	return statements, nil
+}
+
+func seedHasColumnValue(seeds []map[string]any, column string) bool {
+	for _, seed := range seeds {
+		if value, ok := seed[column]; ok && hasSeedInsertValue(value) {
+			return true
+		}
+	}
+	return false
 }
 
 func ensureIndexes(ctx context.Context, db *sqlx.DB, driver, table string, indexes []indexDef) ([]string, error) {
