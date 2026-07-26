@@ -36,6 +36,11 @@ type frontPluginDevServer struct {
 	output *frontPluginDevOutput
 }
 
+type frontPluginDevSources struct {
+	names []string
+	roots []string
+}
+
 type frontPluginDevOutput struct {
 	mu    sync.Mutex
 	limit int
@@ -75,7 +80,7 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 	if err != nil {
 		return nil, err
 	}
-	if len(plugins) == 0 {
+	if len(plugins.names) == 0 {
 		return nil, nil
 	}
 
@@ -110,7 +115,11 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 	cmd.Dir = projectRoot
 	cmd.Stdout = output
 	cmd.Stderr = output
-	cmd.Env = frontCompilerEnv(projectRoot, nil)
+	cmd.Env = frontCompilerEnv(projectRoot, map[string]string{
+		frontPluginNameEnv:  "",
+		frontPluginRootEnv:  "",
+		frontPluginRootsEnv: strings.Join(plugins.roots, string(os.PathListSeparator)),
+	})
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 	}
@@ -137,7 +146,7 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 		return nil, withFrontPluginDevOutput(err, output)
 	}
 
-	log.Printf("已启动前端插件源码编译服务（plugins=%s, port=%d）", strings.Join(plugins, ","), port)
+	log.Printf("已启动前端插件源码编译服务（plugins=%s, port=%d）", strings.Join(plugins.names, ","), port)
 	return server, nil
 }
 
@@ -198,23 +207,32 @@ func (s *frontPluginDevServer) stop(timeout time.Duration) error {
 	}
 }
 
-func discoverRunFrontPluginSources(projectRoot string) ([]string, error) {
+func discoverRunFrontPluginSources(projectRoot string) (frontPluginDevSources, error) {
 	names := map[string]struct{}{}
+	roots := map[string]struct{}{}
 	components, err := listActiveComponentSources(projectRoot)
 	if err != nil {
-		return nil, err
+		return frontPluginDevSources{}, err
 	}
 	for _, current := range components {
 		if hasFrontPluginSource(current.root) && !hasFrontPluginDist(current.root) {
 			names[current.name] = struct{}{}
+			roots[filepath.Join(current.root, "front")] = struct{}{}
 		}
 	}
 
-	result := make([]string, 0, len(names))
-	for name := range names {
-		result = append(result, name)
+	result := frontPluginDevSources{
+		names: make([]string, 0, len(names)),
+		roots: make([]string, 0, len(roots)),
 	}
-	sort.Strings(result)
+	for name := range names {
+		result.names = append(result.names, name)
+	}
+	for root := range roots {
+		result.roots = append(result.roots, root)
+	}
+	sort.Strings(result.names)
+	sort.Strings(result.roots)
 	return result, nil
 }
 

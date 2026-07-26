@@ -172,8 +172,9 @@ func buildFrontPlugin(projectRoot string, target frontPluginTarget) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = frontCompilerEnv(projectRoot, map[string]string{
-		frontPluginNameEnv: target.name,
-		frontPluginRootEnv: target.root,
+		frontPluginNameEnv:  target.name,
+		frontPluginRootEnv:  target.root,
+		frontPluginRootsEnv: "",
 	})
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s/%s 构建失败: %w", target.kind, target.name, err)

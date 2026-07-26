@@ -7,6 +7,7 @@ import { rewriteCompatImports } from "./src/compat-import";
 
 const compilerRoot = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = process.env.DEVER_FRONT_PLUGIN_ROOT || "";
+const pluginSourceRoots = resolvePluginSourceRoots();
 const pluginName = process.env.DEVER_FRONT_PLUGIN_NAME || "plugin";
 const projectRoot =
   process.env.DEVER_FRONT_PLUGIN_PROJECT_ROOT ||
@@ -21,7 +22,7 @@ const resolvedRuntimeEntryID = "\0" + runtimeEntryID;
 const pluginEntry = pluginRoot ? path.join(pluginRoot, "src", "plugin.ts") : "";
 const devServerAllowedRoots = Array.from(
   new Set(
-    [projectRoot, frontPackageRoot, compilerRoot, pluginRoot]
+    [projectRoot, frontPackageRoot, compilerRoot, ...pluginSourceRoots]
       .filter(Boolean)
       .map((root) => path.resolve(root)),
   ),
@@ -60,6 +61,21 @@ function hasFrontSDK(root: string) {
     return false;
   }
   return fs.existsSync(path.resolve(root, "sdk", "src", "index.ts"));
+}
+
+function resolvePluginSourceRoots() {
+  const configuredRoots = (process.env.DEVER_FRONT_PLUGIN_ROOTS || "")
+    .split(path.delimiter)
+    .map((root) => root.trim())
+    .filter(Boolean);
+  return Array.from(
+    new Set(
+      [pluginRoot, ...configuredRoots]
+        .map((root) => root.trim())
+        .filter(Boolean)
+        .map((root) => normalizePath(path.resolve(root))),
+    ),
+  );
 }
 
 const pluginOptimizedDeps = [
@@ -365,14 +381,13 @@ function compatModulePlugin(): PluginOption {
 }
 
 function isPluginSourceFile(id: string) {
-  if (!pluginRoot) {
+  if (pluginSourceRoots.length === 0) {
     return false;
   }
   const cleanID = normalizePath(id.split("?", 1)[0]);
-  const root = normalizePath(path.resolve(pluginRoot));
   return (
     !cleanID.includes("/node_modules/") &&
-    cleanID.startsWith(`${root}/`) &&
+    pluginSourceRoots.some((root) => cleanID.startsWith(`${root}/`)) &&
     /\.[cm]?[jt]sx?$/.test(cleanID)
   );
 }

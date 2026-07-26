@@ -25,6 +25,7 @@ const (
 	frontPluginProjectRootEnv   = "DEVER_FRONT_PLUGIN_PROJECT_ROOT"
 	frontPluginNameEnv          = "DEVER_FRONT_PLUGIN_NAME"
 	frontPluginRootEnv          = "DEVER_FRONT_PLUGIN_ROOT"
+	frontPluginRootsEnv         = "DEVER_FRONT_PLUGIN_ROOTS"
 	frontCompilerPackageJSON    = "package.json"
 	frontCompilerViteConfig     = "vite.config.ts"
 	frontCompilerRuntimeEntry   = "src/runtime-entry.ts"

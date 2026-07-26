@@ -152,6 +152,7 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 - package/module 前端可继续使用 `@/...` 引用宿主已注册的兼容模块
 - 编译器统一从宿主模块 namespace 读取导出；禁止维护逐导出名称白名单
 - 新增宿主模块时只维护宿主 SDK 的模块注册，不在编译器重复登记其导出成员
+- `dever front build` 按单插件根目录转换源码；`dever run` 的项目级 Vite 服务必须传入当前项目全部有效插件源码根目录，不能用单插件根目录是否存在来判断开发态源码
 
 ### Current Build Convention
 
