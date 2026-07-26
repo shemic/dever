@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react-swc";
 import { defineConfig, normalizePath, type PluginOption } from "vite";
+import { rewriteCompatImports } from "./src/compat-import";
 
 const compilerRoot = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = process.env.DEVER_FRONT_PLUGIN_ROOT || "";
@@ -294,254 +295,6 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const compatExports: Record<string, string[]> = {
-  "@/components/agent/interaction-panel": ["AgentInteractionPanel"],
-  "@/components/agent/stream-request-params": [
-    "PowerParamField",
-    "PowerParamPopover",
-    "normalizePowerParams",
-    "normalizePowerParamConfig",
-    "buildDefaultParamValues",
-    "buildRequestInput",
-    "validateMainParams",
-    "paramFilesRequestValue",
-    "summarizeParamDisplayValue",
-    "inputKeyForParam",
-    "isMainParam",
-    "isToolbarParam",
-    "isHiddenParam",
-  ],
-  "@/components/assistant/form-actions": [
-    "AssistantFieldGenerateButton",
-    "AssistantFormFillButton",
-    "AssistantContextFormFillButton",
-    "AssistantContextFieldGenerateButton",
-  ],
-  "@/components/assistant/reference-picker": [
-    "AssistantReferencePicker",
-    "AssistantReferenceList",
-  ],
-  "@/components/assistant/task-popover": ["AssistantTaskPopover"],
-  "@/components/confirm-dialog": ["ConfirmDialog"],
-  "@/components/energon/content-view": [
-    "EnergonAudioPlayer",
-    "EnergonContentView",
-    "normalizeEnergonOutput",
-  ],
-  "@/components/energon/progress": [
-    "EnergonProgressBlock",
-    "normalizeEnergonPercent",
-  ],
-  "@/components/layout/site-logo": ["SiteLogo"],
-  "@/components/searchable-option-picker": ["SearchableOptionPicker"],
-  "@/components/stream-timing": [
-    "useStreamClock",
-    "isStreamTimingRunning",
-    "createStreamTiming",
-    "createRuntimeStreamTiming",
-    "updateStreamTiming",
-    "updateStreamTimingFromOutput",
-    "streamTimingStatusFromRuntimeStatus",
-    "streamTimingPercentFromOutput",
-    "isStreamTimingStatusOutput",
-    "finishStreamTiming",
-    "markStreamTimingStopping",
-    "cancelStreamTiming",
-    "StreamTimingBadge",
-    "formatStreamDuration",
-  ],
-  "@/components/ui/button": ["Button", "buttonVariants"],
-  "@/components/ui/card": [
-    "Card",
-    "CardHeader",
-    "CardFooter",
-    "CardTitle",
-    "CardAction",
-    "CardDescription",
-    "CardContent",
-  ],
-  "@/components/ui/dialog": [
-    "Dialog",
-    "DialogClose",
-    "DialogContent",
-    "DialogDescription",
-    "DialogFooter",
-    "DialogHeader",
-    "DialogOverlay",
-    "DialogPortal",
-    "DialogTitle",
-    "DialogTrigger",
-  ],
-  "@/components/ui/dropdown-menu": [
-    "DropdownMenu",
-    "DropdownMenuPortal",
-    "DropdownMenuTrigger",
-    "DropdownMenuContent",
-    "DropdownMenuGroup",
-    "DropdownMenuLabel",
-    "DropdownMenuItem",
-    "DropdownMenuCheckboxItem",
-    "DropdownMenuRadioGroup",
-    "DropdownMenuRadioItem",
-    "DropdownMenuSeparator",
-    "DropdownMenuShortcut",
-    "DropdownMenuSub",
-    "DropdownMenuSubTrigger",
-    "DropdownMenuSubContent",
-  ],
-  "@/components/ui/input": ["Input"],
-  "@/components/ui/radio-group": ["RadioGroup", "RadioGroupItem"],
-  "@/components/ui/select": [
-    "Select",
-    "SelectContent",
-    "SelectGroup",
-    "SelectItem",
-    "SelectLabel",
-    "SelectScrollDownButton",
-    "SelectScrollUpButton",
-    "SelectSeparator",
-    "SelectTrigger",
-    "SelectValue",
-  ],
-  "@/components/ui/sheet": [
-    "Sheet",
-    "SheetTrigger",
-    "SheetClose",
-    "SheetContent",
-    "SheetHeader",
-    "SheetFooter",
-    "SheetTitle",
-    "SheetDescription",
-  ],
-  "@/components/ui/textarea": ["Textarea"],
-  "@/config/app-config": [
-    "getAppConfig",
-    "getSiteConfig",
-    "getAppearanceConfig",
-    "getRuntimeConfig",
-    "getDefaultSidebarOpen",
-    "getDefaultCollapsibleMode",
-  ],
-  "@/hooks/use-upload-rule-metas": ["useUploadRuleMetas"],
-  "@/lib/agent-result-protocol": [
-    "normalizeAgentResultOutputValue",
-    "extractAgentResultPayload",
-    "isAgentResultProtocolText",
-    "agentResultPayloadTitle",
-  ],
-  "@/lib/agent/runner": ["runAgentStream", "stopAgentStream"],
-  "@/lib/assistant/context": [
-    "buildAssistantPageContext",
-    "assistantContextSummary",
-    "buildAssistantFieldContext",
-    "normalizeAssistantFormPath",
-  ],
-  "@/lib/assistant/reference": [
-    "buildAssistantReferenceSummary",
-    "buildAssistantReferenceMessage",
-    "assistantReferencePayload",
-    "normalizeAssistantReferences",
-    "readAssistantReferenceFile",
-    "uploadItemToAssistantReferenceFile",
-    "resolveAssistantReferenceKind",
-    "assistantReferenceKindText",
-    "formatAssistantReferenceSize",
-  ],
-  "@/lib/auth-redirect": ["resolvePostLoginTarget"],
-  "@/lib/icon": ["resolveLucideIcon"],
-  "@/lib/page-schema-reload": ["reloadStorePageSchema"],
-  "@/lib/plugin/types": ["defineFrontPlugin", "lazyNode", "mergePluginNodes"],
-  "@/lib/request": [
-    "REQUEST_ERROR_EVENT",
-    "FRONT_RUNTIME_REFRESH_EVENT",
-    "joinFrontApi",
-    "joinSiteApi",
-    "resolveRequestUrl",
-    "resolveAssetUrl",
-    "buildRuntimeRequestHeaders",
-    "requestRaw",
-    "request",
-    "requestBlob",
-    "loadPageSchema",
-    "loadMainInfo",
-    "loadAssistantPermissionContext",
-    "resetFrontRuntimeCache",
-    "loadSidebarMenu",
-  ],
-  "@/lib/resource": [
-    "UNCATEGORIZED_RESOURCE_CATEGORY",
-    "normalizeResourceSourceName",
-    "normalizeResourceCategoryId",
-    "listResources",
-    "listResourceCategories",
-    "listResourceSources",
-    "assignResourceCategory",
-    "assignResourceCategories",
-    "buildFilterCategoryItems",
-    "buildFilterSourceItems",
-    "normalizeUploadItems",
-    "normalizeUploadUrlItems",
-    "resolveUploadSelectionKeys",
-    "isSameUploadSelectionItem",
-    "serializeUploadUrlItems",
-    "normalizeUploadItem",
-    "isImageResource",
-    "isVideoResource",
-    "isAudioResource",
-    "resolveResourcePreviewKind",
-    "isPreviewableResource",
-    "formatUploadSize",
-    "resolveResourceKind",
-    "normalizeResourceUploadRules",
-    "mergeResourceUploadRules",
-    "resolveUploadActionLabel",
-  ],
-  "@/lib/runtime-stream-output": [
-    "normalizeRuntimeFrameOutput",
-    "isEmptyRuntimeOutput",
-    "resolveRuntimeFrameCancelable",
-    "runtimeErrorMessage",
-    "isPlainRecord",
-  ],
-  "@/lib/runtime-stream-runner": [
-    "runRuntimeStream",
-    "watchRuntimeStream",
-    "stopRuntimeStream",
-  ],
-  "@/lib/store": [
-    "createPageStore",
-    "PageStoreContext",
-    "usePageStore",
-    "usePageStoreValue",
-    "useStorePathValue",
-    "getStoreValueByPath",
-    "setStoreValueByPath",
-  ],
-  "@/lib/stream": [
-    "readRuntimeStreamFrame",
-    "readRuntimeStreamEvents",
-    "assertRuntimeStreamFrameSuccess",
-    "streamValueText",
-  ],
-  "@/lib/upload": [
-    "uploadFileByRule",
-    "importRemoteFileByRule",
-    "importRemoteFileByRuleStream",
-    "listUploadRuleMetas",
-    "getCachedUploadRuleMetas",
-    "downloadUploadFile",
-    "uploadFileDirect",
-    "digestUploadFile",
-  ],
-  "@/lib/utils": ["cn", "sleep", "getPageNumbers", "formatDisplayValue"],
-  "@/page/nodes/show/tooltip": ["HoverTip", "InlineTip", "ShowTooltip"],
-  "@/stores/auth-store": [
-    "useAuthStore",
-    "getAccessTokenKey",
-    "getAuthUserKey",
-  ],
-};
-
 function runtimeEntryPlugin(): PluginOption {
   return {
     name: "dever-front-plugin-runtime-entry",
@@ -563,11 +316,35 @@ function runtimeEntryPlugin(): PluginOption {
 function compatModulePlugin(): PluginOption {
   return {
     name: "dever-front-plugin-compat-modules",
-    resolveId(id) {
+    enforce: "pre",
+    resolveId(id, _importer, options) {
+      if (id.startsWith(compatModulePrefix)) {
+        return resolvedCompatModulePrefix + id.slice(compatModulePrefix.length);
+      }
       if (id.startsWith("@/")) {
-        return resolvedCompatModulePrefix + id;
+        if ((options as { scan?: boolean } | undefined)?.scan) {
+          return id;
+        }
+        throw new Error(
+          `[dever-front-plugin] 宿主模块 ${JSON.stringify(id)} 未经过兼容导入转换`,
+        );
       }
       return null;
+    },
+    transform(code, id) {
+      if (!isPluginSourceFile(id)) {
+        return null;
+      }
+      const rewritten = rewriteCompatImports(code, id, {
+        virtualModulePrefix: compatModulePrefix,
+      });
+      if (!rewritten) {
+        return null;
+      }
+      return {
+        code: rewritten,
+        map: null,
+      };
     },
     load(id) {
       if (!id.startsWith(resolvedCompatModulePrefix)) {
@@ -575,15 +352,29 @@ function compatModulePlugin(): PluginOption {
       }
 
       const source = id.slice(resolvedCompatModulePrefix.length);
-      const names = compatExports[source] || [];
+      const missingModuleMessage =
+        `[dever-front-plugin] 宿主未注册兼容模块 ${source}`;
       return [
         "import { getCompatModule } from '@dever/front-plugin'",
         `const mod = getCompatModule(${JSON.stringify(source)})`,
-        ...names.map((name) => `export const ${name} = mod.${name}`),
-        "export default mod.default",
+        `if (!mod || Object.keys(mod).length === 0) { throw new Error(${JSON.stringify(missingModuleMessage)}) }`,
+        "export default mod",
       ].join("\n");
     },
   };
+}
+
+function isPluginSourceFile(id: string) {
+  if (!pluginRoot) {
+    return false;
+  }
+  const cleanID = normalizePath(id.split("?", 1)[0]);
+  const root = normalizePath(path.resolve(pluginRoot));
+  return (
+    !cleanID.includes("/node_modules/") &&
+    cleanID.startsWith(`${root}/`) &&
+    /\.[cm]?[jt]sx?$/.test(cleanID)
+  );
 }
 
 function frontPluginDependencySubpathPlugin(): PluginOption {

@@ -147,6 +147,12 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 - `dever build` 关注 release 打包默认值、目标推导和输出命名一致性
 - `dever install` 关注脚本可用性和当前源码联动
 
+### Front Plugin Compiler
+
+- package/module 前端可继续使用 `@/...` 引用宿主已注册的兼容模块
+- 编译器统一从宿主模块 namespace 读取导出；禁止维护逐导出名称白名单
+- 新增宿主模块时只维护宿主 SDK 的模块注册，不在编译器重复登记其导出成员
+
 ### Current Build Convention
 
 - 发布打包优先走 `dever build`
