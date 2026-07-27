@@ -215,7 +215,9 @@ func discoverRunFrontPluginSources(projectRoot string) (frontPluginDevSources, e
 		return frontPluginDevSources{}, err
 	}
 	for _, current := range components {
-		if hasFrontPluginSource(current.root) && !hasFrontPluginDist(current.root) {
+		hasSource := hasFrontPluginSource(current.root)
+		shouldServeSource := current.editable || !hasFrontPluginDist(current.root)
+		if hasSource && shouldServeSource {
 			names[current.name] = struct{}{}
 			roots[filepath.Join(current.root, "front")] = struct{}{}
 		}
