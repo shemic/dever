@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -426,6 +427,7 @@ function pluginManifestMetadataPlugin(): PluginOption {
       const manifestFile = path.join(pluginRoot, "dist", "manifest.json");
       const manifest = plainObject(readJSONFile(manifestFile));
       attachManifestCSSAssets(manifest);
+      attachManifestAssetVersions(manifest, path.dirname(manifestFile));
       manifest.__plugin = readPluginMetadata();
       fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
     },
@@ -452,6 +454,51 @@ function attachManifestCSSAssets(manifest: Record<string, unknown>) {
   if (cssFiles.length > 0) {
     entry.css = cssFiles;
   }
+}
+
+function attachManifestAssetVersions(
+  manifest: Record<string, unknown>,
+  outputRoot: string,
+) {
+  const versions = new Map<string, string>();
+  const versionAsset = (value: unknown) => {
+    const asset = String(value || "").trim();
+    if (!asset) {
+      return asset;
+    }
+
+    const relativeAsset = asset.split(/[?#]/, 1)[0];
+    const assetFile = path.resolve(outputRoot, relativeAsset);
+    const relativeFile = path.relative(outputRoot, assetFile);
+    if (
+      !relativeFile ||
+      relativeFile.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativeFile) ||
+      !fs.statSync(assetFile, { throwIfNoEntry: false })?.isFile()
+    ) {
+      return asset;
+    }
+
+    let version = versions.get(assetFile);
+    if (!version) {
+      version = createHash("sha256")
+        .update(fs.readFileSync(assetFile))
+        .digest("hex")
+        .slice(0, 16);
+      versions.set(assetFile, version);
+    }
+    return `${relativeAsset}?v=${version}`;
+  };
+
+  Object.values(manifest).forEach((rawEntry) => {
+    const entry = plainObject(rawEntry);
+    if (typeof entry.file === "string") {
+      entry.file = versionAsset(entry.file);
+    }
+    if (Array.isArray(entry.css)) {
+      entry.css = entry.css.map(versionAsset);
+    }
+  });
 }
 
 function normalizeStringList(value: unknown) {
