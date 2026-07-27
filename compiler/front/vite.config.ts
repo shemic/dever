@@ -21,6 +21,7 @@ const runtimeEntryFile = path.resolve(compilerRoot, "src", "runtime-entry.ts");
 const runtimeEntryID = "virtual:dever-front-plugin-runtime";
 const resolvedRuntimeEntryID = "\0" + runtimeEntryID;
 const pluginEntry = pluginRoot ? path.join(pluginRoot, "src", "plugin.ts") : "";
+const splitPluginBundle = readPluginBundleMode() === "split";
 const devServerAllowedRoots = Array.from(
   new Set(
     [projectRoot, frontPackageRoot, compilerRoot, ...pluginSourceRoots]
@@ -31,6 +32,8 @@ const devServerAllowedRoots = Array.from(
 
 const compatModulePrefix = "virtual:dever-front-compat:";
 const resolvedCompatModulePrefix = "\0" + compatModulePrefix;
+
+type PluginBundleMode = "single" | "split";
 
 const shimModuleFiles: Record<string, string> = {
   react: "react.ts",
@@ -137,6 +140,17 @@ function plainObject(value: unknown): Record<string, unknown> {
     return {};
   }
   return value as Record<string, unknown>;
+}
+
+function readPluginBundleMode(): PluginBundleMode {
+  if (!pluginRoot) {
+    return "single";
+  }
+  const manifest = plainObject(
+    readJSONFile(path.join(pluginRoot, "package.json")),
+  );
+  const dever = plainObject(manifest.dever);
+  return dever.bundle === "split" ? "split" : "single";
 }
 
 function splitImportSpecifier(source: string) {
@@ -427,6 +441,9 @@ function pluginManifestMetadataPlugin(): PluginOption {
       const manifestFile = path.join(pluginRoot, "dist", "manifest.json");
       const manifest = plainObject(readJSONFile(manifestFile));
       attachManifestCSSAssets(manifest);
+      if (splitPluginBundle) {
+        markManifestEntryAsModule(manifest);
+      }
       attachManifestAssetVersions(manifest, path.dirname(manifestFile));
       manifest.__plugin = readPluginMetadata();
       fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -435,18 +452,15 @@ function pluginManifestMetadataPlugin(): PluginOption {
 }
 
 function attachManifestCSSAssets(manifest: Record<string, unknown>) {
-  const entries = Object.values(manifest)
-    .map(plainObject)
-    .filter((item) => Object.keys(item).length > 0);
-  const entry = entries.find((item) => item.isEntry) || entries.find((item) =>
-    String(item.file || "").endsWith(".js"),
-  );
+  const entries = manifestEntries(manifest);
+  const entry = findManifestEntry(entries);
   if (!entry) {
     return;
   }
 
   const cssFiles = uniqueDependencyNames([
     ...normalizeStringList(entry.css),
+    ...entries.flatMap((item) => normalizeStringList(item.css)),
     ...entries
       .map((item) => String(item.file || "").trim())
       .filter((file) => file.endsWith(".css")),
@@ -454,6 +468,26 @@ function attachManifestCSSAssets(manifest: Record<string, unknown>) {
   if (cssFiles.length > 0) {
     entry.css = cssFiles;
   }
+}
+
+function markManifestEntryAsModule(manifest: Record<string, unknown>) {
+  const entry = findManifestEntry(manifestEntries(manifest));
+  if (entry) {
+    entry.module = true;
+  }
+}
+
+function manifestEntries(manifest: Record<string, unknown>) {
+  return Object.values(manifest)
+    .map(plainObject)
+    .filter((item) => Object.keys(item).length > 0);
+}
+
+function findManifestEntry(entries: Record<string, unknown>[]) {
+  return (
+    entries.find((item) => item.isEntry) ||
+    entries.find((item) => String(item.file || "").endsWith(".js"))
+  );
 }
 
 function attachManifestAssetVersions(
@@ -608,21 +642,28 @@ export default defineConfig(({ command }) => {
       outDir: pluginRoot ? path.join(pluginRoot, "dist") : "dist",
       emptyOutDir: true,
       manifest: "manifest.json",
+      cssCodeSplit: splitPluginBundle,
       lib: {
         entry: runtimeEntryFile,
-        formats: ["iife"],
+        formats: splitPluginBundle ? ["es"] : ["iife"],
         name: `${pluginName.replace(/[^a-zA-Z0-9_$]/g, "_")}FrontPlugin`,
         fileName: () => `${pluginName}.js`,
         cssFileName: pluginName,
       },
       rollupOptions: {
-        external: ["react"],
-        output: {
-          globals: {
-            react: "React",
-          },
-          inlineDynamicImports: true,
-        },
+        external: splitPluginBundle ? [] : ["react"],
+        output: splitPluginBundle
+          ? {
+              inlineDynamicImports: false,
+              chunkFileNames: "assets/[name]-[hash].js",
+              assetFileNames: "assets/[name]-[hash][extname]",
+            }
+          : {
+              globals: {
+                react: "React",
+              },
+              inlineDynamicImports: true,
+            },
       },
     },
   };
