@@ -22,6 +22,7 @@ const runtimeEntryID = "virtual:dever-front-plugin-runtime";
 const resolvedRuntimeEntryID = "\0" + runtimeEntryID;
 const pluginEntry = pluginRoot ? path.join(pluginRoot, "src", "plugin.ts") : "";
 const splitPluginBundle = readPluginBundleMode() === "split";
+const splitPluginMinChunkSize = 16 * 1024;
 const devServerAllowedRoots = Array.from(
   new Set(
     [projectRoot, frontPackageRoot, compilerRoot, ...pluginSourceRoots]
@@ -642,7 +643,10 @@ export default defineConfig(({ command }) => {
       outDir: pluginRoot ? path.join(pluginRoot, "dist") : "dist",
       emptyOutDir: true,
       manifest: "manifest.json",
-      cssCodeSplit: splitPluginBundle,
+      // The host injects plugin styles from the entry manifest. Keep one CSS
+      // asset per plugin instead of creating many files that are all fetched
+      // eagerly anyway.
+      cssCodeSplit: false,
       lib: {
         entry: runtimeEntryFile,
         formats: splitPluginBundle ? ["es"] : ["iife"],
@@ -655,6 +659,9 @@ export default defineConfig(({ command }) => {
         output: splitPluginBundle
           ? {
               inlineDynamicImports: false,
+              // Preserve real dynamic-import boundaries while coalescing tiny
+              // shared chunks such as icons and UI helpers.
+              experimentalMinChunkSize: splitPluginMinChunkSize,
               chunkFileNames: "assets/[name]-[hash].js",
               assetFileNames: "assets/[name]-[hash][extname]",
             }
