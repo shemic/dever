@@ -3,10 +3,12 @@ package http
 import (
 	"context"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 
 	"github.com/shemic/dever/config"
@@ -39,6 +41,10 @@ func New() server.Server {
 // NewWithConfig 创建一个自定义配置的 Fiber Server，并加载通过 server.Auto 注册的路由配置。
 func NewWithConfig(conf fiber.Config, corsCfg config.CORS) server.Server {
 	app := fiber.New(conf)
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed,
+		Next:  skipStaticTextCompression,
+	}))
 	if corsCfg.Enabled {
 		app.Use(cors.New(buildCORSConfig(corsCfg)))
 	}
@@ -50,6 +56,33 @@ func NewWithConfig(conf fiber.Config, corsCfg config.CORS) server.Server {
 		server.LoadAll(srv)
 	}
 	return srv
+}
+
+func skipStaticTextCompression(c *fiber.Ctx) bool {
+	if c.Method() != fiber.MethodGet || c.Get(fiber.HeaderRange) != "" {
+		return true
+	}
+
+	accept := strings.ToLower(c.Get(fiber.HeaderAccept))
+	if strings.Contains(accept, "text/event-stream") ||
+		c.Get(fiber.HeaderUpgrade) != "" {
+		return true
+	}
+
+	if isCompressibleStaticPath(c.Path()) {
+		return false
+	}
+	return !strings.Contains(accept, fiber.MIMETextHTML)
+}
+
+func isCompressibleStaticPath(requestPath string) bool {
+	switch strings.ToLower(path.Ext(requestPath)) {
+	case ".css", ".html", ".js", ".json", ".map",
+		".mjs", ".svg", ".txt", ".webmanifest", ".xml":
+		return true
+	default:
+		return false
+	}
 }
 
 func buildCORSConfig(cfg config.CORS) cors.Config {

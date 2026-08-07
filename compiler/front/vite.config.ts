@@ -15,6 +15,12 @@ const projectRoot =
   path.resolve(compilerRoot, "..", "..", "..", "..");
 const frontPackageRoot = resolveFrontPackageRoot();
 const sdkEntry = path.resolve(frontPackageRoot, "sdk", "src", "index.ts");
+const compatSourceRoots = Array.from(
+  new Set([
+    ...pluginSourceRoots,
+    normalizePath(path.dirname(sdkEntry)),
+  ]),
+);
 const shimRoot = path.resolve(compilerRoot, "src", "shims");
 const runtimeEntryFile = path.resolve(compilerRoot, "src", "runtime-entry.ts");
 
@@ -22,7 +28,7 @@ const runtimeEntryID = "virtual:dever-front-plugin-runtime";
 const resolvedRuntimeEntryID = "\0" + runtimeEntryID;
 const pluginEntry = pluginRoot ? path.join(pluginRoot, "src", "plugin.ts") : "";
 const splitPluginBundle = readPluginBundleMode() === "split";
-const splitPluginMinChunkSize = 16 * 1024;
+const splitPluginMinChunkSize = 24 * 1024;
 const devServerAllowedRoots = Array.from(
   new Set(
     [projectRoot, frontPackageRoot, compilerRoot, ...pluginSourceRoots]
@@ -33,8 +39,29 @@ const devServerAllowedRoots = Array.from(
 
 const compatModulePrefix = "virtual:dever-front-compat:";
 const resolvedCompatModulePrefix = "\0" + compatModulePrefix;
+const compatModuleSources = new Set<string>();
 
 type PluginBundleMode = "single" | "split";
+
+const canvasDependencies = new Set([
+  "@xyflow/react",
+  "@xyflow/system",
+  "use-sync-external-store",
+  "zustand",
+]);
+const assistantDependencies = new Set([
+  "assistant-cloud",
+  "assistant-stream",
+  "react-markdown",
+]);
+const assistantDependencyPrefixes = [
+  "@assistant-ui/",
+  "mdast-",
+  "micromark-",
+  "rehype-",
+  "remark-",
+  "unist-",
+];
 
 const shimModuleFiles: Record<string, string> = {
   react: "react.ts",
@@ -154,6 +181,47 @@ function readPluginBundleMode(): PluginBundleMode {
   return dever.bundle === "split" ? "split" : "single";
 }
 
+function packageNameFromModuleID(id: string) {
+  const normalizedID = normalizePath(id);
+  const marker = "/node_modules/";
+  const markerIndex = normalizedID.lastIndexOf(marker);
+  if (markerIndex === -1) {
+    return "";
+  }
+
+  const packagePath = normalizedID.slice(markerIndex + marker.length);
+  const segments = packagePath.split("/");
+  return segments[0]?.startsWith("@")
+    ? `${segments[0]}/${segments[1] || ""}`
+    : segments[0] || "";
+}
+
+function pluginManualChunk(id: string) {
+  if (id.startsWith(resolvedCompatModulePrefix)) {
+    return "dever-host-compat";
+  }
+
+  const dependencyName = packageNameFromModuleID(id);
+  if (!dependencyName) {
+    return undefined;
+  }
+  if (dependencyName === "lucide-react") {
+    return "vendor-icons";
+  }
+  if (canvasDependencies.has(dependencyName)) {
+    return "vendor-canvas";
+  }
+  if (
+    assistantDependencies.has(dependencyName) ||
+    assistantDependencyPrefixes.some((prefix) =>
+      dependencyName.startsWith(prefix),
+    )
+  ) {
+    return "vendor-assistant";
+  }
+  return undefined;
+}
+
 function splitImportSpecifier(source: string) {
   const suffixIndex = source.search(/[?#]/);
   if (suffixIndex === -1) {
@@ -204,6 +272,7 @@ function rewriteDependencySubpathImports(code: string) {
 
 type PluginMetadata = {
   name: string;
+  compat?: string[];
   nodes?: string[];
   depends?: string[];
 };
@@ -349,6 +418,9 @@ function compatModulePlugin(): PluginOption {
   return {
     name: "dever-front-plugin-compat-modules",
     enforce: "pre",
+    buildStart() {
+      compatModuleSources.clear();
+    },
     resolveId(id, _importer, options) {
       if (id.startsWith(compatModulePrefix)) {
         return resolvedCompatModulePrefix + id.slice(compatModulePrefix.length);
@@ -364,11 +436,14 @@ function compatModulePlugin(): PluginOption {
       return null;
     },
     transform(code, id) {
-      if (!isPluginSourceFile(id)) {
+      if (!isCompatSourceFile(id)) {
         return null;
       }
       const rewritten = rewriteCompatImports(code, id, {
         virtualModulePrefix: compatModulePrefix,
+        onCompatSource(source) {
+          compatModuleSources.add(source);
+        },
       });
       if (!rewritten) {
         return null;
@@ -396,14 +471,14 @@ function compatModulePlugin(): PluginOption {
   };
 }
 
-function isPluginSourceFile(id: string) {
-  if (pluginSourceRoots.length === 0) {
+function isCompatSourceFile(id: string) {
+  if (compatSourceRoots.length === 0) {
     return false;
   }
   const cleanID = normalizePath(id.split("?", 1)[0]);
   return (
     !cleanID.includes("/node_modules/") &&
-    pluginSourceRoots.some((root) => cleanID.startsWith(`${root}/`)) &&
+    compatSourceRoots.some((root) => cleanID.startsWith(`${root}/`)) &&
     /\.[cm]?[jt]sx?$/.test(cleanID)
   );
 }
@@ -446,7 +521,10 @@ function pluginManifestMetadataPlugin(): PluginOption {
         markManifestEntryAsModule(manifest);
       }
       attachManifestAssetVersions(manifest, path.dirname(manifestFile));
-      manifest.__plugin = readPluginMetadata();
+      manifest.__plugin = {
+        ...readPluginMetadata(),
+        compat: Array.from(compatModuleSources).sort(),
+      };
       fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };
@@ -662,6 +740,8 @@ export default defineConfig(({ command }) => {
               // Preserve real dynamic-import boundaries while coalescing tiny
               // shared chunks such as icons and UI helpers.
               experimentalMinChunkSize: splitPluginMinChunkSize,
+              manualChunks: pluginManualChunk,
+              onlyExplicitManualChunks: true,
               chunkFileNames: "assets/[name]-[hash].js",
               assetFileNames: "assets/[name]-[hash][extname]",
             }

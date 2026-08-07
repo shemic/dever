@@ -8,6 +8,7 @@ type SourceEdit = {
 
 type TransformOptions = {
   virtualModulePrefix: string;
+  onCompatSource?: (source: string) => void;
 };
 
 export function rewriteCompatImports(
@@ -22,6 +23,7 @@ export function rewriteCompatImports(
     true,
     scriptKind(id),
   );
+  visitCompatModuleReferences(sourceFile, options.onCompatSource);
   const names = createUniqueNameFactory(code);
   const edits: SourceEdit[] = [];
 
@@ -31,16 +33,20 @@ export function rewriteCompatImports(
       if (!isCompatSource(source)) {
         continue;
       }
+      const replacement = rewriteImportDeclaration(
+        statement,
+        source,
+        options.virtualModulePrefix,
+        names,
+      );
       edits.push({
         start: statement.getStart(sourceFile),
         end: statement.end,
-        replacement: rewriteImportDeclaration(
-          statement,
-          source,
-          options.virtualModulePrefix,
-          names,
-        ),
+        replacement,
       });
+      if (replacement) {
+        options.onCompatSource?.(source);
+      }
       continue;
     }
 
@@ -49,18 +55,22 @@ export function rewriteCompatImports(
       if (!isCompatSource(source)) {
         continue;
       }
+      const replacement = rewriteExportDeclaration(
+        statement,
+        source,
+        sourceFile,
+        options.virtualModulePrefix,
+        names,
+        id,
+      );
       edits.push({
         start: statement.getStart(sourceFile),
         end: statement.end,
-        replacement: rewriteExportDeclaration(
-          statement,
-          source,
-          sourceFile,
-          options.virtualModulePrefix,
-          names,
-          id,
-        ),
+        replacement,
       });
+      if (replacement) {
+        options.onCompatSource?.(source);
+      }
     }
   }
 
@@ -75,6 +85,7 @@ export function rewriteCompatImports(
       end: node.end,
       replacement: `${dynamicCompatImport(source, options.virtualModulePrefix)}.then((module) => module.default)`,
     });
+    options.onCompatSource?.(source);
   });
 
   if (edits.length === 0) {
@@ -187,6 +198,26 @@ function visitRuntimeImports(
       if (isCompatSource(source)) {
         visit(node, source);
         return;
+      }
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(sourceFile);
+}
+
+function visitCompatModuleReferences(
+  sourceFile: ts.SourceFile,
+  visit: ((source: string) => void) | undefined,
+) {
+  if (!visit) {
+    return;
+  }
+
+  const walk = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const source = moduleSource(node.arguments[0]);
+      if (isCompatSource(source)) {
+        visit(source);
       }
     }
     ts.forEachChild(node, walk);
