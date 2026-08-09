@@ -204,6 +204,9 @@ function pluginManualChunk(id: string) {
   if (!dependencyName) {
     return undefined;
   }
+  if (dependencyName === "lucide-react") {
+    return "vendor-icons";
+  }
   if (canvasDependencies.has(dependencyName)) {
     return "vendor-canvas";
   }
