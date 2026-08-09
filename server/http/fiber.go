@@ -77,8 +77,9 @@ func skipStaticTextCompression(c *fiber.Ctx) bool {
 
 func isCompressibleStaticPath(requestPath string) bool {
 	switch strings.ToLower(path.Ext(requestPath)) {
-	case ".css", ".html", ".js", ".json", ".map",
-		".mjs", ".svg", ".txt", ".webmanifest", ".xml":
+	case ".css", ".html", ".js", ".jsx", ".json", ".map",
+		".cjs", ".mjs", ".cts", ".mts", ".ts", ".tsx",
+		".svg", ".txt", ".webmanifest", ".xml":
 		return true
 	default:
 		return false

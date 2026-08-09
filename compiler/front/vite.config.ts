@@ -31,6 +31,7 @@ const runtimeEntryID = "virtual:dever-front-plugin-runtime";
 const resolvedRuntimeEntryID = "\0" + runtimeEntryID;
 const pluginEntry = pluginRoot ? path.join(pluginRoot, "src", "plugin.ts") : "";
 const splitPluginBundle = readPluginBundleMode() === "split";
+const splitPluginMinChunkSize = 24 * 1024;
 const devServerAllowedRoots = Array.from(
   new Set(
     [projectRoot, frontPackageRoot, compilerRoot, ...pluginSourceRoots]
@@ -50,8 +51,6 @@ type PluginBundleMode = "single" | "split";
 const canvasDependencies = new Set([
   "@xyflow/react",
   "@xyflow/system",
-  "use-sync-external-store",
-  "zustand",
 ]);
 const assistantDependencies = new Set([
   "assistant-cloud",
@@ -204,9 +203,6 @@ function pluginManualChunk(id: string) {
   const dependencyName = packageNameFromModuleID(id);
   if (!dependencyName) {
     return undefined;
-  }
-  if (dependencyName === "lucide-react") {
-    return "vendor-icons";
   }
   if (canvasDependencies.has(dependencyName)) {
     return "vendor-canvas";
@@ -547,6 +543,42 @@ function pluginManifestMetadataPlugin(): PluginOption {
   };
 }
 
+function pluginChunkCSSPlugin(): PluginOption {
+  return {
+    name: "dever-front-plugin-chunk-css",
+    apply: "build",
+    enforce: "post",
+    renderChunk(code, chunk) {
+      const cssFiles = Array.from(chunk.viteMetadata?.importedCss || []);
+      if (chunk.isEntry || cssFiles.length === 0) {
+        return null;
+      }
+
+      const chunkDirectory = path.posix.dirname(normalizePath(chunk.fileName));
+      const styleUrls = cssFiles.map((file) => {
+        const relativeFile = path.posix.relative(
+          chunkDirectory,
+          normalizePath(file),
+        );
+        const specifier = relativeFile.startsWith(".")
+          ? relativeFile
+          : `./${relativeFile}`;
+        return `new URL(${JSON.stringify(specifier)}, import.meta.url).href`;
+      });
+      const styleLoader = [
+        "if (!window.DeverFront?.ensureStyles) {",
+        `  throw new Error(${JSON.stringify("Dever front runtime does not support chunk styles")});`,
+        "}",
+        `await window.DeverFront.ensureStyles([${styleUrls.join(",")}]);`,
+      ].join("\n");
+      return {
+        code: `${styleLoader}\n${code}`,
+        map: null,
+      };
+    },
+  };
+}
+
 function attachManifestCSSAssets(
   manifest: Record<string, unknown>,
   includeDynamicEntries: boolean,
@@ -559,7 +591,7 @@ function attachManifestCSSAssets(
 
   const cssFiles = includeDynamicEntries
     ? manifestCSSAssets(entries)
-    : manifestStaticCSSAssets(manifest, entry);
+    : normalizeStringList(entry.css);
   if (cssFiles.length > 0) {
     entry.css = cssFiles;
   }
@@ -572,33 +604,6 @@ function manifestCSSAssets(entries: Record<string, unknown>[]) {
       .map((item) => String(item.file || "").trim())
       .filter((file) => file.endsWith(".css")),
   ]);
-}
-
-function manifestStaticCSSAssets(
-  manifest: Record<string, unknown>,
-  entry: Record<string, unknown>,
-) {
-  const cssFiles: string[] = [];
-  const visited = new Set<Record<string, unknown>>();
-  const visit = (current: Record<string, unknown>) => {
-    if (visited.has(current)) {
-      return;
-    }
-    visited.add(current);
-    cssFiles.push(...normalizeStringList(current.css));
-    const file = String(current.file || "").trim();
-    if (file.endsWith(".css")) {
-      cssFiles.push(file);
-    }
-    for (const key of normalizeStringList(current.imports)) {
-      const dependency = plainObject(manifest[key]);
-      if (Object.keys(dependency).length > 0) {
-        visit(dependency);
-      }
-    }
-  };
-  visit(entry);
-  return uniqueDependencyNames(cssFiles);
 }
 
 function markManifestEntryAsModule(manifest: Record<string, unknown>) {
@@ -752,6 +757,7 @@ export default defineConfig(({ command }) => {
       compatModulePlugin(command === "serve" || splitPluginBundle),
       pluginManifestMetadataPlugin(),
       react(),
+      ...(splitPluginBundle ? [pluginChunkCSSPlugin()] : []),
     ],
     resolve: {
       dedupe: ["react", "react-dom"],
@@ -786,6 +792,8 @@ export default defineConfig(({ command }) => {
         output: splitPluginBundle
           ? {
               inlineDynamicImports: false,
+              // Preserve feature boundaries while coalescing tiny shared chunks.
+              experimentalMinChunkSize: splitPluginMinChunkSize,
               manualChunks: pluginManualChunk,
               onlyExplicitManualChunks: true,
               chunkFileNames: "assets/[name]-[hash].js",
