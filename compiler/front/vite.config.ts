@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react-swc";
 import { defineConfig, normalizePath, type PluginOption } from "vite";
 import { rewriteCompatImports } from "./src/compat-import";
+import { readFrontSDKExports } from "./src/sdk-exports";
 
 const compilerRoot = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = process.env.DEVER_FRONT_PLUGIN_ROOT || "";
@@ -15,11 +16,13 @@ const projectRoot =
   path.resolve(compilerRoot, "..", "..", "..", "..");
 const frontPackageRoot = resolveFrontPackageRoot();
 const sdkEntry = path.resolve(frontPackageRoot, "sdk", "src", "index.ts");
+const sdkCoreEntry = path.resolve(frontPackageRoot, "sdk", "src", "core.ts");
+const {
+  coreExports: sdkCoreExports,
+  compatExports: sdkCompatExports,
+} = readFrontSDKExports(sdkCoreEntry, sdkEntry);
 const compatSourceRoots = Array.from(
-  new Set([
-    ...pluginSourceRoots,
-    normalizePath(path.dirname(sdkEntry)),
-  ]),
+  new Set([...pluginSourceRoots, normalizePath(path.dirname(sdkEntry))]),
 );
 const shimRoot = path.resolve(compilerRoot, "src", "shims");
 const runtimeEntryFile = path.resolve(compilerRoot, "src", "runtime-entry.ts");
@@ -28,7 +31,6 @@ const runtimeEntryID = "virtual:dever-front-plugin-runtime";
 const resolvedRuntimeEntryID = "\0" + runtimeEntryID;
 const pluginEntry = pluginRoot ? path.join(pluginRoot, "src", "plugin.ts") : "";
 const splitPluginBundle = readPluginBundleMode() === "split";
-const splitPluginMinChunkSize = 24 * 1024;
 const devServerAllowedRoots = Array.from(
   new Set(
     [projectRoot, frontPackageRoot, compilerRoot, ...pluginSourceRoots]
@@ -40,6 +42,8 @@ const devServerAllowedRoots = Array.from(
 const compatModulePrefix = "virtual:dever-front-compat:";
 const resolvedCompatModulePrefix = "\0" + compatModulePrefix;
 const compatModuleSources = new Set<string>();
+const moduleCompatMode = "module";
+const sdkModuleSource = "@dever/front-plugin";
 
 type PluginBundleMode = "single" | "split";
 
@@ -197,10 +201,6 @@ function packageNameFromModuleID(id: string) {
 }
 
 function pluginManualChunk(id: string) {
-  if (id.startsWith(resolvedCompatModulePrefix)) {
-    return "dever-host-compat";
-  }
-
   const dependencyName = packageNameFromModuleID(id);
   if (!dependencyName) {
     return undefined;
@@ -299,9 +299,10 @@ function readPluginMetadata(): PluginMetadata {
 }
 
 function extractStringProperty(content: string, key: string) {
-  const match = new RegExp(`\\b${escapeRegExp(key)}\\s*:\\s*${stringLiteralPattern()}`, "m").exec(
-    content,
-  );
+  const match = new RegExp(
+    `\\b${escapeRegExp(key)}\\s*:\\s*${stringLiteralPattern()}`,
+    "m",
+  ).exec(content);
   return match?.[1]?.trim() || "";
 }
 
@@ -351,7 +352,7 @@ function matchDelimitedBlock(
       }
       continue;
     }
-    if (current === "\"" || current === "'" || current === "`") {
+    if (current === '"' || current === "'" || current === "`") {
       quote = current;
       continue;
     }
@@ -414,7 +415,7 @@ function runtimeEntryPlugin(): PluginOption {
   };
 }
 
-function compatModulePlugin(): PluginOption {
+function compatModulePlugin(moduleScopedCompat: boolean): PluginOption {
   return {
     name: "dever-front-plugin-compat-modules",
     enforce: "pre",
@@ -423,7 +424,10 @@ function compatModulePlugin(): PluginOption {
     },
     resolveId(id, _importer, options) {
       if (id.startsWith(compatModulePrefix)) {
-        return resolvedCompatModulePrefix + id.slice(compatModulePrefix.length);
+        return {
+          id: resolvedCompatModulePrefix + id.slice(compatModulePrefix.length),
+          moduleSideEffects: false,
+        };
       }
       if (id.startsWith("@/")) {
         if ((options as { scan?: boolean } | undefined)?.scan) {
@@ -441,8 +445,18 @@ function compatModulePlugin(): PluginOption {
       }
       const rewritten = rewriteCompatImports(code, id, {
         virtualModulePrefix: compatModulePrefix,
+        rewriteCompatCalls: moduleScopedCompat,
+        sdkModuleSource,
+        sdkCoreSource: normalizePath(sdkCoreEntry),
+        sdkCoreExports,
+        sdkCompatExports,
         onCompatSource(source) {
           compatModuleSources.add(source);
+        },
+        onImplicitCompatSource(source) {
+          throw new Error(
+            `[dever-front-plugin] ${normalizePath(id.split("?", 1)[0])} 通过普通函数引用了宿主模块 ${JSON.stringify(source)}；请直接使用 getCompatModule。`,
+          );
         },
       });
       if (!rewritten) {
@@ -459,11 +473,13 @@ function compatModulePlugin(): PluginOption {
       }
 
       const source = id.slice(resolvedCompatModulePrefix.length);
-      const missingModuleMessage =
-        `[dever-front-plugin] 宿主未注册兼容模块 ${source}`;
+      const missingModuleMessage = `[dever-front-plugin] 宿主未注册兼容模块 ${source}`;
       return [
-        "import { getCompatModule } from '@dever/front-plugin'",
-        `const mod = getCompatModule(${JSON.stringify(source)})`,
+        // Split bundles load each host module at the point its plugin chunk is evaluated.
+        moduleScopedCompat
+          ? `await window.DeverFront?.ensureCompat?.([${JSON.stringify(source)}])`
+          : "",
+        `const mod = window.DeverFront?.sdk?.getCompatModule(${JSON.stringify(source)})`,
         `if (!mod || Object.keys(mod).length === 0) { throw new Error(${JSON.stringify(missingModuleMessage)}) }`,
         "export default mod",
       ].join("\n");
@@ -516,7 +532,7 @@ function pluginManifestMetadataPlugin(): PluginOption {
       }
       const manifestFile = path.join(pluginRoot, "dist", "manifest.json");
       const manifest = plainObject(readJSONFile(manifestFile));
-      attachManifestCSSAssets(manifest);
+      attachManifestCSSAssets(manifest, !splitPluginBundle);
       if (splitPluginBundle) {
         markManifestEntryAsModule(manifest);
       }
@@ -524,29 +540,65 @@ function pluginManifestMetadataPlugin(): PluginOption {
       manifest.__plugin = {
         ...readPluginMetadata(),
         compat: Array.from(compatModuleSources).sort(),
+        ...(splitPluginBundle ? { compatMode: moduleCompatMode } : {}),
       };
       fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };
 }
 
-function attachManifestCSSAssets(manifest: Record<string, unknown>) {
+function attachManifestCSSAssets(
+  manifest: Record<string, unknown>,
+  includeDynamicEntries: boolean,
+) {
   const entries = manifestEntries(manifest);
   const entry = findManifestEntry(entries);
   if (!entry) {
     return;
   }
 
-  const cssFiles = uniqueDependencyNames([
-    ...normalizeStringList(entry.css),
+  const cssFiles = includeDynamicEntries
+    ? manifestCSSAssets(entries)
+    : manifestStaticCSSAssets(manifest, entry);
+  if (cssFiles.length > 0) {
+    entry.css = cssFiles;
+  }
+}
+
+function manifestCSSAssets(entries: Record<string, unknown>[]) {
+  return uniqueDependencyNames([
     ...entries.flatMap((item) => normalizeStringList(item.css)),
     ...entries
       .map((item) => String(item.file || "").trim())
       .filter((file) => file.endsWith(".css")),
   ]);
-  if (cssFiles.length > 0) {
-    entry.css = cssFiles;
-  }
+}
+
+function manifestStaticCSSAssets(
+  manifest: Record<string, unknown>,
+  entry: Record<string, unknown>,
+) {
+  const cssFiles: string[] = [];
+  const visited = new Set<Record<string, unknown>>();
+  const visit = (current: Record<string, unknown>) => {
+    if (visited.has(current)) {
+      return;
+    }
+    visited.add(current);
+    cssFiles.push(...normalizeStringList(current.css));
+    const file = String(current.file || "").trim();
+    if (file.endsWith(".css")) {
+      cssFiles.push(file);
+    }
+    for (const key of normalizeStringList(current.imports)) {
+      const dependency = plainObject(manifest[key]);
+      if (Object.keys(dependency).length > 0) {
+        visit(dependency);
+      }
+    }
+  };
+  visit(entry);
+  return uniqueDependencyNames(cssFiles);
 }
 
 function markManifestEntryAsModule(manifest: Record<string, unknown>) {
@@ -618,9 +670,7 @@ function normalizeStringList(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value
-    .map((item) => String(item || "").trim())
-    .filter(Boolean);
+  return value.map((item) => String(item || "").trim()).filter(Boolean);
 }
 
 function dependency(name: string) {
@@ -699,7 +749,7 @@ export default defineConfig(({ command }) => {
     plugins: [
       frontPluginDependencySubpathPlugin(),
       runtimeEntryPlugin(),
-      compatModulePlugin(),
+      compatModulePlugin(command === "serve" || splitPluginBundle),
       pluginManifestMetadataPlugin(),
       react(),
     ],
@@ -721,10 +771,9 @@ export default defineConfig(({ command }) => {
       outDir: pluginRoot ? path.join(pluginRoot, "dist") : "dist",
       emptyOutDir: true,
       manifest: "manifest.json",
-      // The host injects plugin styles from the entry manifest. Keep one CSS
-      // asset per plugin instead of creating many files that are all fetched
-      // eagerly anyway.
-      cssCodeSplit: false,
+      // Split plugins keep feature CSS with the dynamic feature chunk. The
+      // legacy single bundle still exposes one stylesheet through the entry.
+      cssCodeSplit: splitPluginBundle,
       lib: {
         entry: runtimeEntryFile,
         formats: splitPluginBundle ? ["es"] : ["iife"],
@@ -737,9 +786,6 @@ export default defineConfig(({ command }) => {
         output: splitPluginBundle
           ? {
               inlineDynamicImports: false,
-              // Preserve real dynamic-import boundaries while coalescing tiny
-              // shared chunks such as icons and UI helpers.
-              experimentalMinChunkSize: splitPluginMinChunkSize,
               manualChunks: pluginManualChunk,
               onlyExplicitManualChunks: true,
               chunkFileNames: "assets/[name]-[hash].js",

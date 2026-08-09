@@ -8,7 +8,13 @@ type SourceEdit = {
 
 type TransformOptions = {
   virtualModulePrefix: string;
+  rewriteCompatCalls?: boolean;
+  sdkModuleSource?: string;
+  sdkCoreSource?: string;
+  sdkCoreExports?: ReadonlySet<string>;
+  sdkCompatExports?: Readonly<Record<string, string>>;
   onCompatSource?: (source: string) => void;
+  onImplicitCompatSource?: (source: string) => void;
 };
 
 export function rewriteCompatImports(
@@ -23,13 +29,33 @@ export function rewriteCompatImports(
     true,
     scriptKind(id),
   );
-  visitCompatModuleReferences(sourceFile, options.onCompatSource);
   const names = createUniqueNameFactory(code);
   const edits: SourceEdit[] = [];
+  const compatCallModules = new Map<string, string>();
 
   for (const statement of sourceFile.statements) {
     if (ts.isImportDeclaration(statement)) {
       const source = moduleSource(statement.moduleSpecifier);
+      if (source === options.sdkModuleSource) {
+        const sdkImport = rewriteSDKImportDeclaration(
+          statement,
+          source,
+          id,
+          options,
+          names,
+        );
+        if (sdkImport) {
+          edits.push({
+            start: statement.getStart(sourceFile),
+            end: statement.end,
+            replacement: sdkImport.replacement,
+          });
+          sdkImport.compatSources.forEach((compatSource) => {
+            options.onCompatSource?.(compatSource);
+          });
+          continue;
+        }
+      }
       if (!isCompatSource(source)) {
         continue;
       }
@@ -88,10 +114,184 @@ export function rewriteCompatImports(
     options.onCompatSource?.(source);
   });
 
-  if (edits.length === 0) {
+  visitCompatModuleReferences(sourceFile, (node, source) => {
+    options.onCompatSource?.(source);
+    if (!options.rewriteCompatCalls) {
+      return;
+    }
+    // A real virtual import lets Rollup keep the dependency with the chunk
+    // that uses it and tree-shake unused SDK convenience exports.
+    if (!isGetCompatModuleCall(node)) {
+      options.onImplicitCompatSource?.(source);
+      return;
+    }
+
+    let moduleName = compatCallModules.get(source);
+    if (!moduleName) {
+      moduleName = names();
+      compatCallModules.set(source, moduleName);
+    }
+    edits.push({
+      start: node.getStart(sourceFile),
+      end: node.end,
+      replacement: moduleName,
+    });
+  });
+
+  if (edits.length === 0 && compatCallModules.size === 0) {
     return null;
   }
-  return applySourceEdits(code, edits);
+  const rewritten = applySourceEdits(code, edits);
+  if (compatCallModules.size === 0) {
+    return rewritten;
+  }
+
+  const imports = Array.from(compatCallModules, ([source, moduleName]) =>
+    compatModuleImport(
+      moduleName,
+      compatVirtualModuleID(source, options.virtualModulePrefix),
+    ),
+  );
+  return `${imports.join("\n")}\n${rewritten}`;
+}
+
+function rewriteSDKImportDeclaration(
+  declaration: ts.ImportDeclaration,
+  source: string,
+  id: string,
+  options: TransformOptions,
+  names: () => string,
+) {
+  const clause = declaration.importClause;
+  const bindings = clause?.namedBindings;
+  if (clause && !clause.isTypeOnly && clause.name) {
+    throw new Error(
+      `[dever-front-plugin] ${cleanModuleID(id)} 不支持默认导入 ${source}；请改用命名导入。`,
+    );
+  }
+  if (
+    clause &&
+    !clause.isTypeOnly &&
+    bindings &&
+    ts.isNamespaceImport(bindings)
+  ) {
+    throw new Error(
+      `[dever-front-plugin] ${cleanModuleID(id)} 不支持命名空间导入 ${source}；请按实际需要使用命名导入。`,
+    );
+  }
+  if (
+    !clause ||
+    !bindings ||
+    !ts.isNamedImports(bindings) ||
+    !options.sdkCoreSource ||
+    !options.sdkCoreExports ||
+    !options.sdkCompatExports
+  ) {
+    return null;
+  }
+
+  const coreElements: ts.ImportSpecifier[] = [];
+  const fallbackElements: ts.ImportSpecifier[] = [];
+  const compatElements = new Map<
+    string,
+    Array<{ importedName: string; localName: string }>
+  >();
+
+  for (const element of bindings.elements) {
+    const importedName = (element.propertyName || element.name).text;
+    const compatSource = options.sdkCompatExports[importedName];
+    if (!clause.isTypeOnly && !element.isTypeOnly && compatSource) {
+      const elements = compatElements.get(compatSource) || [];
+      elements.push({ importedName, localName: element.name.text });
+      compatElements.set(compatSource, elements);
+    } else if (options.sdkCoreExports.has(importedName)) {
+      coreElements.push(element);
+    } else {
+      fallbackElements.push(element);
+    }
+  }
+
+  const unsupportedRuntimeExports = fallbackElements
+    .filter((element) => !clause.isTypeOnly && !element.isTypeOnly)
+    .map((element) => (element.propertyName || element.name).text);
+  if (unsupportedRuntimeExports.length > 0) {
+    throw new Error(
+      `[dever-front-plugin] ${cleanModuleID(id)} 使用了未映射的 SDK 导出 ${unsupportedRuntimeExports.join(", ")}；请在 SDK index.ts 中声明对应宿主模块。`,
+    );
+  }
+
+  if (compatElements.size === 0 && coreElements.length === 0) {
+    return null;
+  }
+
+  const lines: string[] = [];
+  if (coreElements.length > 0) {
+    lines.push(
+      namedSDKImport(options.sdkCoreSource, coreElements, clause.isTypeOnly),
+    );
+  }
+  if (clause.name || fallbackElements.length > 0) {
+    lines.push(
+      sdkFallbackImport(
+        source,
+        clause.name?.text,
+        fallbackElements,
+        clause.isTypeOnly,
+      ),
+    );
+  }
+
+  for (const [compatSource, elements] of compatElements) {
+    const moduleName = names();
+    lines.push(
+      compatModuleImport(
+        moduleName,
+        compatVirtualModuleID(compatSource, options.virtualModulePrefix),
+      ),
+    );
+    for (const element of elements) {
+      lines.push(
+        `const ${element.localName} = ${moduleName}[${JSON.stringify(element.importedName)}];`,
+      );
+    }
+  }
+
+  return {
+    replacement: lines.join("\n"),
+    compatSources: Array.from(compatElements.keys()),
+  };
+}
+
+function namedSDKImport(
+  source: string,
+  elements: ts.ImportSpecifier[],
+  typeOnly: boolean,
+) {
+  return `import${typeOnly ? " type" : ""} { ${elements.map(formatImportSpecifier).join(", ")} } from ${JSON.stringify(source)};`;
+}
+
+function sdkFallbackImport(
+  source: string,
+  defaultName: string | undefined,
+  elements: ts.ImportSpecifier[],
+  typeOnly: boolean,
+) {
+  const named =
+    elements.length > 0
+      ? `{ ${elements.map(formatImportSpecifier).join(", ")} }`
+      : "";
+  const bindings = [defaultName || "", named].filter(Boolean).join(", ");
+  return `import${typeOnly ? " type" : ""} ${bindings} from ${JSON.stringify(source)};`;
+}
+
+function formatImportSpecifier(element: ts.ImportSpecifier) {
+  const importedName = (element.propertyName || element.name).text;
+  const localName = element.name.text;
+  const binding =
+    importedName === localName
+      ? importedName
+      : `${importedName} as ${localName}`;
+  return `${element.isTypeOnly ? "type " : ""}${binding}`;
 }
 
 function rewriteImportDeclaration(
@@ -207,22 +407,32 @@ function visitRuntimeImports(
 
 function visitCompatModuleReferences(
   sourceFile: ts.SourceFile,
-  visit: ((source: string) => void) | undefined,
+  visit: (node: ts.CallExpression, source: string) => void,
 ) {
-  if (!visit) {
-    return;
-  }
-
   const walk = (node: ts.Node) => {
-    if (ts.isCallExpression(node)) {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind !== ts.SyntaxKind.ImportKeyword
+    ) {
       const source = moduleSource(node.arguments[0]);
       if (isCompatSource(source)) {
-        visit(source);
+        visit(node, source);
       }
     }
     ts.forEachChild(node, walk);
   };
   walk(sourceFile);
+}
+
+function isGetCompatModuleCall(node: ts.CallExpression) {
+  const expression = node.expression;
+  if (ts.isIdentifier(expression)) {
+    return expression.text === "getCompatModule";
+  }
+  return (
+    ts.isPropertyAccessExpression(expression) &&
+    expression.name.text === "getCompatModule"
+  );
 }
 
 function dynamicCompatImport(source: string, virtualModulePrefix: string) {
@@ -275,9 +485,7 @@ function applySourceEdits(code: string, edits: SourceEdit[]) {
   let result = code;
   for (const edit of ordered.reverse()) {
     result =
-      result.slice(0, edit.start) +
-      edit.replacement +
-      result.slice(edit.end);
+      result.slice(0, edit.start) + edit.replacement + result.slice(edit.end);
   }
   return result;
 }
