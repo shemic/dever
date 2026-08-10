@@ -153,10 +153,15 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 - 编译器统一从宿主模块 namespace 读取导出；禁止维护逐导出名称白名单
 - 新增宿主模块时只维护宿主 SDK 的模块注册，不在编译器重复登记其导出成员
 - `dever front build` 按单插件根目录转换源码；`dever run` 的项目级 Vite 服务必须传入当前项目全部有效插件源码根目录，不能用单插件根目录是否存在来判断开发态源码
+- `dever run` 保持 Vite source server 和 virtual compat；生产 `dever front build` 才使用 module/preloaded compat、bundle audit 与 staging 发布
+- 插件生产预算放在插件 `front/package.json` 的 `dever.bundleBudget`；框架只校验通用结构，不写死 bot 等业务插件阈值
+- 插件生产构建先写 `.dist-next-<pid>`，审计和 manifest 后处理成功后才原子替换 `front/dist`
 
 ### Current Build Convention
 
 - 发布打包优先走 `dever build`
+- `dever build` 只构建本项目可编辑的 front plugin 和 Go 二进制，不隐式重建宿主 `front/src`
+- 宿主资产由维护者独立执行 `pnpm --dir front build:backend`，通过 staging 审计后发布到 `backend/package/front/front/html`
 - 无参数默认打包项目根目录 `main.go`，输出 `server`
 - `dever build cmd/workflow-worker` 自动打包 `cmd/workflow-worker/main.go`，输出 `workflow-worker`
 - 默认 release 参数：
