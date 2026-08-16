@@ -375,7 +375,7 @@ function isOutputChunk(output: BundleOutput): output is AuditedChunk {
 }
 
 function isEntryChunk(output: BundleOutput) {
-  return output.type === "chunk" && output.isEntry;
+  return output.type === "chunk" && (output.isEntry || output.isDynamicEntry);
 }
 
 function isAssetType(fileName: string, extension: string) {

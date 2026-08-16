@@ -157,6 +157,8 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 - 插件生产预算放在插件 `front/package.json` 的 `dever.bundleBudget`；框架只校验通用结构，不写死 bot 等业务插件阈值
 - bundle audit 判断空 chunk 必须依据实际输出代码；Rollup 入口 facade 可以没有自有 `moduleIds`，但仍通过静态 import 承载有效入口
 - 多个懒加载功能共同引用的纯叶子依赖可使用显式 manual chunk 收敛碎片；不要把渲染器、画布等存在回引风险的依赖族粗粒度合并
+- 根预算中以 `/` 开头且带 TS/JS 扩展名的精确 `forbid` 源码后缀可作为受保护入口；编译器只显式固定命中的插件源码模块，防止最小 chunk 合并跨过懒加载边界，真实静态导入仍必须被根闭包审计拒绝
+- tiny JS 预算只统计共享非入口 chunk；动态入口由 `maxDynamicEntries` 和总 JS 数量单独约束，不能把合法动态 facade 标成 non-entry
 - 插件生产构建先写 `.dist-next-<pid>`，审计和 manifest 后处理成功后才原子替换 `front/dist`
 - manifest 后处理必须挂在 `writeBundle`；`closeBundle` 在成功和失败路径都会执行，不能假设 staging 产物已经写出，也不能用二次 ENOENT 覆盖 bundle 的原始错误
 - 兼容导入的源码编辑必须区分范围替换和零长度插入；插入可位于替换边界，同起点时先应用范围替换再应用插入，只有落入范围内部才算真实重叠

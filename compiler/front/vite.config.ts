@@ -5,7 +5,10 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig, normalizePath, type PluginOption } from "vite";
 import { rewriteCompatImports, type CompatLoadMode } from "./src/compat-import";
 import { bundleAuditPlugin } from "./src/bundle-audit";
-import { readPluginBundlePolicy } from "./src/plugin-bundle-policy";
+import {
+  readPluginBundlePolicy,
+  type PluginBundlePolicy,
+} from "./src/plugin-bundle-policy";
 import {
   pluginManifestPlugin,
   type PluginManifestMetadata,
@@ -185,10 +188,57 @@ function packageNameFromModuleID(id: string) {
   return segments[0] || "";
 }
 
-function pluginManualChunk(id: string) {
-  return packageNameFromModuleID(id) === "lucide-react"
-    ? "vendor-icons"
-    : undefined;
+type ProtectedPluginChunk = {
+  name: string;
+  token: string;
+};
+
+function protectedPluginChunks(policy: PluginBundlePolicy) {
+  const tokens = Array.from(
+    new Set(
+      Object.values(policy.budget?.roots || {}).flatMap(
+        (root) => root.forbid || [],
+      ).map((token) => normalizePath(token)),
+    ),
+  )
+    .filter(isProtectableSourceSuffix)
+    .sort(
+      (left, right) => right.length - left.length || left.localeCompare(right),
+    );
+  return tokens.map((token, index) => ({
+    token,
+    name: `protected-${index + 1}-${safeChunkName(token)}`,
+  }));
+}
+
+function isProtectableSourceSuffix(value: string) {
+  return value.startsWith("/") && /\.[cm]?[jt]sx?$/.test(value);
+}
+
+function pluginManualChunk(
+  id: string,
+  protectedChunks: readonly ProtectedPluginChunk[],
+) {
+  if (packageNameFromModuleID(id) === "lucide-react") {
+    return "vendor-icons";
+  }
+
+  const normalizedID = normalizePath(id.split("?", 1)[0]);
+  const isPluginSource = pluginSourceRoots.some((root) =>
+    normalizedID.startsWith(`${root}/`),
+  );
+  if (!isPluginSource || !/\.[cm]?[jt]sx?$/.test(normalizedID)) {
+    return undefined;
+  }
+  return protectedChunks.find(({ token }) => normalizedID.endsWith(token))
+    ?.name;
+}
+
+function safeChunkName(value: string) {
+  const normalized = value
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "feature";
 }
 
 function readJSONFile(file: string) {
@@ -608,6 +658,7 @@ export default defineConfig(({ command }) => {
     includeBudget: command === "build",
   });
   const splitPluginBundle = pluginBundlePolicy.mode === "split";
+  const protectedChunks = protectedPluginChunks(pluginBundlePolicy);
   const compatLoadMode: CompatLoadMode =
     command === "serve"
       ? "virtual"
@@ -678,10 +729,10 @@ export default defineConfig(({ command }) => {
         output: splitPluginBundle
           ? {
               inlineDynamicImports: false,
-              // Icon modules are pure leaves used across many lazy features.
-              // Keep other runtime dependencies under Rollup's cycle-aware
-              // splitting instead of restoring broad renderer vendor chunks.
-              manualChunks: pluginManualChunk,
+              // Keep pure shared icons together and protect configured lazy
+              // feature boundaries from experimental small-chunk merging.
+              // A real static import still creates an audited eager edge.
+              manualChunks: (id) => pluginManualChunk(id, protectedChunks),
               onlyExplicitManualChunks: true,
               experimentalMinChunkSize: splitPluginMinChunkSize,
               chunkFileNames: "assets/[name]-[hash].js",
