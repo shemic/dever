@@ -160,7 +160,10 @@ function auditBundle(
   const details: string[] = [];
 
   for (const chunk of chunks) {
-    if (chunk.moduleIds.length === 0 || chunk.code.trim() === "") {
+    // Rollup may emit a valid facade that only imports another chunk and owns
+    // no modules. The emitted code, rather than module ownership, determines
+    // whether the output is actually empty.
+    if (chunk.code.trim() === "") {
       errors.push(
         `[dever bundle] ${label}: empty chunk ${describeChunk(chunk)}`,
       );

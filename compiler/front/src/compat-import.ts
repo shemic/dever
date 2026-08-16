@@ -649,19 +649,34 @@ function createUniqueNameFactory(code: string) {
 }
 
 function applySourceEdits(code: string, edits: SourceEdit[]) {
-  const ordered = [...edits].sort((left, right) => left.start - right.start);
+  const ordered = [...edits].sort((left, right) => {
+    if (left.start !== right.start) {
+      return left.start - right.start;
+    }
+    if (isSourceInsertion(left) !== isSourceInsertion(right)) {
+      return isSourceInsertion(left) ? -1 : 1;
+    }
+    return left.end - right.end;
+  });
   for (let index = 1; index < ordered.length; index += 1) {
-    if (ordered[index].start < ordered[index - 1].end) {
+    const previous = ordered[index - 1];
+    const current = ordered[index];
+    if (!isSourceInsertion(previous) && current.start < previous.end) {
       throw new Error("[dever-front-plugin] 兼容导入转换产生了重叠修改");
     }
   }
 
   let result = code;
-  for (const edit of ordered.reverse()) {
+  for (let index = ordered.length - 1; index >= 0; index -= 1) {
+    const edit = ordered[index];
     result =
       result.slice(0, edit.start) + edit.replacement + result.slice(edit.end);
   }
   return result;
+}
+
+function isSourceInsertion(edit: SourceEdit) {
+  return edit.start === edit.end;
 }
 
 function cleanModuleID(id: string) {

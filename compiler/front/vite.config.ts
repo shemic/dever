@@ -167,6 +167,30 @@ function readCompilerDependencyNames() {
   return Array.from(names).sort();
 }
 
+function packageNameFromModuleID(id: string) {
+  const normalizedID = normalizePath(id);
+  const nodeModulesMarker = "/node_modules/";
+  const markerIndex = normalizedID.lastIndexOf(nodeModulesMarker);
+  if (markerIndex === -1) {
+    return "";
+  }
+
+  const packagePath = normalizedID.slice(
+    markerIndex + nodeModulesMarker.length,
+  );
+  const segments = packagePath.split("/").filter(Boolean);
+  if (segments[0]?.startsWith("@")) {
+    return segments.length >= 2 ? `${segments[0]}/${segments[1]}` : "";
+  }
+  return segments[0] || "";
+}
+
+function pluginManualChunk(id: string) {
+  return packageNameFromModuleID(id) === "lucide-react"
+    ? "vendor-icons"
+    : undefined;
+}
+
 function readJSONFile(file: string) {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -654,8 +678,11 @@ export default defineConfig(({ command }) => {
         output: splitPluginBundle
           ? {
               inlineDynamicImports: false,
-              // Preserve feature imports while letting Rollup keep shared
-              // runtime dependencies acyclic and coalesce safe tiny chunks.
+              // Icon modules are pure leaves used across many lazy features.
+              // Keep other runtime dependencies under Rollup's cycle-aware
+              // splitting instead of restoring broad renderer vendor chunks.
+              manualChunks: pluginManualChunk,
+              onlyExplicitManualChunks: true,
               experimentalMinChunkSize: splitPluginMinChunkSize,
               chunkFileNames: "assets/[name]-[hash].js",
               assetFileNames: "assets/[name]-[hash][extname]",

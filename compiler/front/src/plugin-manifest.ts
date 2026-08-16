@@ -24,7 +24,7 @@ export function pluginManifestPlugin(
   return {
     name: "dever-front-plugin-manifest",
     apply: "build",
-    closeBundle() {
+    writeBundle() {
       publishPluginManifest(options);
     },
   };
