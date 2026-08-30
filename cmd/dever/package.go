@@ -15,7 +15,10 @@ import (
 	"github.com/shemic/dever/util"
 )
 
-const defaultPackageRef = "latest"
+const (
+	defaultPackageRef          = "latest"
+	localPackageRequireVersion = "v0.0.0"
+)
 
 var packageNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
@@ -145,6 +148,9 @@ func runPackageInstallAll(projectRoot string, ref string) error {
 }
 
 func refreshPackageRegistrations(projectRoot, label string) error {
+	if err := repairMissingLocalPackageRequirements(projectRoot); err != nil {
+		return fmt.Errorf("修复本地 package require 失败: %w", err)
+	}
 	if err := runProjectInit(projectRoot, true); err != nil {
 		return fmt.Errorf("刷新生成文件失败: %w", err)
 	}
@@ -197,6 +203,35 @@ func activePackageInstallNames(projectRoot string) ([]string, error) {
 
 	sort.Strings(names)
 	return names, nil
+}
+
+func repairMissingLocalPackageRequirements(projectRoot string) error {
+	names, err := activePackageInstallNames(projectRoot)
+	if err != nil {
+		return err
+	}
+
+	for _, name := range names {
+		importPath := util.CanonicalPackageImport(name)
+		if _, exists, err := goModRequireVersion(projectRoot, importPath); err != nil {
+			return err
+		} else if exists {
+			continue
+		}
+
+		target, local, err := localReplaceTarget(projectRoot, importPath)
+		if err != nil {
+			return err
+		}
+		if !local {
+			continue
+		}
+		if err := runGoModEditRequire(projectRoot, importPath, localPackageRequireVersion); err != nil {
+			return err
+		}
+		fmt.Printf("dever package: 已恢复本地 replace %s => %s 的 require\n", importPath, target)
+	}
+	return nil
 }
 
 func packageNameFromCanonicalImport(importPath string) (string, error) {
@@ -278,7 +313,7 @@ func ensurePackageRequirement(projectRoot, importPath string, ref string) error 
 		if _, exists, err := goModRequireVersion(projectRoot, importPath); err != nil {
 			return err
 		} else if !exists {
-			if err := runGoModEditRequire(projectRoot, importPath, "v0.0.0"); err != nil {
+			if err := runGoModEditRequire(projectRoot, importPath, localPackageRequireVersion); err != nil {
 				return err
 			}
 		}
