@@ -41,12 +41,10 @@ func runInstall(args []string) {
 
 	if !*skipSkills {
 		if err := runSkillInstall(skillInstallOptions{
-			projectRoot:    root,
-			global:         true,
-			project:        false,
-			agents:         true,
-			trellis:        true,
-			trellisProject: true,
+			projectRoot: root,
+			global:      true,
+			project:     false,
+			agents:      true,
 		}); err != nil {
 			log.Fatalf("安装 dever skill 失败: %v", err)
 		}

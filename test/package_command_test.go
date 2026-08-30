@@ -10,10 +10,8 @@ import (
 )
 
 func TestPackageUpdateRepairsMissingLocalReplaceRequirement(t *testing.T) {
-	frameworkRoot := testFrameworkRoot(t)
+	deverBinary := buildTestDeverBinary(t)
 	tempRoot := t.TempDir()
-	deverBinary := filepath.Join(tempRoot, "dever")
-	runTestCommand(t, frameworkRoot, nil, "go", "build", "-o", deverBinary, "./cmd/dever")
 
 	packageRepos := filepath.Join(tempRoot, "repos")
 	frontRepo := filepath.Join(packageRepos, "front")
@@ -68,6 +66,14 @@ replace github.com/dever-package/crm => ./package/crm
 	if !strings.Contains(goMod, "github.com/dever-package/crm v0.0.0") {
 		t.Fatalf("missing local crm requirement was not repaired:\n%s", goMod)
 	}
+}
+
+func buildTestDeverBinary(t *testing.T) string {
+	t.Helper()
+	tempRoot := t.TempDir()
+	deverBinary := filepath.Join(tempRoot, "dever")
+	runTestCommand(t, testFrameworkRoot(t), nil, "go", "build", "-o", deverBinary, "./cmd/dever")
+	return deverBinary
 }
 
 func testFrameworkRoot(t *testing.T) string {

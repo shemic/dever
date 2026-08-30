@@ -22,16 +22,12 @@ const (
 )
 
 type skillInstallOptions struct {
-	projectRoot    string
-	global         bool
-	project        bool
-	agents         bool
-	repo           string
-	ref            string
-	trellis        bool
-	trellisProject bool
-	trellisUser    string
-	trellisVersion string
+	projectRoot string
+	global      bool
+	project     bool
+	agents      bool
+	repo        string
+	ref         string
 }
 
 func runSkill(args []string) {
@@ -55,7 +51,7 @@ func printSkillUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `dever skill - AI skill 安装和检查命令
 
 Usage:
-    dever skill install [--project-root=.] [--global=true] [--project=false] [--agents=true] [--trellis=true] [--trellis-project=true] [--trellis-user=] [--trellis-version=latest] [--repo=https://github.com/shemic/skills-dever.git] [--ref=main]
+    dever skill install [--project-root=.] [--global=true] [--project=false] [--agents=true] [--repo=https://github.com/shemic/skills-dever.git] [--ref=main]
     dever skill doctor [--project-root=.]
 `)
 }
@@ -66,10 +62,6 @@ func runSkillInstallCommand(args []string) {
 	global := fs.Bool("global", true, "同步到常见全局 skill 目录")
 	project := fs.Bool("project", false, "同步一份项目本地 skills/skills-dever 镜像")
 	agents := fs.Bool("agents", true, "写入项目 AGENTS.md/CLAUDE.md managed block")
-	trellis := fs.Bool("trellis", true, "安装或更新 Trellis CLI")
-	trellisProject := fs.Bool("trellis-project", true, "初始化或更新当前项目的 Trellis 配置")
-	trellisUser := fs.String("trellis-user", "", "Trellis 开发者名称，默认读取 git user.name 或当前系统用户")
-	trellisVersion := fs.String("trellis-version", defaultTrellisVersion, "Trellis npm 版本或 dist-tag")
 	repo := fs.String("repo", deverSkillRepo, "skills-dever Git 仓库地址")
 	ref := fs.String("ref", deverSkillRepoRef, "skills-dever Git ref/tag/branch")
 	if err := fs.Parse(args); err != nil {
@@ -78,16 +70,12 @@ func runSkillInstallCommand(args []string) {
 
 	root := resolveProjectRoot(*projectRoot)
 	if err := runSkillInstall(skillInstallOptions{
-		projectRoot:    root,
-		global:         *global,
-		project:        *project,
-		agents:         *agents,
-		repo:           strings.TrimSpace(*repo),
-		ref:            strings.TrimSpace(*ref),
-		trellis:        *trellis,
-		trellisProject: *trellisProject,
-		trellisUser:    strings.TrimSpace(*trellisUser),
-		trellisVersion: strings.TrimSpace(*trellisVersion),
+		projectRoot: root,
+		global:      *global,
+		project:     *project,
+		agents:      *agents,
+		repo:        strings.TrimSpace(*repo),
+		ref:         strings.TrimSpace(*ref),
 	}); err != nil {
 		log.Fatalf("skill install 执行失败: %v", err)
 	}
@@ -141,17 +129,6 @@ func runSkillInstall(options skillInstallOptions) error {
 				return fmt.Errorf("创建全局 skill 引用 %s 失败: %w", target, err)
 			}
 			fmt.Printf("dever skill install: 已创建全局 skill 引用: %s -> %s\n", target, primary)
-		}
-	}
-
-	if options.trellis {
-		if err := runTrellisInstall(trellisInstallOptions{
-			projectRoot: options.projectRoot,
-			project:     options.trellisProject,
-			user:        options.trellisUser,
-			version:     options.trellisVersion,
-		}); err != nil {
-			return fmt.Errorf("安装 Trellis 失败: %w", err)
 		}
 	}
 

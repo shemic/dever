@@ -38,7 +38,7 @@ dever update --ref=latest
 ```
 
 `update` 默认追 GitHub `main`，并安装到当前 `PATH` 命中的 `dever` 所在目录；命令更新不会绑定当前项目本地源码，也不会同步 AI skill。AI skill 需要单独执行 `dever skill install`。
-`dever skill install` 还会通过 npm 安装或更新 Trellis CLI：项目尚未初始化时使用 Codex 模式创建 `.trellis/`，已初始化时安全更新未被本地修改的托管文件。可用 `--trellis=false` 跳过 Trellis，或用 `--trellis-project=false` 只更新全局 CLI、不修改项目。
+`dever skill install` 只同步 shemic-dever skill 和项目 agent 提示，不安装、更新或配置 Trellis。Trellis 和 Codex 调度统一由 DAI 管理，更新使用 `dai trellis update`。
 同时，`update` 会先在当前 Dever 后端项目里执行 `go get github.com/shemic/dever@<ref>`，更新项目依赖的 Dever 框架，再安装同一 ref 的 `dever` 命令；如当前目录是 `dever` 框架源码目录，会自动尝试更新父级业务项目。只想更新命令时使用 `--skip-framework`。
 
 常用发布和提交命令：
@@ -138,7 +138,7 @@ dever push
 | `dever daemon start\|stop\|restart\|status\|logs [--project-root=.] [--name=default] [-- <command...>]` | 后台运行和管理命令。`start` 需要命令，`restart` 不带命令时复用上次命令；pid、元数据和日志写入 `tmp/dever/daemon/<name>.*`。 |
 | `dever build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
 | `dever publish [--project-root=.] [--skip-build] [--include=paths] [--exclude=paths] [--service=name] [--install-service] [--restart] user@host:/opt/app` | 发布到远端服务器。`--include` 是发布包白名单，默认 `server,config`；`--exclude` 从 include 选中的目录中排除子路径。远端创建 `shared/data` 并在当前 release 内软链为 `data`。 |
-| `dever skill install [--project-root=.] [--trellis=true] [--trellis-project=true] [--trellis-user=] [--trellis-version=latest]` | 同步 shemic-dever skill 和 agent 提示，并安装/更新 Trellis；默认初始化或更新当前项目。 |
+| `dever skill install [--project-root=.] [--global=true] [--project=false] [--agents=true]` | 同步 shemic-dever skill 和项目 agent 提示。 |
 | `dever skill doctor [--project-root=.]` | 检查 shemic-dever 全局引用、项目提示和组件 skill。 |
 | `dever init [--project-root=.] [--skip-tidy]` | 执行 `go mod tidy`，然后生成 routes、service、model 注册文件。 |
 | `dever routes [--project-root=.]` | 只扫描 API 并生成 `data/router.go`。 |

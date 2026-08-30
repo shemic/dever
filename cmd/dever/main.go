@@ -72,7 +72,7 @@ Usage:
     dever cert issue|info|renew user@host --domain=example.com [options] # 使用 acme.sh 在远端签发、查看或续签 HTTPS 证书
     dever front build [--project-root=.] [name]       # 构建 module/package 下的前端插件
     dever package [--project-root=.] [name]           # 更新全部已启用 package，或安装/更新单个 package
-    dever skill install [--project-root=.] [--trellis=true] [--trellis-project=true] # 同步 AI skill，并安装/初始化 Trellis
+    dever skill install [--project-root=.]                 # 同步 shemic-dever AI skill 和项目提示
     dever skill doctor [--project-root=.]             # 检查 shemic-dever skill 安装状态
     dever init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成 routes/service/model/component 注册
     dever routes [--project-root=.]               # 仅生成路由

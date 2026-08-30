@@ -146,6 +146,7 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 - `dever run` 关注热重载稳定性和监听边界；默认使用 3 秒变更合并、跨项目共享的 4 GiB 有界 Go 构建缓存，并仅在后端重新编译期间通过缓存目录锁串行构建
 - `dever build` 关注 release 打包默认值、目标推导和输出命名一致性
 - `dever install` 关注脚本可用性和当前源码联动
+- `dever skill install` 只同步 shemic-dever skill 和项目 agent 提示；Trellis 与 Codex 调度由 DAI 管理
 - `dever package` 刷新注册前校验 active package shim；本地 `replace` 存在但 `require` 缺失时补 `v0.0.0`，实际源码仍由 `replace` 决定
 
 ### Front Plugin Compiler
