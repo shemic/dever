@@ -181,14 +181,16 @@ func runHotReload(options watchRunOptions) error {
 			restarted, restartErr := startFrontPluginDevServer(options.projectRoot)
 			if restartErr != nil {
 				log.Printf("重启前端插件源码编译服务失败: %v", restartErr)
-				frontDev = nil
-				continue
 			}
 			frontDev = restarted
 			if frontDev != nil {
 				process.env = frontDev.backendEnv()
 			} else {
 				process.env = nil
+			}
+			if err := process.restart("刷新前端插件源码编译环境", false); err != nil {
+				_ = frontDev.stop(processStopTimeout)
+				return err
 			}
 		case err := <-process.doneChannel():
 			process.clear()

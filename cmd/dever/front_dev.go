@@ -21,6 +21,8 @@ const (
 	frontPluginDevPortRange   = 20
 	frontPluginDevWait        = 8 * time.Second
 	frontPluginDevOutputLimit = 32 * 1024
+	frontPluginDevNamesEnv    = "DEVER_FRONT_PLUGIN_DEV_NAMES"
+	frontPluginDevVersionEnv  = "DEVER_FRONT_PLUGIN_DEV_VERSION"
 	maxTCPPort                = 65535
 )
 
@@ -30,10 +32,12 @@ type frontPluginDevPortConfig struct {
 }
 
 type frontPluginDevServer struct {
-	cmd    *exec.Cmd
-	done   chan error
-	url    string
-	output *frontPluginDevOutput
+	cmd         *exec.Cmd
+	done        chan error
+	url         string
+	sourceNames []string
+	version     string
+	output      *frontPluginDevOutput
 }
 
 type frontPluginDevSources struct {
@@ -129,10 +133,12 @@ func startFrontPluginDevServer(projectRoot string) (*frontPluginDevServer, error
 	}
 
 	server := &frontPluginDevServer{
-		cmd:    cmd,
-		done:   make(chan error, 1),
-		url:    url,
-		output: output,
+		cmd:         cmd,
+		done:        make(chan error, 1),
+		url:         url,
+		sourceNames: append([]string(nil), plugins.names...),
+		version:     newFrontPluginDevVersion(),
+		output:      output,
 	}
 	go func() {
 		server.done <- cmd.Wait()
@@ -161,6 +167,10 @@ func withFrontPluginDevOutput(err error, output *frontPluginDevOutput) error {
 	return fmt.Errorf("%w\n前端插件编译输出:\n%s", err, text)
 }
 
+func newFrontPluginDevVersion() string {
+	return strconv.FormatInt(time.Now().UnixNano(), 36)
+}
+
 func (s *frontPluginDevServer) backendEnv() map[string]string {
 	if s == nil || strings.TrimSpace(s.url) == "" {
 		return nil
@@ -168,6 +178,8 @@ func (s *frontPluginDevServer) backendEnv() map[string]string {
 	return map[string]string{
 		"DEVER_FRONT_PLUGIN_DEV":     "1",
 		"DEVER_FRONT_PLUGIN_DEV_URL": s.url,
+		frontPluginDevNamesEnv:       strings.Join(s.sourceNames, ","),
+		frontPluginDevVersionEnv:     s.version,
 	}
 }
 
