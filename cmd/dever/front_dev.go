@@ -216,11 +216,21 @@ func discoverRunFrontPluginSources(projectRoot string) (frontPluginDevSources, e
 	}
 	for _, current := range components {
 		hasSource := hasFrontPluginSource(current.root)
-		shouldServeSource := current.editable || !hasFrontPluginDist(current.root)
-		if hasSource && shouldServeSource {
-			names[current.name] = struct{}{}
-			roots[filepath.Join(current.root, "front")] = struct{}{}
+		if !hasSource {
+			continue
 		}
+		if !current.editable {
+			if !hasFrontPluginDist(current.root) {
+				return frontPluginDevSources{}, fmt.Errorf(
+					"%s/%s 是外部 Go module package，存在 front/src/plugin.ts 但缺少 front/dist/manifest.json；请在 package 发布前构建 dist",
+					current.source,
+					current.name,
+				)
+			}
+			continue
+		}
+		names[current.name] = struct{}{}
+		roots[filepath.Join(current.root, "front")] = struct{}{}
 	}
 
 	result := frontPluginDevSources{
