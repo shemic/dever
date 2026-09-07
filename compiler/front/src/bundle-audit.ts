@@ -51,11 +51,15 @@ type BundleAuditPluginContext = {
 export type BundleAuditPlugin = {
   name: string;
   apply: "build";
-  generateBundle: (
-    this: BundleAuditPluginContext,
-    outputOptions: unknown,
-    bundle: BundleOutputMap,
-  ) => void;
+  enforce: "post";
+  generateBundle: {
+    order: "post";
+    handler: (
+      this: BundleAuditPluginContext,
+      outputOptions: unknown,
+      bundle: BundleOutputMap,
+    ) => void;
+  };
 };
 
 type AuditedChunk = BundleOutputChunk & {
@@ -120,15 +124,19 @@ export function bundleAuditPlugin(
   return {
     name: `dever-bundle-audit-${safePluginName(label)}`,
     apply: "build",
-    generateBundle(_outputOptions, bundle) {
-      const report = auditBundle(bundle, label, options.budget);
-      this.info(report.summary);
-      if (process.env.DEVER_FRONT_BUNDLE_REPORT === "verbose") {
-        report.details.forEach((line) => this.info(line));
-      }
-      if (report.errors.length > 0) {
-        this.error(report.errors.join("\n"));
-      }
+    enforce: "post",
+    generateBundle: {
+      order: "post",
+      handler(_outputOptions, bundle) {
+        const report = auditBundle(bundle, label, options.budget);
+        this.info(report.summary);
+        if (process.env.DEVER_FRONT_BUNDLE_REPORT === "verbose") {
+          report.details.forEach((line) => this.info(line));
+        }
+        if (report.errors.length > 0) {
+          this.error(report.errors.join("\n"));
+        }
+      },
     },
   };
 }

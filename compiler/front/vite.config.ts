@@ -16,6 +16,7 @@ import {
 import { readFrontSDKExports } from "./src/sdk-exports";
 
 const compilerRoot = path.dirname(fileURLToPath(import.meta.url));
+const compilerPackageFile = path.resolve(compilerRoot, "package.json");
 const pluginRoot = process.env.DEVER_FRONT_PLUGIN_ROOT || "";
 const pluginSourceRoots = resolvePluginSourceRoots();
 const pluginName = process.env.DEVER_FRONT_PLUGIN_NAME || "plugin";
@@ -256,52 +257,11 @@ function plainObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function splitImportSpecifier(source: string) {
-  const suffixIndex = source.search(/[?#]/);
-  if (suffixIndex === -1) {
-    return { id: source, suffix: "" };
-  }
-  return {
-    id: source.slice(0, suffixIndex),
-    suffix: source.slice(suffixIndex),
-  };
-}
-
-function resolveFrontPluginDependencySubpath(source: string) {
-  const { id, suffix } = splitImportSpecifier(source);
-  for (const name of frontPluginDependencyNames) {
-    if (!id.startsWith(`${name}/`)) {
-      continue;
-    }
-    const subpath = id.slice(name.length + 1);
-    return normalizePath(path.join(dependency(name), subpath)) + suffix;
-  }
-  return "";
-}
-
-function rewriteDependencySubpathImports(code: string) {
-  let changed = false;
-  const rewrite = (
-    match: string,
-    prefix: string,
-    quote: string,
-    source: string,
-  ) => {
-    const resolved = resolveFrontPluginDependencySubpath(source);
-    if (!resolved) {
-      return match;
-    }
-    changed = true;
-    return `${prefix}${quote}${resolved}${quote}`;
-  };
-  const rewritten = code
-    .replace(
-      /(\b(?:import|export)\s+[^'"]*\bfrom\s*)(["'])([^"']+)\2/g,
-      rewrite,
-    )
-    .replace(/(\bimport\s*)(["'])([^"']+)\2/g, rewrite)
-    .replace(/(\bimport\s*\(\s*)(["'])([^"']+)\2/g, rewrite);
-  return changed ? rewritten : null;
+function isFrontPluginDependency(source: string) {
+  const packageID = source.split(/[?#]/, 1)[0];
+  return frontPluginDependencyNames.some(
+    (name) => packageID === name || packageID.startsWith(`${name}/`),
+  );
 }
 
 function readPluginMetadata(): PluginManifestMetadata {
@@ -528,27 +488,59 @@ function isCompatSourceFile(id: string) {
   );
 }
 
-function frontPluginDependencySubpathPlugin(): PluginOption {
+function frontPluginDependencyResolverPlugin(): PluginOption {
   return {
-    name: "dever-front-plugin-dependency-subpaths",
+    name: "dever-front-plugin-dependency-resolver",
     enforce: "pre",
-    resolveId(source) {
-      return resolveFrontPluginDependencySubpath(source) || null;
-    },
-    transform(code, id) {
-      if (id.includes("/node_modules/")) {
+    async resolveId(source, _importer, options) {
+      if (!isFrontPluginDependency(source)) {
         return null;
       }
-      const rewritten = rewriteDependencySubpathImports(code);
-      if (!rewritten) {
-        return null;
+
+      const resolved = await this.resolve(source, compilerPackageFile, {
+        ...options,
+        skipSelf: true,
+      });
+      if (!resolved) {
+        throw new Error(
+          `[dever-front-plugin] 无法从编译器依赖解析 ${JSON.stringify(source)}`,
+        );
       }
-      return {
-        code: rewritten,
-        map: null,
-      };
+      return resolved;
     },
   };
+}
+
+const chunkCSSLoaderError = "Dever front runtime does not support chunk styles";
+
+function injectChunkCSSLoader(
+  code: string,
+  fileName: string,
+  importedCSS: Iterable<string>,
+): string | null {
+  const cssFiles = Array.from(importedCSS);
+  if (cssFiles.length === 0 || code.includes(chunkCSSLoaderError)) {
+    return null;
+  }
+
+  const chunkDirectory = path.posix.dirname(normalizePath(fileName));
+  const styleUrls = cssFiles.map((file) => {
+    const relativeFile = path.posix.relative(
+      chunkDirectory,
+      normalizePath(file),
+    );
+    const specifier = relativeFile.startsWith(".")
+      ? relativeFile
+      : `./${relativeFile}`;
+    return `new URL(${JSON.stringify(specifier)}, import.meta.url).href`;
+  });
+  const styleLoader = [
+    "if (!window.DeverFront?.ensureStyles) {",
+    `  throw new Error(${JSON.stringify(chunkCSSLoaderError)});`,
+    "}",
+    `await window.DeverFront.ensureStyles([${styleUrls.join(",")}]);`,
+  ].join("\n");
+  return `${styleLoader}\n${code}`;
 }
 
 function pluginChunkCSSPlugin(): PluginOption {
@@ -557,32 +549,34 @@ function pluginChunkCSSPlugin(): PluginOption {
     apply: "build",
     enforce: "post",
     renderChunk(code, chunk) {
-      const cssFiles = Array.from(chunk.viteMetadata?.importedCss || []);
-      if (chunk.isEntry || cssFiles.length === 0) {
+      if (chunk.isEntry) {
         return null;
       }
-
-      const chunkDirectory = path.posix.dirname(normalizePath(chunk.fileName));
-      const styleUrls = cssFiles.map((file) => {
-        const relativeFile = path.posix.relative(
-          chunkDirectory,
-          normalizePath(file),
-        );
-        const specifier = relativeFile.startsWith(".")
-          ? relativeFile
-          : `./${relativeFile}`;
-        return `new URL(${JSON.stringify(specifier)}, import.meta.url).href`;
-      });
-      const styleLoader = [
-        "if (!window.DeverFront?.ensureStyles) {",
-        `  throw new Error(${JSON.stringify("Dever front runtime does not support chunk styles")});`,
-        "}",
-        `await window.DeverFront.ensureStyles([${styleUrls.join(",")}]);`,
-      ].join("\n");
-      return {
-        code: `${styleLoader}\n${code}`,
-        map: null,
-      };
+      const injected = injectChunkCSSLoader(
+        code,
+        chunk.fileName,
+        chunk.viteMetadata?.importedCss || [],
+      );
+      return injected ? { code: injected, map: null } : null;
+    },
+    generateBundle: {
+      order: "post",
+      handler(_options, bundle) {
+        // Vite transfers styles from removed pure-CSS chunks at this stage.
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== "chunk" || chunk.isEntry) {
+            continue;
+          }
+          const injected = injectChunkCSSLoader(
+            chunk.code,
+            chunk.fileName,
+            chunk.viteMetadata?.importedCss || [],
+          );
+          if (injected) {
+            chunk.code = injected;
+          }
+        }
+      },
     },
   };
 }
@@ -601,13 +595,6 @@ function shimFile(name: string) {
     throw new Error(`Unknown front plugin shim: ${name}`);
   }
   return path.join(shimRoot, file);
-}
-
-function frontPluginDependencyAliases() {
-  return frontPluginDependencyNames.map((name) => ({
-    find: name,
-    replacement: dependency(name),
-  }));
 }
 
 function runtimeAlias() {
@@ -648,7 +635,6 @@ function runtimeAlias() {
     { find: "@xyflow/react", replacement: dependency("@xyflow/react") },
     { find: "lucide-react", replacement: dependency("lucide-react") },
     { find: "sonner", replacement: dependency("sonner") },
-    ...frontPluginDependencyAliases(),
   ];
 }
 
@@ -673,7 +659,7 @@ export default defineConfig(({ command }) => {
       "process.env.NODE_ENV": JSON.stringify(nodeEnv),
     },
     plugins: [
-      frontPluginDependencySubpathPlugin(),
+      frontPluginDependencyResolverPlugin(),
       runtimeEntryPlugin(),
       compatImportPlugin(compatLoadMode),
       react(),

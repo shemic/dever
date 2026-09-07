@@ -154,6 +154,7 @@ description: Use when modifying the Dever framework itself under backend/dever, 
 - package/module 前端可继续使用 `@/...` 引用宿主已注册的兼容模块
 - 编译器统一从宿主模块 namespace 读取导出；禁止维护逐导出名称白名单
 - 新增宿主模块时只维护宿主 SDK 的模块注册，不在编译器重复登记其导出成员
+- 插件声明的 npm 依赖及其子路径必须从编译器 package 上下文交给 Vite 原生 resolver，保留 `exports`、browser/condition、公开 CSS 子路径和查询后缀；禁止用物理目录 alias 或源码正则改写绕过包导出边界
 - `dever front build` 按单插件根目录转换源码；`dever run` 的项目级 Vite 服务必须传入当前项目全部有效插件源码根目录，不能用单插件根目录是否存在来判断开发态源码
 - `dever run` 保持 Vite source server 和 virtual compat；生产 `dever front build` 才使用 module/preloaded compat、bundle audit 与 staging 发布
 - 插件生产预算放在插件 `front/package.json` 的 `dever.bundleBudget`；框架只校验通用结构，不写死 bot 等业务插件阈值
