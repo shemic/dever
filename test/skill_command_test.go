@@ -14,7 +14,7 @@ func TestSkillInstallDoesNotManageTrellis(t *testing.T) {
 
 	help, err := runTestCommandOutput(frameworkRoot, nil, deverBinary, "skill", "install", "--help")
 	if err != nil {
-		t.Fatalf("dever skill install --help failed: %v\n%s", err, help)
+		t.Fatalf("dever-go skill install --help failed: %v\n%s", err, help)
 	}
 	if strings.Contains(strings.ToLower(help), "trellis") {
 		t.Fatalf("skill install help still exposes Trellis support:\n%s", help)

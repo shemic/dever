@@ -16,10 +16,10 @@
 | --- | --- |
 | 启动 | 业务入口调用 `cmd.Run(data.RegisterRoutes)`。 |
 | 配置 | `config.Load` 默认读 `config/setting.jsonc`，再回退 `config/setting.json`。 |
-| 开发运行 | 先 `go run ./dever/cmd/dever install`，之后日常用 `dever run`。 |
-| 生成注册 | `dever run` 默认启动前执行 `init --skip-tidy`；也可手动执行 `dever init/routes/service/model` 排查。 |
-| 打包 | `dever build` 默认 release 参数：`linux/amd64`、CGO 关闭、`-trimpath`、`-buildvcs=false`、压缩 ldflags。 |
-| 提交 | `dever push [-m message]` 默认对调用目录执行 `git status`、`git add`、`git commit`、`git push`。 |
+| 开发运行 | 先 `go run ./dever/cmd/dever-go install`，之后日常用 `dever-go run`。 |
+| 生成注册 | `dever-go run` 默认启动前执行 `init --skip-tidy`；也可手动执行 `dever-go init/routes/service/model` 排查。 |
+| 打包 | `dever-go build` 默认 release 参数：`linux/amd64`、CGO 关闭、`-trimpath`、`-buildvcs=false`、压缩 ldflags。 |
+| 提交 | `dever-go push [-m message]` 默认对调用目录执行 `git status`、`git add`、`git commit`、`git push`。 |
 | 路由 | `module/<name>/api` 下结构体方法 `Get/Post/Put/DeleteXxx` 自动生成路由。 |
 | Provider | `module/<name>/service` 下导出接收者方法 `ProviderXxx(*server.Context, []any) any` 自动注册到 `load.Service`。 |
 | Model | `module/<name>/model` 下导出的普通函数自动注册到 `load.Model`。 |
@@ -38,7 +38,7 @@
 8. Model 构造函数返回 `*orm.Model[T]`，字段、索引、Options、Relations 写清楚。
 9. 查询必须考虑分页、索引、条件下推，避免无边界全表扫描。
 10. 外部调用、事务、Redis lock、状态流转要说明失败处理和一致性策略。
-11. 不手改生成文件；涉及 api/service/model 后依赖 `dever run` 或 `dever init` 重新生成。
+11. 不手改生成文件；涉及 api/service/model 后依赖 `dever-go run` 或 `dever-go init` 重新生成。
 12. 修改 README、skill、模板或示例时，必须先对当前代码，不能沿用旧口径。
 
 ## 4. 工作流程
@@ -97,29 +97,29 @@
 日常：
 
 ```sh
-dever run
+dever-go run
 ```
 
 排查生成器：
 
 ```sh
-dever routes
-dever service
-dever model
-dever init --skip-tidy
+dever-go routes
+dever-go service
+dever-go model
+dever-go init --skip-tidy
 ```
 
 发布与提交：
 
 ```sh
-dever build
-dever push -m "edit"
+dever-go build
+dever-go push -m "edit"
 ```
 
 迁移：
 
 ```sh
-dever migrate default
+dever-go migrate default
 ```
 
 ## 7. 输出要求

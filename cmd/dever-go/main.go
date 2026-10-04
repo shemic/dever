@@ -1,0 +1,174 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"strings"
+
+	devercmd "github.com/shemic/dever/cmd"
+)
+
+const commandName = "dever-go"
+
+func main() {
+	log.SetFlags(0)
+
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(1)
+	}
+
+	switch os.Args[1] {
+	case "run":
+		runWatchMode(os.Args[2:])
+	case "cache-prog":
+		runCacheProg(os.Args[2:])
+	case "daemon":
+		runDaemon(os.Args[2:])
+	case "build":
+		runBuild(os.Args[2:])
+	case "publish":
+		runPublish(os.Args[2:])
+	case "cert":
+		runCert(os.Args[2:])
+	case "front":
+		runFront(os.Args[2:])
+	case "package":
+		runPackage(os.Args[2:])
+	case "skill":
+		runSkill(os.Args[2:])
+	case "init":
+		runInit(os.Args[2:])
+	case "routes":
+		runRoutes(os.Args[2:])
+	case "service":
+		runService(os.Args[2:])
+	case "model":
+		runModel(os.Args[2:])
+	case "component":
+		runComponent(os.Args[2:])
+	case "migrate":
+		runMigrate(os.Args[2:])
+	case "install":
+		runInstall(os.Args[2:])
+	case "update":
+		runUpdate(os.Args[2:])
+	case "push":
+		runPush(os.Args[2:])
+	default:
+		printUsage()
+		os.Exit(1)
+	}
+}
+
+func printUsage() {
+	fmt.Fprintf(flag.CommandLine.Output(), `dever-go - 开发辅助命令
+
+Usage:
+    dever-go run [--project-root=.] [--entry=main.go] [--interval=800ms] [--debounce=3s] [--cache-max=4GiB] [--cache-dir=] [--skip-init] # 热重载运行当前项目
+    dever-go daemon start|stop|restart|status|logs [--project-root=.] [--name=default] -- <command...>
+    dever-go build [--project-root=.] [--output=] [--os=linux] [--arch=amd64] [--cgo=false] [--skip-front] [target]
+    dever-go publish [--project-root=.] [--skip-build] [--include=paths] [--exclude=paths] [--service=name] [--install-service] [--restart] user@host:/opt/app
+    dever-go cert issue|info|renew user@host --domain=example.com [options] # 使用 acme.sh 在远端签发、查看或续签 HTTPS 证书
+    dever-go front build [--project-root=.] [name]       # 构建 module/package 下的前端插件
+    dever-go package [--project-root=.] [name]           # 更新全部已启用 package，或安装/更新单个 package
+    dever-go skill install [--project-root=.]                 # 同步 shemic-dever AI skill 和项目提示
+    dever-go skill doctor [--project-root=.]             # 检查 shemic-dever skill 安装状态
+    dever-go init [--project-root=.] [--skip-tidy]   # 执行 go mod tidy 并生成 routes/service/model/component 注册
+    dever-go routes [--project-root=.]               # 仅生成路由
+    dever-go service [--project-root=.]              # 仅生成 service 注册
+    dever-go model [--project-root=.]                # 仅生成 model 注册
+    dever-go component [--project-root=.]            # 仅生成 component 注册
+    dever-go migrate [--project-root=.] <database>   # 应用 data/table 中记录的表结构到目标数据库
+    dever-go install [--project-root=.] [--bin-dir=] [--skip-skills] # 安装启动脚本，并默认同步 AI skill
+    dever-go update [--project-root=.] [--bin-dir=] [--ref=main] [--skip-framework] # 从 GitHub 更新 dever-go 命令和当前项目框架依赖，默认追 main
+    dever-go push [--project-root=.] [--message=edit|-m edit] # git status/add/commit/push，并按 dever.json.version 推 tag
+`)
+}
+
+func runInit(args []string) {
+	fs := flag.NewFlagSet("init", flag.ExitOnError)
+	skipTidy := fs.Bool("skip-tidy", false, "跳过执行 go mod tidy")
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("init 参数解析失败: %v", err)
+	}
+
+	root := resolveProjectRoot(*projectRoot)
+	if err := runProjectInit(root, *skipTidy); err != nil {
+		log.Fatalf("init 执行失败: %v", err)
+	}
+}
+
+func runRoutes(args []string) {
+	fs := flag.NewFlagSet("routes", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("routes 参数解析失败: %v", err)
+	}
+	root := resolveProjectRoot(*projectRoot)
+	if err := devercmd.GenerateRoutes(root); err != nil {
+		log.Fatalf("路由生成失败: %v", err)
+	}
+}
+
+func runService(args []string) {
+	fs := flag.NewFlagSet("service", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("service 参数解析失败: %v", err)
+	}
+	root := resolveProjectRoot(*projectRoot)
+	if err := devercmd.GenerateServices(root); err != nil {
+		log.Fatalf("service 生成失败: %v", err)
+	}
+}
+
+func runModel(args []string) {
+	fs := flag.NewFlagSet("model", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("model 参数解析失败: %v", err)
+	}
+	root := resolveProjectRoot(*projectRoot)
+	if err := devercmd.GenerateModels(root); err != nil {
+		log.Fatalf("model 生成失败: %v", err)
+	}
+}
+
+func runComponent(args []string) {
+	fs := flag.NewFlagSet("component", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("component 参数解析失败: %v", err)
+	}
+	root := resolveProjectRoot(*projectRoot)
+	if err := devercmd.GenerateComponents(root); err != nil {
+		log.Fatalf("component 生成失败: %v", err)
+	}
+}
+
+func runMigrate(args []string) {
+	fs := flag.NewFlagSet("migrate", flag.ExitOnError)
+	projectRoot := fs.String("project-root", ".", "项目根目录（默认当前目录）")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("migrate 参数解析失败: %v", err)
+	}
+	if fs.NArg() < 1 {
+		log.Fatal("migrate 需要指定目标数据库名称，例如：dever-go migrate default")
+	}
+	target := strings.TrimSpace(fs.Arg(0))
+	if target == "" {
+		log.Fatal("数据库名称不能为空")
+	}
+
+	root := resolveProjectRoot(*projectRoot)
+	if err := os.Chdir(root); err != nil {
+		log.Fatalf("切换到项目目录失败: %v", err)
+	}
+	if err := devercmd.RunMigrations(root, target); err != nil {
+		log.Fatalf("数据库迁移失败: %v", err)
+	}
+}

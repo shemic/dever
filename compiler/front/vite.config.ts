@@ -110,7 +110,7 @@ function resolvePluginOutputRoot(command: string) {
   const configured = (process.env.DEVER_FRONT_PLUGIN_OUT_DIR || "").trim();
   if (!configured) {
     throw new Error(
-      "[dever-front-plugin] 生产构建必须通过 dever front build 使用 staging 输出目录",
+      "[dever-front-plugin] 生产构建必须通过 dever-go front build 使用 staging 输出目录",
     );
   }
   const resolvedPluginRoot = path.resolve(pluginRoot);

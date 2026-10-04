@@ -7,7 +7,7 @@
 | 目录 | 作用 |
 | --- | --- |
 | `cmd/` | 框架运行入口与生成器：启动 HTTP 服务，生成 `data/router.go`、`data/load/service.go`、`data/load/model.go`，执行迁移。 |
-| `cmd/dever/` | 开发命令行：`run`、`build`、`publish`、`init`、`routes`、`service`、`model`、`migrate`、`install`、`update`、`push`。 |
+| `cmd/dever-go/` | 开发命令行：`run`、`build`、`publish`、`init`、`routes`、`service`、`model`、`migrate`、`install`、`update`、`push`。 |
 | `config/` | 读取 `config/setting.jsonc` 或 `config/setting.json`，提供日志、HTTP、数据库、Redis、observe、auth 等配置结构。 |
 | `server/` | 统一 HTTP 抽象，封装 `server.Context`、请求参数、JSON 响应和 Fiber 适配。 |
 | `middleware/` | 全局与路由级中间件注册，默认提供 Recover + Log。 |
@@ -21,35 +21,39 @@
 
 ## 2. 快速启动
 
-在业务项目根目录执行。若项目通过 `replace github.com/shemic/dever => ./dever` 使用本地框架，命令路径就是 `./dever/cmd/dever`。
+在业务项目根目录执行。若项目通过 `replace github.com/shemic/dever => ./dever` 使用本地框架，命令路径就是 `./dever/cmd/dever-go`。
 
 ```sh
-go run ./dever/cmd/dever install
-dever run
+go run ./dever/cmd/dever-go install
+dever-go run
 ```
 
-`install` 会把一个 `dever` 启动脚本写入当前 `PATH` 命中的 `dever` 所在目录；如果该目录不可写，则回退到用户 bin 目录。脚本始终执行当前项目内的 `dever/cmd/dever` 源码。后续日常开发优先使用 `dever run`，它会先执行 `init --skip-tidy`，并在 `module/*/{api,service,model}` 等敏感文件变化后重新生成注册文件再重启服务。`dever run` 默认把连续 3 秒内的文件变更合并为一次构建，并让所有项目共享一个高水位为 4 GiB、按最近使用顺序回收的 Go 构建缓存。
+`install` 会把一个 `dever-go` 启动脚本写入当前 `PATH` 命中的 `dever-go` 所在目录；如果该目录不可写，则回退到用户 bin 目录。脚本始终执行当前项目内的 `dever/cmd/dever-go` 源码。后续日常开发优先使用 `dever-go run`，它会先执行 `init --skip-tidy`，并在 `module/*/{api,service,model}` 等敏感文件变化后重新生成注册文件再重启服务。`dever-go run` 默认把连续 3 秒内的文件变更合并为一次构建，并让所有项目共享一个高水位为 4 GiB、按最近使用顺序回收的 Go 构建缓存。
 
-如果只想从 GitHub 更新最新版 `dever` 命令，使用：
+如果只想从 GitHub 更新最新版 `dever-go` 命令，使用：
 
 ```sh
-dever update
-dever update --ref=latest
+dever-go update
+dever-go update --ref=latest
 ```
 
-`update` 默认追 GitHub `main`，并安装到当前 `PATH` 命中的 `dever` 所在目录；命令更新不会绑定当前项目本地源码，也不会同步 AI skill。AI skill 需要单独执行 `dever skill install`。
-`dever skill install` 只同步 shemic-dever skill 和项目 agent 提示，不安装、更新或配置 Trellis。Trellis 和 Codex 调度统一由 DAI 管理，更新使用 `dai trellis update`。
-同时，`update` 会先在当前 Dever 后端项目里执行 `go get github.com/shemic/dever@<ref>`，更新项目依赖的 Dever 框架，再安装同一 ref 的 `dever` 命令；如当前目录是 `dever` 框架源码目录，会自动尝试更新父级业务项目。只想更新命令时使用 `--skip-framework`。
+`update` 默认追 GitHub `main`，并安装到当前 `PATH` 命中的 `dever-go` 所在目录；命令更新不会绑定当前项目本地源码，也不会同步 AI skill。AI skill 需要单独执行 `dever-go skill install`。
+`dever-go skill install` 只同步 shemic-dever skill 和项目 agent 提示，不安装、更新或配置 Trellis。Trellis 和 Codex 调度统一由 DAI 管理，更新使用 `dai trellis update`。
+同时，`update` 会先在当前 Dever 后端项目里执行 `go get github.com/shemic/dever@<ref>`，更新项目依赖的 Dever 框架，再安装同一 ref 的 `dever-go` 命令；如当前目录是 `dever` 框架源码目录，会自动尝试更新父级业务项目。只想更新命令时使用 `--skip-framework`。
+
+旧版迁移时，先安装并验证 `dever-go`，再将启动脚本、systemd 或后台任务里的 Go CLI 调用改为新名称。已有 `dever-go daemon` 任务会保留上次记录的命令；需要用 `dever-go daemon restart -- dever-go run` 显式更新记录。安装和更新不会覆盖或删除已有的 `dever`。确认旧文件属于此 Go CLI 且相关任务已迁移后，再单独移除旧入口；切换正在运行的开发服务需安排重启。
+
+在线安装使用 `github.com/shemic/dever/cmd/dever-go`。先发布包含此入口的稳定 Go tag，再发布默认使用 `@latest` 的安装脚本；旧 tag 没有新入口，不能用于更新新 CLI。Go module、`dever.json`、`DEVER_*` 环境变量、运行数据及锁目录保持原契约。
 
 常用发布和提交命令：
 
 ```sh
-dever build
-dever publish root@1.2.3.4:/opt/myapp
-dever push
+dever-go build
+dever-go publish root@1.2.3.4:/opt/myapp
+dever-go push
 ```
 
-`dever build` 默认打包当前项目根入口 `main.go`，目标为 `linux/amd64`、关闭 CGO，并使用 release 参数 `-trimpath -buildvcs=false -ldflags="-s -w -buildid="`。`dever publish` 的 `--include` 是发布包白名单，默认值为 `server,config`；只想覆盖二进制时使用 `--include=server`，远端会复用当前 release 的 `config`。远端 `data` 使用 `shared/data` 持久化目录。`dever push` 会读取 `git status`，把有变更的文件加入暂存区，执行 `git commit -m "edit"`，最后 `git push`；没有本地变更时直接 `git push`。
+`dever-go build` 默认打包当前项目根入口 `main.go`，目标为 `linux/amd64`、关闭 CGO，并使用 release 参数 `-trimpath -buildvcs=false -ldflags="-s -w -buildid="`。`dever-go publish` 的 `--include` 是发布包白名单，默认值为 `server,config`；只想覆盖二进制时使用 `--include=server`，远端会复用当前 release 的 `config`。远端 `data` 使用 `shared/data` 持久化目录。`dever-go push` 会读取 `git status`，把有变更的文件加入暂存区，执行 `git commit -m "edit"`，最后 `git push`；没有本地变更时直接 `git push`。
 
 ## 3. 配置
 
@@ -123,41 +127,41 @@ dever push
 配置要点：
 
 - `database.create=true` 会在首次加载 Model 时启用自动建表和结构更新。
-- `database.persist=true` 会把 schema 记录到 `data/table`，`dever migrate <database>` 会读取这些记录应用到目标数据库。
+- `database.persist=true` 会把 schema 记录到 `data/table`，`dever-go migrate <database>` 会读取这些记录应用到目标数据库。
 - `database.default` 可以是连接名，也可以直接是默认连接对象。
 - `http.cors.enabled=true` 时，未配置 method/header 会使用框架默认值。
 - `observe.enabled=true` 时，请求中间件和 ORM 会记录 trace/span、慢请求和慢 SQL。
 
 ## 4. 命令行
 
-安装后使用 `dever ...`；未安装时使用 `go run ./dever/cmd/dever ...`。
+安装后使用 `dever-go ...`；未安装时使用 `go run ./dever/cmd/dever-go ...`。
 
 | 命令 | 说明 |
 | --- | --- |
-| `dever run [--project-root=.] [--entry=main.go] [--interval=800ms] [--debounce=3s] [--cache-max=4GiB] [--cache-dir=] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`dever`、`middleware`、`module`、`package` 等源码/配置目录；不监听 `data` 运行数据。连续变更合并后再构建，Go 构建缓存默认共享且有界。 |
-| `dever daemon start\|stop\|restart\|status\|logs [--project-root=.] [--name=default] [-- <command...>]` | 后台运行和管理命令。`start` 需要命令，`restart` 不带命令时复用上次命令；pid、元数据和日志写入 `tmp/dever/daemon/<name>.*`。 |
-| `dever build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
-| `dever publish [--project-root=.] [--skip-build] [--include=paths] [--exclude=paths] [--service=name] [--install-service] [--restart] user@host:/opt/app` | 发布到远端服务器。`--include` 是发布包白名单，默认 `server,config`；`--exclude` 从 include 选中的目录中排除子路径。远端创建 `shared/data` 并在当前 release 内软链为 `data`。 |
-| `dever skill install [--project-root=.] [--global=true] [--project=false] [--agents=true]` | 同步 shemic-dever skill 和项目 agent 提示。 |
-| `dever skill doctor [--project-root=.]` | 检查 shemic-dever 全局引用、项目提示和组件 skill。 |
-| `dever init [--project-root=.] [--skip-tidy]` | 执行 `go mod tidy`，然后生成 routes、service、model 注册文件。 |
-| `dever routes [--project-root=.]` | 只扫描 API 并生成 `data/router.go`。 |
-| `dever service [--project-root=.]` | 只扫描 Provider 并生成 `data/load/service.go`。 |
-| `dever model [--project-root=.]` | 只扫描 Model 构造函数并生成 `data/load/model.go`。 |
-| `dever migrate [--project-root=.] <database>` | 将 `data/table` 中记录的 schema 应用到指定数据库。 |
-| `dever install [--project-root=.] [--bin-dir=]` | 安装本项目绑定的 `dever` 启动脚本；默认覆盖当前 `PATH` 命中的 `dever` 目录，`--bin-dir` 可强制指定目录。 |
-| `dever update [--project-root=.] [--bin-dir=] [--ref=main] [--skip-framework]` | 从 GitHub 更新 `dever` 命令和当前项目的 `github.com/shemic/dever` 框架依赖；默认追 `main`，不同步 AI skill。 |
-| `dever push [--project-root=.] [--message=edit] [-m edit]` | 默认对调用 `dever` 时所在目录执行 git 操作；输出 `git status --short`，`git add` 变更文件，`git commit -m <message>`，最后 `git push`。 |
+| `dever-go run [--project-root=.] [--entry=main.go] [--interval=800ms] [--debounce=3s] [--cache-max=4GiB] [--cache-dir=] [--skip-init]` | 热重载运行项目。默认启动前执行 `init --skip-tidy`，监听 `config`、`dever`、`middleware`、`module`、`package` 等源码/配置目录；不监听 `data` 运行数据。连续变更合并后再构建，Go 构建缓存默认共享且有界。 |
+| `dever-go daemon start\|stop\|restart\|status\|logs [--project-root=.] [--name=default] [-- <command...>]` | 后台运行和管理命令。`start` 需要命令，`restart` 不带命令时复用上次命令；pid、元数据和日志写入 `tmp/dever/daemon/<name>.*`。 |
+| `dever-go build [--project-root=.] [--output=] [-o=] [--os=linux] [--arch=amd64] [--cgo=false] [target]` | release 打包。`target` 可以为空、目录或 `main.go`；默认输出到项目根目录的 `server`，Windows 自动补 `.exe`。 |
+| `dever-go publish [--project-root=.] [--skip-build] [--include=paths] [--exclude=paths] [--service=name] [--install-service] [--restart] user@host:/opt/app` | 发布到远端服务器。`--include` 是发布包白名单，默认 `server,config`；`--exclude` 从 include 选中的目录中排除子路径。远端创建 `shared/data` 并在当前 release 内软链为 `data`。 |
+| `dever-go skill install [--project-root=.] [--global=true] [--project=false] [--agents=true]` | 同步 shemic-dever skill 和项目 agent 提示。 |
+| `dever-go skill doctor [--project-root=.]` | 检查 shemic-dever 全局引用、项目提示和组件 skill。 |
+| `dever-go init [--project-root=.] [--skip-tidy]` | 执行 `go mod tidy`，然后生成 routes、service、model 注册文件。 |
+| `dever-go routes [--project-root=.]` | 只扫描 API 并生成 `data/router.go`。 |
+| `dever-go service [--project-root=.]` | 只扫描 Provider 并生成 `data/load/service.go`。 |
+| `dever-go model [--project-root=.]` | 只扫描 Model 构造函数并生成 `data/load/model.go`。 |
+| `dever-go migrate [--project-root=.] <database>` | 将 `data/table` 中记录的 schema 应用到指定数据库。 |
+| `dever-go install [--project-root=.] [--bin-dir=]` | 安装本项目绑定的 `dever-go` 启动脚本；默认覆盖当前 `PATH` 命中的 `dever-go` 目录，`--bin-dir` 可强制指定目录。 |
+| `dever-go update [--project-root=.] [--bin-dir=] [--ref=main] [--skip-framework]` | 从 GitHub 更新 `dever-go` 命令和当前项目的 `github.com/shemic/dever` 框架依赖；默认追 `main`，不同步 AI skill。 |
+| `dever-go push [--project-root=.] [--message=edit] [-m edit]` | 默认对调用 `dever-go` 时所在目录执行 git 操作；输出 `git status --short`，`git add` 变更文件，`git commit -m <message>`，最后 `git push`。 |
 
-日常开发只需要 `dever run`。显式执行 `routes/service/model/init` 主要用于排查生成问题，生成文件不要手改：
+日常开发只需要 `dever-go run`。显式执行 `routes/service/model/init` 主要用于排查生成问题，生成文件不要手改：
 
 - `data/router.go`
 - `data/load/service.go`
 - `data/load/model.go`
 
-### 4.1 `dever run` 构建缓存
+### 4.1 `dever-go run` 构建缓存
 
-`dever run` 默认使用 `~/.cache/dever/go-build`（以操作系统用户缓存目录为准）作为所有项目共用的 Go 构建缓存。缓存达到 4 GiB 高水位后，会按最近使用顺序回收至 3 GiB。缓存文件正在被本次构建使用时不会被删除；本次构建结束后才执行严格回收。
+`dever-go run` 默认使用 `~/.cache/dever/go-build`（以操作系统用户缓存目录为准）作为所有项目共用的 Go 构建缓存。缓存达到 4 GiB 高水位后，会按最近使用顺序回收至 3 GiB。缓存文件正在被本次构建使用时不会被删除；本次构建结束后才执行严格回收。
 
 多个项目可以同时保持运行和热更新。为避免并发编译同时写入、淘汰共享缓存，后端重新编译会短暂串行等待；已经启动的项目进程不会因此停止。首次启用新缓存或手动清空缓存后，第一次编译会比缓存命中时慢。
 
@@ -165,7 +169,7 @@ dever push
 - `--cache-max=4GiB`：缓存高水位，支持 `GiB`、`GB`、`MiB`、`MB` 等单位；`0` 或 `off` 关闭 Dever 有界缓存。
 - `--cache-dir=<path>`：覆盖共享缓存目录。使用不同目录的项目不会共享缓存，也不会互相等待构建锁。
 
-新缓存不会自动删除历史 `GOCACHE`。确认所有项目已改用新版 `dever run` 后，可由运维单独清理旧缓存；不要把旧缓存清理放进每次热更新流程。
+新缓存不会自动删除历史 `GOCACHE`。确认所有项目已改用新版 `dever-go run` 后，可由运维单独清理旧缓存；不要把旧缓存清理放进每次热更新流程。
 
 ## 5. 服务入口
 
@@ -433,27 +437,27 @@ _, _ = remaining, err
 常规流程：
 
 ```sh
-dever run
-dever daemon start --name run -- dever run
-dever build
-dever publish root@1.2.3.4:/opt/myapp
-dever publish root@1.2.3.4:/opt/myapp --service=myapp --install-service --restart
-dever publish root@1.2.3.4:/opt/myapp --include=server --service=myapp --restart
-dever push
+dever-go run
+dever-go daemon start --name run -- dever-go run
+dever-go build
+dever-go publish root@1.2.3.4:/opt/myapp
+dever-go publish root@1.2.3.4:/opt/myapp --service=myapp --install-service --restart
+dever-go publish root@1.2.3.4:/opt/myapp --include=server --service=myapp --restart
+dever-go push
 ```
 
-`dever build` 可指定目标：
+`dever-go build` 可指定目标：
 
 ```sh
-dever build
-dever build cmd/worker
-dever build cmd/worker/main.go -o data/bin/worker --os=linux --arch=amd64
+dever-go build
+dever-go build cmd/worker
+dever-go build cmd/worker/main.go -o data/bin/worker --os=linux --arch=amd64
 ```
 
-`dever publish` 本地构建后生成发布包并上传远端。同一次发布会复用一个临时 SSH ControlMaster 连接，避免 `ssh` 准备目录、`scp` 上传、`ssh` 激活发布时反复输入密码；如果远端或本机 SSH 不支持连接复用，会回退为普通 SSH 行为并按 SSH 提示处理。
+`dever-go publish` 本地构建后生成发布包并上传远端。同一次发布会复用一个临时 SSH ControlMaster 连接，避免 `ssh` 准备目录、`scp` 上传、`ssh` 激活发布时反复输入密码；如果远端或本机 SSH 不支持连接复用，会回退为普通 SSH 行为并按 SSH 提示处理。
 
 ```sh
-dever publish root@1.2.3.4:/opt/myapp
+dever-go publish root@1.2.3.4:/opt/myapp
 ```
 
 远端目录结构为：
@@ -471,13 +475,13 @@ dever publish root@1.2.3.4:/opt/myapp
 复用已经构建好的本地二进制：
 
 ```sh
-dever publish root@1.2.3.4:/opt/myapp --skip-build --binary=server
+dever-go publish root@1.2.3.4:/opt/myapp --skip-build --binary=server
 ```
 
 只覆盖线上 `server`，不覆盖远端配置：
 
 ```sh
-dever publish root@1.2.3.4:/opt/myapp --include=server --service=myapp --restart
+dever-go publish root@1.2.3.4:/opt/myapp --include=server --service=myapp --restart
 ```
 
 `--include=server` 要求远端已经存在 `current/config`；首次上线或需要同步配置变更时使用默认 include，不要只发布 `server`。`--install-service` 只控制是否写 systemd unit，不控制是否发布配置。
@@ -485,29 +489,29 @@ dever publish root@1.2.3.4:/opt/myapp --include=server --service=myapp --restart
 需要额外发布运行数据目录时，把它们写进 `--include` 白名单。`data/...` 会先合并到远端 `shared/data`，然后当前 release 里的 `data` 继续软链到 `shared/data`：
 
 ```sh
-dever publish root@1.2.3.4:/opt/myapp --include=server,config,data/log,data/table,data/migrations --service=myapp --restart
+dever-go publish root@1.2.3.4:/opt/myapp --include=server,config,data/log,data/table,data/migrations --service=myapp --restart
 ```
 
 `--exclude` 只过滤 `--include` 选中的内容，所以可以发布 `data` 但排除日志目录：
 
 ```sh
-dever publish root@1.2.3.4:/opt/myapp --include=server,config,data --exclude=data/log --service=myapp --restart
+dever-go publish root@1.2.3.4:/opt/myapp --include=server,config,data --exclude=data/log --service=myapp --restart
 ```
 
 需要写入 systemd 并重启时必须显式指定服务名：
 
 ```sh
-dever publish root@1.2.3.4:/opt/myapp --service=myapp --install-service --restart
-dever publish --service=myapp --install-service --restart root@1.2.3.4:/opt/myapp
+dever-go publish root@1.2.3.4:/opt/myapp --service=myapp --install-service --restart
+dever-go publish --service=myapp --install-service --restart root@1.2.3.4:/opt/myapp
 ```
 
 `publish` 支持把参数写在远端目标前或后；远端目标仍然只能有一个。
 
-`dever push` 默认操作当前 shell 所在目录，即使 `dever` 启动脚本内部会切到框架源码目录运行，也不会改变 git 目标目录。可指定提交信息：
+`dever-go push` 默认操作当前 shell 所在目录，即使 `dever-go` 启动脚本内部会切到框架源码目录运行，也不会改变 git 目标目录。可指定提交信息：
 
 ```sh
-dever push -m "edit"
-dever push --message "update user module"
+dever-go push -m "edit"
+dever-go push --message "update user module"
 ```
 
 提交前建议人工确认：
@@ -515,6 +519,6 @@ dever push --message "update user module"
 - `data/router.go` 是否因 API 变化更新。
 - `data/load/service.go` 是否因 Provider 变化更新。
 - `data/load/model.go` 是否因 Model 构造函数变化更新。
-- `data/table` 是否因模型结构变化更新，并确认是否需要执行 `dever migrate <database>`。
+- `data/table` 是否因模型结构变化更新，并确认是否需要执行 `dever-go migrate <database>`。
 
-核心原则：业务代码写在 `module/*`，生成文件交给 `dever run` 或 `dever init`，发布用 `dever build`，提交用 `dever push`。
+核心原则：业务代码写在 `module/*`，生成文件交给 `dever-go run` 或 `dever-go init`，发布用 `dever-go build`，提交用 `dever-go push`。

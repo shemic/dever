@@ -59,7 +59,7 @@ replace github.com/dever-package/crm => ./package/crm
 		"front",
 	)
 	if err != nil {
-		t.Fatalf("dever package front failed: %v\n%s", err, output)
+		t.Fatalf("dever-go package front failed: %v\n%s", err, output)
 	}
 
 	goMod := readTestFile(t, filepath.Join(projectRoot, "go.mod"))
@@ -71,8 +71,8 @@ replace github.com/dever-package/crm => ./package/crm
 func buildTestDeverBinary(t *testing.T) string {
 	t.Helper()
 	tempRoot := t.TempDir()
-	deverBinary := filepath.Join(tempRoot, "dever")
-	runTestCommand(t, testFrameworkRoot(t), nil, "go", "build", "-o", deverBinary, "./cmd/dever")
+	deverBinary := filepath.Join(tempRoot, "dever-go")
+	runTestCommand(t, testFrameworkRoot(t), nil, "go", "build", "-o", deverBinary, "./cmd/dever-go")
 	return deverBinary
 }
 
